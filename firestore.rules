@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Nicio colecție nu e implementată încă (M0).
+    // Regulile per colecție se adaugă pe măsura milestone-urilor, conform SRS §7.3.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

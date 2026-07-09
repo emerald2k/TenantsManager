@@ -1,0 +1,31 @@
+# Dependințe
+node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+firebase-export-*/
+
+# Variabile de mediu
+.env
+.env.local
+
+# Build
+web/dist/
+functions/lib/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Claude Code (local, per-machine)
+.claude/settings.local.json
