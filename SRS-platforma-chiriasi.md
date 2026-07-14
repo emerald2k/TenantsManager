@@ -554,7 +554,7 @@ Un singur proiect Firebase (producție) + **Firebase Emulator Suite** pentru dez
 
 | # | Milestone | Conținut | Criteriu de "gata" |
 |---|---|---|---|
-| M0 | Fundație | Proiect Firebase, monorepo, emulatoare, Vite+React+Tailwind+shadcn, i18n schelet, rutare + guards, `setAdminClaim`, **tooling calitate cod (ESLint + Prettier + Husky + lint-staged + commitlint + .editorconfig), gestiune `.env`** | Aplicația pornește local; login redirecționează corect pe rol; commit-ul rulează automat lint+format |
+| M0 | Fundație | Proiect Firebase, monorepo, emulatoare, Vite+React+Tailwind+shadcn, i18n schelet, rutare + guards, `setAdminClaim`, **tooling calitate cod (ESLint + Prettier + Husky + lint-staged + commitlint + .editorconfig), gestiune `.env`**, **README.md (setup local: emulatoare, `.env`, `setAdminClaim`; recuperarea accesului admin prin Firebase Console — vezi §2.8)** | Aplicația pornește local; login redirecționează corect pe rol; commit-ul rulează automat lint+format |
 | M1 | Proprietăți & servicii | CRUD proprietăți, catalog + custom, arhivare, listă cu căutare | Creare/editare/arhivare proprietăți cu servicii |
 | M2 | Onboarding KYC | Drafturi, wizard 4 pași, captură foto + compresie, `finalizeKyc`, email credențiale, verificare CNP | Onboarding cap-coadă funcțional, credențiale primite |
 | M3 | Gestiune chiriași | Detaliu (4 tab-uri), editare profil, resetare parolă, prelungire/încheiere contract | Ciclu de viață complet al chiriașului |
