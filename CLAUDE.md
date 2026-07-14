@@ -26,6 +26,7 @@ Proiectul se construiește pe **milestone-uri** (secțiunea 9 din SRS: M0–M7).
 - La începutul fiecărui milestone: rezumă pe scurt ce vei face și ce cerințe FR/NFR acoperă.
 - La finalul fiecărui milestone: verifică criteriul de „gata" definit în SRS și raportează starea.
 - Preferă pași mici și verificabili în locul generării masive dintr-o dată. Utilizatorul învață pe parcurs — explică deciziile pe măsură ce le iei.
+- **Nu comite cod de produs înainte de validarea explicită a administratorului.** Verifică singur întâi (lint, build, test de comportament), raportează rezultatul, și AȘTEAPTĂ confirmarea. Commit-urile pe branch-ul de milestone nu sunt un jurnal de lucru — fiecare e o poartă.
 
 ---
 
