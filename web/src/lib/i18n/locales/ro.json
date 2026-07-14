@@ -1,0 +1,42 @@
+{
+  "common": {
+    "language": "Limbă",
+    "logout": "Deconectare",
+    "loading": "Se încarcă..."
+  },
+  "login": {
+    "title": "Autentificare",
+    "mockNotice": "Mecanism temporar de test — va fi înlocuit cu Firebase Auth la sub-etapa D",
+    "mockAdmin": "Intră ca Admin (mock)",
+    "mockTenant": "Intră ca Chiriaș (mock)"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "currentMonth": "Luna curentă",
+    "properties": "Proprietăți",
+    "tenants": "Chiriași",
+    "home": "Acasă",
+    "history": "Istoric",
+    "contract": "Contract"
+  },
+  "pages": {
+    "adminDashboard": "Admin — Dashboard",
+    "currentMonth": "Admin — Luna curentă",
+    "propertiesList": "Admin — Listă proprietăți",
+    "newProperty": "Admin — Proprietate nouă",
+    "propertyDetail": "Admin — Detaliu proprietate",
+    "tenantsList": "Admin — Listă chiriași",
+    "onboardingWizard": "Admin — Onboarding chiriaș (wizard)",
+    "tenantDetail": "Admin — Detaliu chiriaș",
+    "monthlyReportForm": "Admin — Raport lunar",
+    "reportsListPhase2": "Admin — Listă rapoarte (Faza 2)",
+    "annualReportPhase2": "Admin — Raport anual (Faza 2)",
+    "tenantDashboard": "Chiriaș — Acasă",
+    "tenantHistory": "Chiriaș — Istoric",
+    "tenantContract": "Chiriaș — Contract"
+  },
+  "notFound": {
+    "title": "Pagina nu a fost găsită",
+    "backHome": "Înapoi la pagina principală"
+  }
+}
