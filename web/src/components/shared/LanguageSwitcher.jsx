@@ -12,7 +12,9 @@ export function LanguageSwitcher() {
 
   return (
     <div className="flex items-center gap-1">
-      <span className="text-xs text-muted-foreground">{t('common.language')}:</span>
+      <span className="text-xs text-muted-foreground">
+        {t('common.language')}:
+      </span>
       {SUPPORTED_LANGUAGES.map((lang) => (
         <Button
           key={lang}

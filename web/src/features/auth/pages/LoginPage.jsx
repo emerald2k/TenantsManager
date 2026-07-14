@@ -21,7 +21,11 @@ export function LoginPage() {
           <Button type="button" onClick={() => login('admin')}>
             {t('login.mockAdmin')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => login('tenant')}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => login('tenant')}
+          >
             {t('login.mockTenant')}
           </Button>
         </div>
