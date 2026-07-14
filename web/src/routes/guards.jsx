@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom'
-import { useAuth } from '@/features/auth/MockAuthContext'
+import { useAuth } from '@/features/auth/useAuth'
 import { LoadingScreen } from '@/components/shared/LoadingScreen'
 
 function roleHome(role) {

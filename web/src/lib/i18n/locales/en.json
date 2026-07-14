@@ -6,9 +6,15 @@
   },
   "login": {
     "title": "Sign in",
-    "mockNotice": "Temporary test mechanism — will be replaced by Firebase Auth in sub-stage D",
-    "mockAdmin": "Sign in as Admin (mock)",
-    "mockTenant": "Sign in as Tenant (mock)"
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "errors": {
+      "required": "Required field",
+      "invalidCredentials": "Incorrect email or password",
+      "accountDisabled": "Account disabled. Please contact the owner.",
+      "network": "Connection unavailable. Check your internet and try again."
+    }
   },
   "nav": {
     "dashboard": "Dashboard",

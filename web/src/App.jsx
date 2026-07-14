@@ -1,4 +1,4 @@
-import { AuthProvider } from '@/features/auth/MockAuthContext'
+import { AuthProvider } from '@/features/auth/AuthProvider'
 import { AppRoutes } from '@/routes'
 
 function App() {

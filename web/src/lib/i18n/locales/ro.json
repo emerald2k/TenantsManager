@@ -6,9 +6,15 @@
   },
   "login": {
     "title": "Autentificare",
-    "mockNotice": "Mecanism temporar de test — va fi înlocuit cu Firebase Auth la sub-etapa D",
-    "mockAdmin": "Intră ca Admin (mock)",
-    "mockTenant": "Intră ca Chiriaș (mock)"
+    "email": "Email",
+    "password": "Parolă",
+    "submit": "Autentificare",
+    "errors": {
+      "required": "Câmp obligatoriu",
+      "invalidCredentials": "Email sau parolă incorectă",
+      "accountDisabled": "Cont dezactivat. Contactați proprietarul.",
+      "network": "Conexiune indisponibilă. Verificați internetul și reîncercați."
+    }
   },
   "nav": {
     "dashboard": "Dashboard",

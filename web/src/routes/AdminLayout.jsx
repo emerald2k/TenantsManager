@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
-import { useAuth } from '@/features/auth/MockAuthContext'
+import { useAuth } from '@/features/auth/useAuth'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
