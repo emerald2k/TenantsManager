@@ -12,6 +12,16 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
 
+        {/* Raport partajat (FR-REP-07c) — PUBLIC, complet neguardat.
+            Nu stă nici sub ProtectedRoute, nici sub GuestRoute: un admin
+            autentificat trebuie să poată deschide linkul ca să verifice ce
+            vede chiriașul, iar GuestRoute l-ar redirecționa pe /admin.
+            Expune EXCLUSIV raportul lunii respective — nimic altceva. */}
+        <Route
+          path="/r/:shareToken"
+          element={<PlaceholderPage titleKey="pages.sharedReport" />}
+        />
+
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>

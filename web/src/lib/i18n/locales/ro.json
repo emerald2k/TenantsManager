@@ -33,7 +33,8 @@
     "annualReportPhase2": "Admin — Raport anual (Faza 2)",
     "tenantDashboard": "Chiriaș — Acasă",
     "tenantHistory": "Chiriaș — Istoric",
-    "tenantContract": "Chiriaș — Contract"
+    "tenantContract": "Chiriaș — Contract",
+    "sharedReport": "Raport partajat (public, fără autentificare)"
   },
   "notFound": {
     "title": "Pagina nu a fost găsită",

@@ -33,7 +33,8 @@
     "annualReportPhase2": "Admin — Annual report (Phase 2)",
     "tenantDashboard": "Tenant — Home",
     "tenantHistory": "Tenant — History",
-    "tenantContract": "Tenant — Contract"
+    "tenantContract": "Tenant — Contract",
+    "sharedReport": "Shared report (public, no sign-in)"
   },
   "notFound": {
     "title": "Page not found",
