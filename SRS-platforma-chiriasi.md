@@ -561,7 +561,13 @@ Un singur proiect Firebase (producție) + **Firebase Emulator Suite** pentru dez
 | M4 | Rapoarte & plăți | Formular lunar, publicare/editare + notificări, plăți (marcare/anulare), restanțe/credite, sold automat, Luna curentă, dashboard | Ciclul lunar complet, cu emailuri |
 | M5 | Aplicația chiriașului | Dashboard, istoric, contract, facturi vizibile, PDF | Chiriașul vede și descarcă tot |
 | M6 | Automatizări & istoric | `dailyScheduler` (remindere), istoric costuri per serviciu | Reminderele pleacă corect; istoricul vizibil |
-| M7 | Finisare & lansare | Stări goale/eroare, i18n complet, teste fluxuri critice, Security Rules finale, **trecere pe planul Blaze + alertă de buget Cloud Billing**, deploy | Aplicație live, testată |
+| M7 | Finisare & lansare | Stări goale/eroare, i18n complet, teste fluxuri critice, Security Rules finale, **optimizare bundle (code splitting — vezi nota de sub tabel)**, **trecere pe planul Blaze + alertă de buget Cloud Billing**, deploy | Aplicație live, testată |
+
+**Notă M7 — optimizare bundle (code splitting):** lazy loading realizat cu mecanismul nativ React (`React.lazy` + `Suspense`), aplicat la două granularități:
+1. **La nivel de rută** — fiecare zonă majoră (portalul admin, portalul chiriașului, ruta publică `/r/`) devine o bucată separată de JavaScript, încărcată la cerere. Prioritate: ruta publică `/r/:shareToken` trebuie să se încarce **fără codul zonei admin** — bundle minim pentru vizitatorul anonim care deschide un raport partajat.
+2. **La nivel de componentă grea individuală** — componente scumpe dar rar folosite (generatorul de PDF, vizualizatorul de imagini/documente, graficele Recharts din Faza 2) se încarcă lazy chiar și în interiorul unei pagini deja încărcate, acolo unde măsurarea bundle-ului arată că merită.
+
+Principiul: optimizarea se aplică **după măsurare, nu prematur** — de aceea este plasată la M7, nu mai devreme.
 
 Fiecare milestone: generare → testare locală (emulatoare) → validare de către administrator → milestone-ul următor.
 
