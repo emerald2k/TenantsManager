@@ -1,7 +1,17 @@
 # SRS — Software Requirements Specification
 # Platformă Gestionare Chiriași
 
-*Versiune 4.2 — FINALĂ, gata pentru generarea codebase-ului. Adăugat față de v4.1: tooling de calitate cod în fundație (ESLint, Prettier, Husky, lint-staged, commitlint, .editorconfig), gestiune `.env`, și lista de tooling evitat conștient. Include: model de securitate consolidat (users doar-admin, date denormalizate), limba preferată per chiriaș, formula de total clarificată (întreținere = categorie separată de servicii), catalog servicii finalizat (electricitate/gaz/internet/TV/apă + custom), fără validare de format pe câmpuri, unicitate raport pe proprietate+lună+an, empty state la prima pornire, specificația tehnică de implementare (Cloud Functions, Security Rules, monorepo, medii), planul de milestone-uri și anexa cu template-urile de email.*
+*Versiune 4.3 — FINALĂ, gata pentru generarea codebase-ului.*
+
+***Corecții v4.3, rezultate din confruntarea specificației cu un raport lunar real folosit în practică:***
+- *FR-REP-03 — inversat: toate serviciile active apar în raport, indiferent de sumă (inclusiv 0/negativ). Anterior se ascundeau — greșit.*
+- *FR-REP-03a (nou) — observații + atașamente **per linie de cost** (factura justificativă lângă suma pe care o justifică), vizibile chiriașului.*
+- *FR-REP-04a/04b/04c (nou) — totalul poate fi ajustat manual la publicare (rotunjire comercială pentru plata cash); sistemul sugerează rotunjirea în jos la multiplu de 5 lei, editabilă. `totalFinal` este singura sumă datorată — restanțele și creditele se calculează față de el, nu față de totalul exact; diferența de rotunjire nu reapare niciodată.*
+- *FR-DOC-03a (nou) — atașarea globală la nivel de raport a fost eliminată; documentele se atașează exclusiv per linie.*
+- *FR-REP-07/07a (revizuit) — "publicarea" devine **semnare**: lista se blochează la semnare; corecțiile necesită deblocare explicită + re-semnare (notificare "listă actualizată").*
+- *FR-REP-07b/07c (nou) — export în **PDF**, **imagine PNG** (pentru WhatsApp) și **link partajabil fără login**. Linkul folosește token aleatoriu, nu expiră, e revocabil manual, și expune **exclusiv raportul lunii** — nu portalul, istoricul sau datele personale. Servit printr-o Cloud Function (`getSharedReport`), nu prin acces anonim la Firestore.*
+
+*Include: model de securitate consolidat (users doar-admin, date denormalizate), tooling de calitate cod în fundație (ESLint, Prettier, Husky, lint-staged, commitlint, .editorconfig), gestiune `.env`, limba preferată per chiriaș, formula de total (întreținere = categorie separată de servicii), catalog servicii (electricitate/gaz/internet/TV/apă + custom), fără validare de format pe câmpuri, unicitate raport pe proprietate+lună+an, empty state la prima pornire, specificația tehnică de implementare (Cloud Functions, Security Rules, monorepo, medii), planul de milestone-uri și anexa cu template-urile de email.*
 
 ---
 
@@ -171,12 +181,19 @@ Fără facturare fiscală; fără plăți online; un singur admin; monedă exclu
 | FR-REP-01 | Introducere lunară, per proprietate (individual): întreținere (câmp propriu) + costul fiecărui serviciu activ + "alte cheltuieli" (descriere+sumă, listă liberă). Chiria preluată din contract. |
 | FR-REP-01a | Categoriile de cost sunt: **chirie** (din contract, editabilă punctual), **întreținere** (câmp propriu, separat de servicii), **servicii** (listă per proprietate), **alte cheltuieli** (punctuale, listă liberă). |
 | FR-REP-02 | Chiria ajustabilă punctual pentru luna curentă, fără a modifica contractul. |
-| FR-REP-03 | Serviciile și întreținerea fără cost în luna respectivă (0/necompletate) nu apar în raport. |
+| FR-REP-03 | **Toate serviciile active** ale proprietății apar în raport, **indiferent de sumă** — inclusiv 0 sau valori negative (ajustări). Motivul: transparență — chiriașul vede că serviciul a fost luat în calcul, nu omis. La fel pentru chirie și întreținere. |
+| FR-REP-03a | Fiecare linie de cost (chirie, întreținere, fiecare serviciu, alte cheltuieli) poate avea: un **câmp opțional de observații** (text liber, completat de admin la introducerea costului) și **atașamente opționale** (imagine/PDF/document — ex: factura furnizorului pentru acel serviciu). Ambele sunt **vizibile chiriașului** (transparență totală). |
 | FR-REP-04 | Total calculat automat: **chirie + întreținere + costuri servicii + alte cheltuieli + restanță lună anterioară − credit lună anterioară**; restanța și creditul apar ca linii separate. |
+| FR-REP-04a | La publicarea raportului, administratorul poate **ajusta manual totalul final** (ex: rotunjire comercială: 2382,17 → 2380). Suma ajustată devine **totalul final datorat** — diferența nu se reportează, nu generează restanță și nu se păstrează ca sold. Totalul calculat automat rămâne vizibil ca referință. |
+| FR-REP-04b | Sistemul **sugerează automat** rotunjirea în jos la cel mai apropiat multiplu de 5 lei (ex: 2518,71 → sugestie 2515), pe baza practicii curente a administratorului — pentru a facilita plata în numerar. Sugestia e afișată ca valoare precompletată în câmpul de total final, dar rămâne **complet editabilă** — administratorul o poate accepta, modifica cu altă valoare, sau reveni la totalul calculat exact. Sugestia nu se aplică niciodată fără confirmarea publicării. |
+| FR-REP-04c | **`totalFinal` este singura sumă datorată** și baza pentru toate calculele ulterioare de plată. Restanța și creditul se calculează exclusiv față de `totalFinal` (suma rotunjită), NU față de `totalCalculat`. Exemplu: totalCalculat 2518,71 → totalFinal rotunjit 2515,00 → chiriașul plătește 2000 → restanța este 515,00 (nu 518,71). Diferența de rotunjire nu reapare niciodată, sub nicio formă. |
 | FR-REP-05 | Data scadentă preluată din contract (ziua scadentă), suprascriere manuală per lună posibilă. |
-| FR-REP-06 | La publicare → notificare email chiriașului (în limba lui). |
-| FR-REP-07 | Raport publicat editabil oricând; fiecare editare → notificare "raport actualizat". Fără audit trail. |
-| FR-REP-08 | Fără draft la rapoarte — introducere integrală + publicare directă; corecții prin editare. |
+| FR-REP-06 | La **semnare** (finalizarea listei) → notificare email chiriașului (în limba lui), cu link către raport. |
+| FR-REP-07 | **Semnarea** este actul prin care administratorul confirmă validitatea și finalitatea listei de plată. Stările unui raport: `ciornă` (în lucru, invizibil chiriașului) → `semnat` (finalizat, blocat, vizibil chiriașului). După semnare raportul este **blocat la editare**. |
+| FR-REP-07a | Un raport semnat poate fi **deblocat** de administrator printr-o acțiune explicită (buton "Deblochează pentru corecție" + dialog de confirmare). După corecție și re-semnare, chiriașul primește automat notificare **"listă actualizată"**. Editarea nu e posibilă fără deblocare prealabilă — nu se poate modifica accidental un raport semnat. |
+| FR-REP-07b | **Export raport semnat**, disponibil administratorului în trei forme: (a) **PDF** (arhivă/email), (b) **imagine PNG** (gata de trimis pe WhatsApp — reproduce tabelul cu liniile de cost și atașamentele), (c) **link partajabil** (vezi FR-REP-07c). |
+| FR-REP-07c | **Link partajabil fără autentificare** — permite chiriașului să vadă raportul instant, fără login (ex: trimis pe WhatsApp). Reguli obligatorii: (1) conține un **token aleatoriu lung, imposibil de ghicit** (nu ID-uri secvențiale); (2) deschide **exclusiv raportul lunii respective** — NU portalul chiriașului, NU istoricul, NU contractul, NU datele personale; (3) **nu expiră**, dar poate fi **revocat manual** de administrator oricând (revocarea invalidează linkul permanent); (4) pentru istoric complet, contract și celelalte rapoarte, chiriașul trebuie să se autentifice în cont. |
+| FR-REP-08 | Nu există publicare automată — raportul e vizibil chiriașului doar după semnare. Corecțiile se fac prin deblocare → editare → re-semnare (FR-REP-07a). |
 | FR-REP-09 | *(Faza 2)* Listă globală filtrabilă a rapoartelor. |
 | FR-REP-10 | *(Faza 2)* Raport anual agregat (totaluri generale), fără export. |
 | FR-REP-11 | Rapoarte retroactive permise pentru orice lună din trecut. |
@@ -199,7 +216,7 @@ Fără facturare fiscală; fără plăți online; un singur admin; monedă exclu
 
 | ID | Cerință |
 |---|---|
-| FR-TAPP-01 | Dashboard: total lună curentă, dată scadentă, status plată, detaliere (chirie + întreținere + servicii + alte + restanță/credit), facturi atașate vizibile. |
+| FR-TAPP-01 | Dashboard: total lună curentă (totalul final), dată scadentă, status plată, detaliere pe linii (chirie + întreținere + toate serviciile active + alte + restanță/credit), cu **observațiile și atașamentele fiecărei linii vizibile** (factura justificativă lângă suma ei). |
 | FR-TAPP-02 | Istoric rapoarte (grupate pe ani), cu status și detaliere per serviciu + facturi atașate la deschidere. |
 | FR-TAPP-03 | Date proprietate/contract + descărcare contract semnat. |
 | FR-TAPP-04 | Descărcare PDF per raport lunar (client-side, în limba preferată). |
@@ -218,10 +235,11 @@ Fără facturare fiscală; fără plăți online; un singur admin; monedă exclu
 
 | ID | Cerință |
 |---|---|
-| FR-DOC-01 | Documente atașabile: poze acte identitate (chiriaș obligatoriu, garant opțional), contract semnat, facturi furnizor. |
+| FR-DOC-01 | Documente atașabile: poze acte identitate (chiriaș obligatoriu, garant opțional), contract semnat, și **facturi/documente justificative per linie de cost** în raportul lunar (FR-REP-03a). |
 | FR-DOC-02 | Atașarea opțională, cu excepția pozelor actelor chiriașului (obligatorii la KYC). |
-| FR-DOC-03 | Fișiere multiple per cheltuială/contract. |
-| FR-DOC-04 | Vizibilitate: contract semnat + facturi furnizor — vizibile chiriașului (transparență totală); poze acte (chiriaș și garant) — exclusiv admin. |
+| FR-DOC-03 | Fișiere multiple per linie de cost / contract. Formate acceptate: imagine, PDF, document. |
+| FR-DOC-03a | **Nu există atașare globală la nivel de raport** — documentele justificative se atașează exclusiv **per linie de cost** (fiecare factură lângă suma pe care o justifică), pentru claritate. |
+| FR-DOC-04 | Vizibilitate: contract semnat + atașamentele per linie de cost — vizibile chiriașului (transparență totală); poze acte (chiriaș și garant) — exclusiv admin. |
 | FR-DOC-05 | Upload maxim 10 MB/fișier; imaginile comprimate automat pe client (~2000px, ~80%). |
 
 ### 3.10 Modul Sistem & Erori (SYS)
@@ -241,7 +259,7 @@ Fără facturare fiscală; fără plăți online; un singur admin; monedă exclu
 
 | ID | Cerință |
 |---|---|
-| NFR-SEC-01 | Security Rules: admin (custom claim) — acces complet; chiriaș — citire exclusiv pe propriile tenanțe și rapoarte publicate. |
+| NFR-SEC-01 | Security Rules: admin (custom claim) — acces complet; chiriaș — citire exclusiv pe propriile tenanțe și rapoarte semnate. Accesul anonim la Firestore rămâne complet interzis; rapoartele partajate se servesc exclusiv printr-o Cloud Function care validează tokenul (FR-REP-07c). |
 | NFR-SEC-02 | Colecția `users` (profil + KYC), `onboardingDrafts`, `mail`, `errorLogs` — acces exclusiv admin. Date păstrate permanent. |
 | NFR-SEC-03 | Autentificare email+parolă, min. 6 caractere; fără 2FA; parole generate: 12+ caractere aleatorii. |
 | NFR-SEC-04 | Un singur cont admin, permanent. |
@@ -274,7 +292,9 @@ NFR-VAL-01: câmpurile obligatorii sunt verificate doar pentru prezență (compl
 
 ```
 PUBLIC
-  /login                          — ecran unic de autentificare (singura pagină publică)
+  /login                          — ecran unic de autentificare
+  /r/:shareToken                  — raport partajat, FĂRĂ autentificare (FR-REP-07c)
+                                    expune EXCLUSIV raportul acelei luni; nimic altceva
 
 ADMIN (layout cu sidebar; colapsabil pe tabletă)
   /admin                          — dashboard (totaluri)
@@ -325,7 +345,20 @@ Route guards: neautentificat → `/login`; chiriaș pe `/admin/*` → `/app`; ad
 
 **`/admin/chiriasi/:id`** — tab-uri: (1) **Profil** — date KYC pe secțiuni, editare per secțiune, galerie poze (lightbox), limbă preferată editabilă; (2) **Tenanță & contract** — contract activ/ultimul, documente, "Prelungește", "Încheie contract" (blocat la restanțe, cu mesaj); (3) **Istoric financiar** — toate rapoartele, status + link; (4) **Cont** — status; "Resetează parola" (dialog cu parola generată + copiere), "Dezactivează/Reactivează", "Arhivează". 
 
-**`/admin/rapoarte/:propertyId?luna=&an=`** — header: proprietate + chiriaș + luna + badge. Secțiuni verticale: (1) Chirie — precompletată, editabilă ("valabil doar luna curentă"); (2) Întreținere — câmp sumă propriu; (3) Servicii — câmp sumă per serviciu activ; (4) Alte cheltuieli — listă dinamică; (5) Restanță/credit anterior — readonly (roșu/verde); (6) Data scadentă — precompletată, editabilă. Footer sticky: total + "Publică raportul"/"Salvează modificările" (dialog: "Chiriașul va primi notificare"). După publicare — secțiune **plată**: sumă, metodă, dată, "Marchează plata", "Anulează plata", indicator credit la supraplată. Zonă atașare facturi.
+**`/admin/rapoarte/:propertyId?luna=&an=`** — header: proprietate + chiriaș + luna + badge.
+
+Corpul e un **tabel de linii de cost**, fiecare linie având aceeași structură (inspirat din tabelul folosit în practică): **denumire | sumă | observații + atașamente**.
+- (1) **Chirie** — precompletată din contract, editabilă ("valabil doar luna curentă")
+- (2) **Întreținere** — câmp sumă propriu
+- (3) **Servicii** — câte o linie pentru **fiecare serviciu activ** al proprietății; apar TOATE, chiar dacă suma e 0 sau negativă (FR-REP-03)
+- (4) **Alte cheltuieli** — listă dinamică (descriere + sumă)
+- Pe **fiecare linie**: câmp opțional de **observații** (text liber, ex: "Ajustare după transmitere index") + zonă de **atașamente** (imagine/PDF/doc — ex: factura furnizorului). Ambele vizibile chiriașului (FR-REP-03a, FR-DOC-03a).
+- (5) **Restanță/credit anterior** — readonly (roșu/verde)
+- (6) **Data scadentă** — precompletată, editabilă
+
+Footer sticky: **total calculat** (automat, readonly, ca referință) + câmp **total final** (editabil, precompletat cu **sugestia de rotunjire în jos la multiplu de 5** — FR-REP-04b; adminul o acceptă, o modifică, sau revine la totalul exact) + **"Semnează lista"** (dialog de confirmare: "Lista devine finală și blocată; chiriașul primește notificare"). După semnare: raportul e **blocat** — apare butonul **"Deblochează pentru corecție"** (confirmare; la re-semnare chiriașul primește "listă actualizată"), plus zona de **export**: descărcare **PDF**, descărcare **imagine PNG** (pentru WhatsApp), și **copiere link partajabil** (cu buton de **revocare**).
+
+După publicare — secțiune **plată**: sumă, metodă, dată, "Marchează plata", "Anulează plata", indicator credit la supraplată.
 
 ### 5.4 Zona chiriaș
 **Navigație:** navbar — Acasă, Istoric, Contract + limbă + logout. Mobile-first.
@@ -387,17 +420,42 @@ serviceCatalog (constanta hardcodata in aplicatie — seed, nu colectie Firestor
   // intretinerea NU e in catalog — e camp propriu in raport (FR-REP-01a)
   // serviciile custom se adauga cu nume liber, sursa: 'custom'
 
-monthlyReports/{reportId}             [ACCES: admin total; chiriasul citeste unde userId == auth.uid si publicat == true]
+monthlyReports/{reportId}             [ACCES: admin total; chiriasul citeste unde userId == auth.uid si status == 'semnat';
+                                       public (fara auth) doar prin shareToken valid si nerevocat]
   - ownerId, propertyId, tenancyId, userId, luna, an
   - id compus/unic garantat pe (propertyId + luna + an) — FR-REP-14
-  - chirie, intretinere
-  - costuriServicii: [ { serviceId, nume (snapshot), suma } ]
-  - alteCheltuieli: [ { descriere, suma } ]
-  - restantaLunaAnterioara, creditLunaAnterioara, total
+
+  // Fiecare linie de cost are aceeasi forma: suma + observatii + atasamente (FR-REP-03a)
+  // "linieCost" = { suma, observatii (optional), atasamente[] (optional) }
+  //   atasamente[]: [ { url (Storage ref), nume, tip: 'image'|'pdf'|'doc' } ]
+  //   observatiile SI atasamentele sunt vizibile chiriasului (FR-DOC-04)
+
+  - chirie:      linieCost
+  - intretinere: linieCost
+  - costuriServicii: [ { serviceId, nume (snapshot), ...linieCost } ]
+       // TOATE serviciile active apar, inclusiv cu suma 0 sau negativa (FR-REP-03)
+  - alteCheltuieli:  [ { descriere, ...linieCost } ]
+
+  - restantaLunaAnterioara, creditLunaAnterioara
+  - totalCalculat: number    // suma automata (referinta, ramane vizibila)
+  - totalFinal:    number    // totalCalculat sau valoarea ajustata manual de admin (FR-REP-04a/04b)
+                             // SINGURA suma datorata — restantele/creditele se calculeaza fata de
+                             // totalFinal, NU fata de totalCalculat (FR-REP-04c)
+                             // diferenta de rotunjire nu se reporteaza niciodata
+
   - dataScadenta, statusPlata: platit | partial | neplatit
   - sumaPlatita, metodaPlata: cash | transfer_bancar | altul, dataPlata
-  - documenteAtasate[] (facturi — vizibile chiriasului)
-  - publicat: boolean, dataUltimeiActualizari
+
+  // Semnare / blocare (FR-REP-07, 07a)
+  - status: 'ciorna' | 'semnat'    // ciorna = invizibil chiriasului; semnat = blocat + vizibil
+  - dataSemnare, dataUltimeiActualizari
+
+  // Link partajabil fara autentificare (FR-REP-07c)
+  - shareToken: string             // token aleatoriu lung (min. 32 caractere), imposibil de ghicit
+  - shareTokenRevocat: boolean     // revocare manuala de catre admin; invalideaza linkul permanent
+  // ATENTIE: ruta publica /r/{shareToken} expune EXCLUSIV acest raport.
+  // NU expune: istoricul, contractul, datele personale, alte rapoarte, portalul chiriasului.
+  // fara documenteAtasate global — atasamentele sunt exclusiv per linie (FR-DOC-03a)
 
 mail/{mailId}                         [ACCES: doar Cloud Functions — fara acces client]
 errorLogs/{logId}                     [Faza 2; ACCES: exclusiv admin]
@@ -444,13 +502,15 @@ errorLogs/{logId}                     [Faza 2; ACCES: exclusiv admin]
 | `onReportWrite` | trigger Firestore | Recalculează `soldCurent` pe tenanță; scrie emailul de raport nou/actualizat în `mail`. |
 | `onPropertyUpdate` | trigger Firestore | Sincronizează `proprietate { nume, adresa }` în tenanța activă. |
 | `dailyScheduler` | programat 09:00 Europe/Bucharest | Remindere restanță (ciclu 3 zile de la scadență, până la achitare) + remindere expirare contract (90/60/30, către admin). |
+| `getSharedReport` | callable (public, fără auth) | Servește un raport partajat pe baza `shareToken`. Validează tokenul, verifică `shareTokenRevocat == false` și `status == 'semnat'`, returnează **doar** câmpurile raportului. Singura cale de acces anonim la date; colecția rămâne închisă în Security Rules (FR-REP-07c). |
 | `setAdminClaim` | script setup (o singură dată) | Setează custom claim `admin: true` pe contul creat în Console. |
 
 ### 7.3 Security Rules — principii
 - Admin = custom claim `admin == true` → acces complet peste tot.
 - `users`, `onboardingDrafts`, `properties`, `mail`, `errorLogs` → doar admin (client); `mail` — doar Functions.
 - `tenancies` → chiriaș: read unde `resource.data.userId == request.auth.uid`.
-- `monthlyReports` → chiriaș: read unde `userId == auth.uid && publicat == true`.
+- `monthlyReports` → chiriaș: read unde `userId == auth.uid && status == 'semnat'`.
+- `monthlyReports` → **acces public prin shareToken**: citirea unui raport partajat NU se face direct din client cu reguli Firestore (ar expune colecția), ci printr-o **Cloud Function dedicată** (`getSharedReport`) care: primește tokenul, caută raportul, verifică `shareTokenRevocat == false` și `status == 'semnat'`, și returnează **doar** câmpurile raportului (linii de cost, observații, atașamente, total, scadență, status plată). Nu returnează niciodată date personale, istoric sau alte rapoarte. Colecția rămâne inaccesibilă anonim în Security Rules.
 - Nicio operațiune de scriere din client pentru chiriaș, nicăieri.
 - Storage conform secțiunii 6.
 
