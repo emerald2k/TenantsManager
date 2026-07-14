@@ -499,6 +499,7 @@ errorLogs/{logId}                     [Faza 2; ACCES: exclusiv admin]
 |---|---|---|
 | `finalizeKyc` | callable (admin) | Validează draftul complet, verifică CNP duplicat + proprietate liberă, creează cont Auth + `users` + `tenancies` (cu denormalizări), generează parola (12+ car.), scrie emailul de credențiale în `mail`, șterge draftul. Atomic. |
 | `resetTenantPassword` | callable (admin) | Generează parolă nouă, o setează pe cont, o returnează adminului. |
+| `setTenantAccountStatus` | callable (admin) | Dezactivează / reactivează contul unui chiriaș. Setează `disabled: true/false` pe contul Firebase Auth (necesită Admin SDK — clientul nu poate) și sincronizează `users.status` în Firestore. La **dezactivare** revocă și tokenurile active (`revokeRefreshTokens`), astfel încât o sesiune deschisă moare imediat, nu la următorul login. Susține butonul „Dezactivează/Reactivează" din §5.3 (tab **Cont**) și stările din FR-TEN-24. |
 | `onReportWrite` | trigger Firestore | Recalculează `soldCurent` pe tenanță; scrie emailul de raport nou/actualizat în `mail`. |
 | `onPropertyUpdate` | trigger Firestore | Sincronizează `proprietate { nume, adresa }` în tenanța activă. |
 | `dailyScheduler` | programat 09:00 Europe/Bucharest | Remindere restanță (ciclu 3 zile de la scadență, până la achitare) + remindere expirare contract (90/60/30, către admin). |
