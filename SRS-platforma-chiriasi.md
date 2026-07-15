@@ -487,7 +487,7 @@ errorLogs/{logId}                     [Faza 2; ACCES: exclusiv admin]
 | PDF | Client-side |
 | Foto | input capture (cameră nativă); compresie client (~2000px, ~80%) |
 | i18n | react-i18next (RO/EN) |
-| Teste | Vitest + React Testing Library |
+| Teste | Vitest + React Testing Library + jsdom *(fundație instalată la M1; teste scrise continuu, de la M1 încolo)* |
 | Calitate cod | ESLint (analiză), Prettier (formatare), Husky + lint-staged (git hooks: lint+format la commit), commitlint (Conventional Commits), .editorconfig |
 | Config & secrete | Variabile de mediu prin `.env` (Vite); cheile Firebase nu se hardcodează; `.env` în `.gitignore` |
 | Deploy | Manual, Firebase CLI |
@@ -555,19 +555,21 @@ Un singur proiect Firebase (producție) + **Firebase Emulator Suite** pentru dez
 | # | Milestone | Conținut | Criteriu de "gata" |
 |---|---|---|---|
 | M0 | Fundație | Proiect Firebase, monorepo, emulatoare, Vite+React+Tailwind+shadcn, i18n schelet, rutare + guards, `setAdminClaim`, **tooling calitate cod (ESLint + Prettier + Husky + lint-staged + commitlint + .editorconfig), gestiune `.env`**, **README.md (setup local: emulatoare, `.env`, `setAdminClaim`; recuperarea accesului admin prin Firebase Console — vezi §2.8)** | Aplicația pornește local; login redirecționează corect pe rol; commit-ul rulează automat lint+format |
-| M1 | Proprietăți & servicii | CRUD proprietăți, catalog + custom, arhivare, listă cu căutare | Creare/editare/arhivare proprietăți cu servicii |
+| M1 | Proprietăți & servicii | CRUD proprietăți, catalog + custom, arhivare, listă cu căutare, **fundație testare (Vitest + React Testing Library + jsdom + config + script `test`); primele teste scrise odată cu CRUD proprietăți** | Creare/editare/arhivare proprietăți cu servicii; suita de teste rulează verde |
 | M2 | Onboarding KYC | Drafturi, wizard 4 pași, captură foto + compresie, `finalizeKyc`, email credențiale, verificare CNP | Onboarding cap-coadă funcțional, credențiale primite |
 | M3 | Gestiune chiriași | Detaliu (4 tab-uri), editare profil, resetare parolă, prelungire/încheiere contract | Ciclu de viață complet al chiriașului |
 | M4 | Rapoarte & plăți | Formular lunar, publicare/editare + notificări, plăți (marcare/anulare), restanțe/credite, sold automat, Luna curentă, dashboard | Ciclul lunar complet, cu emailuri |
 | M5 | Aplicația chiriașului | Dashboard, istoric, contract, facturi vizibile, PDF | Chiriașul vede și descarcă tot |
 | M6 | Automatizări & istoric | `dailyScheduler` (remindere), istoric costuri per serviciu | Reminderele pleacă corect; istoricul vizibil |
-| M7 | Finisare & lansare | Stări goale/eroare, i18n complet, teste fluxuri critice, Security Rules finale, **optimizare bundle (code splitting — vezi nota de sub tabel)**, **trecere pe planul Blaze + alertă de buget Cloud Billing**, deploy | Aplicație live, testată |
+| M7 | Finisare & lansare | Stări goale/eroare, i18n complet, **teste end-to-end pe fluxurile critice (acoperire finală de regresie — testarea rulează continuu încă din M1, nu începe aici)**, Security Rules finale, **optimizare bundle (code splitting — vezi nota de sub tabel)**, **trecere pe planul Blaze + alertă de buget Cloud Billing**, deploy | Aplicație live, testată |
 
 **Notă M7 — optimizare bundle (code splitting):** lazy loading realizat cu mecanismul nativ React (`React.lazy` + `Suspense`), aplicat la două granularități:
 1. **La nivel de rută** — fiecare zonă majoră (portalul admin, portalul chiriașului, ruta publică `/r/`) devine o bucată separată de JavaScript, încărcată la cerere. Prioritate: ruta publică `/r/:shareToken` trebuie să se încarce **fără codul zonei admin** — bundle minim pentru vizitatorul anonim care deschide un raport partajat.
 2. **La nivel de componentă grea individuală** — componente scumpe dar rar folosite (generatorul de PDF, vizualizatorul de imagini/documente, graficele Recharts din Faza 2) se încarcă lazy chiar și în interiorul unei pagini deja încărcate, acolo unde măsurarea bundle-ului arată că merită.
 
 Principiul: optimizarea se aplică **după măsurare, nu prematur** — de aceea este plasată la M7, nu mai devreme.
+
+**Notă — strategia de testare (continuă, de la M1):** testarea automată nu este o fază finală, ci o practică continuă. Fundația de testare (**Vitest + React Testing Library + jsdom + config**) se instalează la **M1**, iar de acolo încolo **fiecare funcționalitate nouă vine cu testele ei**, scrise odată cu codul — nu retroactiv. M7 adaugă doar acoperirea **end-to-end pe fluxurile critice**, ca verificare finală de regresie înainte de lansare, nu ca prim moment de testare. Principiul: **cod nou = cod testat**. (M0 rămâne fără teste — fundația de testare intră la M1, odată cu primul cod de produs.)
 
 Fiecare milestone: generare → testare locală (emulatoare) → validare de către administrator → milestone-ul următor.
 

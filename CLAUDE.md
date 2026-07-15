@@ -73,6 +73,7 @@ Proiectul se construiește pe **milestone-uri** (secțiunea 9 din SRS: M0–M7).
 ## 6. Principii de calitate
 
 - **Cod curat de la prima linie:** tot codul respectă regulile ESLint/Prettier configurate în M0.
+- **Testare continuă — cod nou vine cu teste (de la M1):** testarea nu se îngrămădește la final. Fundația de testare (Vitest + React Testing Library + jsdom) se pune la **M1**; de acolo încolo **fiecare funcționalitate se livrează cu testele ei**, scrise odată cu codul, nu retroactiv. Testele end-to-end pe fluxurile critice de la M7 sunt acoperire finală de regresie, nu primul moment de testare. Vezi SRS §9.
 - **Securitate:** datele KYC (CNP, poze acte, date financiare, garant) sunt STRICT acces-admin (vezi NFR-SEC-01…09 și modelul de date din SRS §6). Chiriașul accesează doar date denormalizate în `tenancies` și propriile `monthlyReports` publicate. Verifică Security Rules la fiecare funcționalitate care atinge date sensibile.
 - **Fără validare de format** pe câmpuri (NFR-VAL-01): câmpurile sunt obligatorii doar ca prezență, fără verificare de format (CNP, telefon etc. acceptă orice). Nu adăuga validări de format decât dacă SRS le cere explicit.
 - **Localizare:** tot textul vizibil trece prin i18n (RO/EN) de la început, nu hardcodat.
