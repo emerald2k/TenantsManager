@@ -1,0 +1,49 @@
+{
+  "common": {
+    "language": "Language",
+    "logout": "Log out",
+    "loading": "Loading..."
+  },
+  "login": {
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "errors": {
+      "required": "Required field",
+      "invalidCredentials": "Incorrect email or password",
+      "accountDisabled": "Account disabled. Please contact the owner.",
+      "network": "Connection unavailable. Check your internet and try again."
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "currentMonth": "Current month",
+    "properties": "Properties",
+    "tenants": "Tenants",
+    "home": "Home",
+    "history": "History",
+    "contract": "Contract"
+  },
+  "pages": {
+    "adminDashboard": "Admin — Dashboard",
+    "currentMonth": "Admin — Current month",
+    "propertiesList": "Admin — Properties list",
+    "newProperty": "Admin — New property",
+    "propertyDetail": "Admin — Property detail",
+    "tenantsList": "Admin — Tenants list",
+    "onboardingWizard": "Admin — Tenant onboarding (wizard)",
+    "tenantDetail": "Admin — Tenant detail",
+    "monthlyReportForm": "Admin — Monthly report",
+    "reportsListPhase2": "Admin — Reports list (Phase 2)",
+    "annualReportPhase2": "Admin — Annual report (Phase 2)",
+    "tenantDashboard": "Tenant — Home",
+    "tenantHistory": "Tenant — History",
+    "tenantContract": "Tenant — Contract",
+    "sharedReport": "Shared report (public, no sign-in)"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backHome": "Back to home"
+  }
+}

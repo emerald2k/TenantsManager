@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Nicio cale nu e implementată încă (M0).
+    // Regulile per cale se adaugă pe măsura milestone-urilor, conform SRS §6.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

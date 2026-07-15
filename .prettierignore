@@ -1,0 +1,21 @@
+# Generate / instalate — nu le formatăm.
+node_modules/
+web/dist/
+functions/lib/
+package-lock.json
+web/package-lock.json
+functions/package-lock.json
+
+# Firebase
+.firebase/
+*-debug.log
+
+# Firebase Security Rules — sintaxă proprie, Prettier nu o înțelege.
+firestore.rules
+storage.rules
+
+# Documente de referință scrise de om. Prettier guvernează CODUL, nu specificația:
+# reformatarea automată a SRS-ului ar face diff-urile lui ilizibile și ar ascunde
+# schimbările reale de cerințe printre mutări de linii goale.
+SRS-platforma-chiriasi.md
+CLAUDE.md

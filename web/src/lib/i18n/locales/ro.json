@@ -1,0 +1,49 @@
+{
+  "common": {
+    "language": "Limbă",
+    "logout": "Deconectare",
+    "loading": "Se încarcă..."
+  },
+  "login": {
+    "title": "Autentificare",
+    "email": "Email",
+    "password": "Parolă",
+    "submit": "Autentificare",
+    "errors": {
+      "required": "Câmp obligatoriu",
+      "invalidCredentials": "Email sau parolă incorectă",
+      "accountDisabled": "Cont dezactivat. Contactați proprietarul.",
+      "network": "Conexiune indisponibilă. Verificați internetul și reîncercați."
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "currentMonth": "Luna curentă",
+    "properties": "Proprietăți",
+    "tenants": "Chiriași",
+    "home": "Acasă",
+    "history": "Istoric",
+    "contract": "Contract"
+  },
+  "pages": {
+    "adminDashboard": "Admin — Dashboard",
+    "currentMonth": "Admin — Luna curentă",
+    "propertiesList": "Admin — Listă proprietăți",
+    "newProperty": "Admin — Proprietate nouă",
+    "propertyDetail": "Admin — Detaliu proprietate",
+    "tenantsList": "Admin — Listă chiriași",
+    "onboardingWizard": "Admin — Onboarding chiriaș (wizard)",
+    "tenantDetail": "Admin — Detaliu chiriaș",
+    "monthlyReportForm": "Admin — Raport lunar",
+    "reportsListPhase2": "Admin — Listă rapoarte (Faza 2)",
+    "annualReportPhase2": "Admin — Raport anual (Faza 2)",
+    "tenantDashboard": "Chiriaș — Acasă",
+    "tenantHistory": "Chiriaș — Istoric",
+    "tenantContract": "Chiriaș — Contract",
+    "sharedReport": "Raport partajat (public, fără autentificare)"
+  },
+  "notFound": {
+    "title": "Pagina nu a fost găsită",
+    "backHome": "Înapoi la pagina principală"
+  }
+}
