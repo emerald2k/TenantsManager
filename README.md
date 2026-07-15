@@ -1,5 +1,7 @@
 # TenantsManager
 
+## Descriere
+
 Platformă web de gestionare a chiriașilor pentru un administrator care închiriază
 proprietăți (5–20 unități). Adminul ține evidența proprietăților și serviciilor,
 face onboarding KYC pentru chiriași, emite rapoarte lunare de plată și urmărește
@@ -46,8 +48,11 @@ node --version   # așteptat: v22.x
 Ținând Node-ul local aliniat cu runtime-ul de producție eviți clasa de bug-uri
 „merge local, crapă deployat" cauzate de diferențe de API între versiuni de Node.
 
-Instalare recomandată: [nvm-windows](https://github.com/coreybutler/nvm-windows)
-sau installer-ul oficial de pe [nodejs.org](https://nodejs.org).
+Instalare: installer-ul oficial de pe [nodejs.org](https://nodejs.org) — instalare
+directă, abordarea folosită în acest proiect. Opțional, dacă ai nevoie să comuți
+între mai multe versiuni de Node pe aceeași mașină, poți folosi un manager de
+versiuni precum [nvm-windows](https://github.com/coreybutler/nvm-windows); nu e
+necesar pentru proiect.
 
 ### Java 21+ (JDK)
 
@@ -61,12 +66,12 @@ dar eșuează la Firestore. Restul emulatoarelor nu au nevoie de Java.
 
 Distribuție recomandată: **Eclipse Temurin (Adoptium)** — build OpenJDK gratuit,
 fără complicații de licențiere — de pe [adoptium.net](https://adoptium.net).
-Orice JDK 21 LTS sau mai nou funcționează.
+Orice JDK 21 LTS sau mai nou funcționează; proiectul e testat cu **Temurin 25**.
 
 ### Firebase CLI
 
 ```bash
-firebase --version   # așteptat: 13.x sau mai nou
+firebase --version   # așteptat: 15.x sau mai nou
 ```
 
 Instalare globală prin npm (nu e dependință locală a proiectului):
