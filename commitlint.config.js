@@ -1,5 +1,5 @@
 /**
- * Enforces the Conventional Commits convention (CLAUDE.md §5):
+ * Enforces the Conventional Commits convention (CLAUDE.md §6):
  *   <type>: <imperative description, lowercase>
  * Allowed types: feat, fix, docs, chore, test, refactor, style, build, ci.
  */

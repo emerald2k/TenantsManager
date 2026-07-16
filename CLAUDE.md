@@ -13,6 +13,8 @@ This file is read automatically by Claude Code at every session. It contains the
 - **Do not improvise** features, fields, rules or technologies that are not in the SRS. If something seems unclear or missing, **ask** — do not assume.
 - When you implement something, reference the relevant requirements (e.g. "implementing FR-TEN-01…FR-TEN-24").
 - If a contradiction or a gap appears in the SRS, flag it and ask for clarification before continuing.
+- **The code and the SRS move together.** Renaming a data-model identifier, adding a field or changing a flow in code without updating the SRS in the same move breaks the source of truth. Green tests over a divergent spec is drift, not progress.
+- **The SRS specifies the PRODUCT (what it does); this file holds the PROCESS (how we work).** Do not put implementation philosophy into the SRS — it belongs here. That is what keeps the SRS credible as a specification.
 
 ---
 
@@ -30,7 +32,17 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 
 ---
 
-## 3. Technical stack (fixed — see section 7 of the SRS)
+## 3. Language conventions
+
+- **The working language of the repository is English:** code, data-model identifiers, comments, test names (`describe`/`it`), commit messages, and the working documents (this file and `SRS.md`).
+- **Exception — displayed content:** the values in `web/src/lib/i18n/locales/ro.json` stay in Romanian. There, Romanian is content shown to the user, not working language. The i18n *keys* are English.
+- **Exception — the RO email templates** (SRS Appendix A): the body stays Romanian; the interpolated placeholders (`{name}`, `{dueDate}`…) are English, because they are identifiers coming from code.
+- `cnp` keeps its Romanian name deliberately: it is a Romanian domain term (the national identification number), like IBAN — it has no exact English equivalent. Documented in SRS §6.
+- **The administrator communicates in Romanian.** The repository being English does not change the conversation language — reply in Romanian unless asked otherwise.
+
+---
+
+## 4. Technical stack (fixed — see section 7 of the SRS)
 
 - **Frontend:** JavaScript (NOT TypeScript), Vite + React (SPA), React Router
 - **UI:** Tailwind CSS + shadcn/ui
@@ -49,19 +61,23 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 
 ---
 
-## 4. Local development
+## 5. Local development
 
 - Development (M0–M6) runs on the **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions) + the free Spark plan. **No card, no cloud, no costs.**
 - Moving to the Blaze plan + production deploy happens only at **M7**.
 - Firebase project: `tenants-manager-2026`.
 
+**Test bands** (foundation installed at M1):
+- `npm run test:run --prefix web` — the fast band: components/hooks in jsdom, with the backend boundary mocked.
+- `npm run test:rules --prefix web` — the rules band: `firestore.rules` against the Firestore emulator. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free.
+
 ---
 
-## 5. Git & conventions
+## 6. Git & conventions
 
 **Branching model:**
 - `main` — always stable and functional. Do not commit half-finished code here.
-- `milestone/mX-name` — one branch per milestone (e.g. `milestone/m0-fundatie`). It is merged into `main` when the milestone is done and verified.
+- `milestone/mX-name` — one branch per milestone (e.g. `milestone/m1-properties`). It is merged into `main` when the milestone is done and verified.
 
 **Commits:** follow **Conventional Commits** — `<type>: <imperative description, lowercase>`.
 - Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `style`, `build`, `ci`.
@@ -70,18 +86,20 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 
 ---
 
-## 6. Quality principles
+## 7. Quality principles
 
 - **Clean code from the first line:** all code respects the ESLint/Prettier rules configured in M0.
 - **Continuous testing — new code comes with tests (from M1):** testing is not piled up at the end. The testing foundation (Vitest + React Testing Library + jsdom) lands at **M1**; from there on **every feature is delivered with its own tests**, written together with the code, not retroactively. The end-to-end tests on the critical flows at M7 are final regression coverage, not the first moment of testing. See SRS §9.
+- **Tests must not pass vacuously.** A test that would still pass with the behavior removed proves nothing. For a security rule, check it: make the rule permissive temporarily and confirm the deny tests fail.
 - **Security:** the KYC data (CNP, ID photos, financial data, guarantor) is STRICTLY admin-only (see NFR-SEC-01…09 and the data model in SRS §6). The tenant only accesses denormalized data in `tenancies` and their own published `monthlyReports`. Check the Security Rules for every feature that touches sensitive data.
+- **Security Rules are an ACCESS boundary, not a business-logic boundary.** Display preferences (e.g. hiding archived properties) belong in the query/hook, not in the rules: a rule filtering by `archived` would make soft-delete look like a real deletion and would block the admin from seeing their own archived data.
 - **No format validation** on fields (NFR-VAL-01): fields are mandatory only as presence, without format checking (CNP, phone etc. accept anything). Do not add format validations unless the SRS explicitly requires them.
 - **Localization:** all visible text goes through i18n (RO/EN) from the start, not hardcoded.
 - **Explain the decisions:** the user is learning. When you make a non-trivial implementation decision, briefly explain the reasoning.
 
 ---
 
-## 7. When to stop and ask
+## 8. When to stop and ask
 
 Stop and ask for clarification if:
 - A requirement in the SRS seems ambiguous, contradictory or missing.
