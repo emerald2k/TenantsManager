@@ -59,11 +59,40 @@ export default [
     },
   },
 
+  // Testele — globalele Vitest (`globals: true` în config) nu există în pachetul
+  // `globals` (acesta livrează setul `jest`), deci le declarăm explicit, altfel
+  // no-undef le raportează pe toate. Primesc și globalele Node, pentru că banda
+  // de reguli rulează în Node (process, __dirname).
+  // Blocul vine DUPĂ cel pentru web/, ca să-i completeze globalele.
+  {
+    files: ['web/tests/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+  },
+
   // Fișierele de configurare (rădăcină + vite) — rulează în Node la build,
   // nu în browser, deci au nevoie de globalele Node (ex. __dirname).
   // Blocul vine DUPĂ cel pentru web/, ca să suprascrie globalele de browser.
   {
-    files: ['*.config.js', 'eslint.config.js', 'web/vite.config.js'],
+    files: [
+      '*.config.js',
+      'eslint.config.js',
+      'web/vite.config.js',
+      'web/vitest.config.js',
+      'web/vitest.rules.config.js',
+    ],
     ...js.configs.recommended,
     languageOptions: {
       ecmaVersion: 2022,
