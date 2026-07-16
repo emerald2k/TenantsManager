@@ -299,6 +299,32 @@ npm run format:check  # checks the formatting without modifying
 
 ---
 
+## Tests
+
+The test suite runs in **two separate bands**, because they need different things:
+
+```bash
+npm run test:run --prefix web    # fast band — jsdom, no emulator
+npm run test:rules --prefix web  # rules band — against the Firestore emulator
+```
+
+- **Fast band** (`vitest.config.js`): components and hooks in jsdom, with the
+  boundary to the backend mocked. It touches no emulator, so it is quick and runs
+  anywhere. This is where the bulk of the tests live.
+- **Rules band** (`vitest.rules.config.js`): checks `firestore.rules` for real,
+  against the Firestore emulator, through `@firebase/rules-unit-testing`. It runs
+  in Node, not jsdom.
+
+`test:rules` starts **its own** Firestore emulator (`firebase emulators:exec`) and
+shuts it down at the end — so **port 8080 must be free**. If you already have
+`firebase emulators:start` running in another terminal, stop it first or the
+command fails on a port conflict.
+
+The testing foundation lands at M1 and from there on every feature comes with its
+own tests (see SRS §9).
+
+---
+
 ## Recovering administrator access
 
 The project has a **single administrator** and there is no self-service password

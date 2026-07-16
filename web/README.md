@@ -11,6 +11,19 @@ npm run build    # production build into dist/
 npm run preview  # serves the production build locally
 ```
 
+## Tests
+
+Two bands, deliberately separate (see the root README for the reasoning):
+
+```bash
+npm test          # fast band, watch mode
+npm run test:run  # fast band, one run
+npm run test:rules # rules band, against the Firestore emulator
+```
+
+`test:rules` starts its own Firestore emulator (`firebase emulators:exec`), so
+port 8080 must be free — if you already have a dev emulator running, it clashes.
+
 ## Code quality
 
 Linting and formatting are **not** configured here, but in the monorepo root
