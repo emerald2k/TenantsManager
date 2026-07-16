@@ -4,21 +4,21 @@ import { MemoryRouter } from 'react-router-dom'
 import i18n from '@/lib/i18n'
 
 /**
- * Randează un component în arborele de provideri pe care se bazează aplicația,
- * ca testele să nu repete schela la fiecare fișier.
+ * Renders a component inside the provider tree the application relies on, so the
+ * tests do not repeat the scaffolding in every file.
  *
- * Acum: i18n + Router. QueryClientProvider se adaugă aici la sub-etapa B, când
- * intră TanStack Query — până atunci nu există cod care să-l ceară.
+ * For now: i18n + Router. QueryClientProvider is added here at sub-stage B, when
+ * TanStack Query arrives — until then no code asks for it.
  *
- * Folosim instanța reală de i18n (nu una mock), ca testele să verifice
- * traducerile adevărate din locales/ — NFR-LOC-01 cere ca tot textul vizibil să
- * treacă prin i18n, iar un mock ar ascunde exact cheile lipsă.
+ * We use the real i18n instance (not a mock), so the tests verify the actual
+ * translations from locales/ — NFR-LOC-01 requires all visible text to go through
+ * i18n, and a mock would hide exactly the missing keys.
  *
- * @param ui                    elementul React de randat
- * @param options.language      limba activă ('ro' implicit — limba default a aplicației)
- * @param options.initialEntries istoricul inițial al router-ului (ex. ['/admin/proprietati'])
- * @param options.route         scurtătură pentru o singură intrare de istoric
- * Restul opțiunilor merg mai departe la `render` din Testing Library.
+ * @param ui                     the React element to render
+ * @param options.language       the active language ('ro' by default — the app's default)
+ * @param options.initialEntries the router's initial history (e.g. ['/admin/properties'])
+ * @param options.route          shorthand for a single history entry
+ * The remaining options are forwarded to Testing Library's `render`.
  */
 export async function renderWithProviders(
   ui,
@@ -29,8 +29,9 @@ export async function renderWithProviders(
     ...renderOptions
   } = {},
 ) {
-  // Instanța de i18n e un singleton partajat între teste: fixăm explicit limba
-  // la fiecare randare, ca un test care schimbă limba să nu-l influențeze pe următorul.
+  // The i18n instance is a singleton shared across tests: we set the language
+  // explicitly on every render, so that a test changing the language does not
+  // influence the next one.
   await i18n.changeLanguage(language)
 
   function Wrapper({ children }) {

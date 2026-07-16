@@ -6,8 +6,8 @@ function roleHome(role) {
   return role === 'admin' ? '/admin' : '/app'
 }
 
-/** Rute protejate pentru un singur rol (§5.1: neautentificat → /login;
- * chiriaș pe /admin/* → /app; admin pe /app/* → /admin). */
+/** Routes protected for a single role (§5.1: unauthenticated → /login;
+ * tenant on /admin/* → /app; admin on /app/* → /admin). */
 export function ProtectedRoute({ allowedRole }) {
   const { status, role } = useAuth()
 
@@ -23,8 +23,8 @@ export function ProtectedRoute({ allowedRole }) {
   return <Outlet />
 }
 
-/** Rute publice (doar /login) — dacă e deja autentificat, sare direct
- * pe dashboard-ul rolului lui în loc să mai vadă ecranul de login. */
+/** Public routes (only /login) — if already authenticated, jump straight to
+ * their role's dashboard instead of showing the login screen again. */
 export function GuestRoute() {
   const { status, role } = useAuth()
 
@@ -37,7 +37,7 @@ export function GuestRoute() {
   return <Outlet />
 }
 
-/** Ruta rădăcină "/" — redirect inteligent în funcție de starea de auth. */
+/** The root route "/" — smart redirect based on the auth state. */
 export function RootRedirect() {
   const { status, role } = useAuth()
 

@@ -2,10 +2,11 @@ import path from 'node:path'
 import { defineConfig, configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
-// Banda RAPIDĂ de teste: componente/hook-uri în jsdom, cu granița spre backend
-// mockată (nu atinge emulatorul). Aici stă grosul testelor de la sub-etapa B.
-// Banda de REGULI (Firestore, pe emulator) rulează separat prin vitest.rules.config.js;
-// o excludem aici pe tiparul `*.rules.test.js` ca cele două benzi să nu se suprapună.
+// The FAST test band: components/hooks in jsdom, with the boundary to the backend
+// mocked (it does not touch the emulator). This is where the bulk of the tests sit.
+// The RULES band (Firestore, on the emulator) runs separately through
+// vitest.rules.config.js; we exclude it here on the `*.rules.test.js` pattern so
+// that the two bands do not overlap.
 export default defineConfig({
   plugins: [react()],
   resolve: {

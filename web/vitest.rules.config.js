@@ -1,26 +1,28 @@
 import { defineConfig } from 'vitest/config'
 
-// Banda de REGULI: testează firestore.rules direct pe emulatorul Firestore, prin
-// @firebase/rules-unit-testing. Rulează în Node (nu jsdom) — nu există DOM aici,
-// deci nici setup-ul jest-dom din banda rapidă. Include DOAR `*.rules.test.js`,
-// exact inversul excluderii din vitest.config.js: cele două benzi nu se suprapun.
+// The RULES band: tests firestore.rules directly against the Firestore emulator,
+// through @firebase/rules-unit-testing. It runs in Node (not jsdom) — there is no
+// DOM here, hence no jest-dom setup from the fast band either. It includes ONLY
+// `*.rules.test.js`, exactly the inverse of the exclusion in vitest.config.js: the
+// two bands do not overlap.
 //
-// Se rulează prin `npm run test:rules`, care pornește întâi emulatorul
-// (firebase emulators:exec). Rulat direct cu vitest, testele nu au la ce se conecta.
+// It is run through `npm run test:rules`, which starts the emulator first
+// (firebase emulators:exec). Run directly with vitest, the tests have nothing to
+// connect to.
 export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
     include: ['tests/**/*.rules.test.js'],
-    // Fișierele de reguli rulează UNUL DUPĂ ALTUL, nu în paralel.
-    // Motiv: `initializeTestEnvironment` încarcă regulile în emulator per proiect,
-    // iar emulatorul e pe singleProjectMode (firebase.json) — deci toate fișierele
-    // împart același projectId. În paralel, fișierul care se încarcă al doilea
-    // suprascrie regulile primului și îi face testele să pice aiurea.
-    // Secvențial, fiecare fișier își încarcă regulile și le curăță la final.
+    // The rules files run ONE AFTER ANOTHER, not in parallel.
+    // Reason: `initializeTestEnvironment` loads the rules into the emulator per
+    // project, and the emulator is on singleProjectMode (firebase.json) — so all
+    // files share the same projectId. In parallel, the file that loads second
+    // overwrites the first one's rules and makes its tests fail spuriously.
+    // Sequentially, each file loads its rules and cleans them up at the end.
     fileParallelism: false,
-    // Prima conexiune la emulator + încărcarea regulilor depășesc uneori
-    // timeout-ul implicit de 5s al Vitest.
+    // The first connection to the emulator + loading the rules sometimes exceed
+    // Vitest's default 5s timeout.
     testTimeout: 15000,
     hookTimeout: 30000,
   },

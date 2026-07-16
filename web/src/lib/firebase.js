@@ -5,8 +5,8 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage'
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
 
 /**
- * Inițializarea Firebase, configurată exclusiv prin variabile de mediu
- * (SRS §7.1: „cheile Firebase nu se hardcodează").
+ * Firebase initialization, configured exclusively through environment variables
+ * (SRS §7.1: "the Firebase keys are not hardcoded").
  */
 
 const REQUIRED_ENV_VARS = [
@@ -18,13 +18,13 @@ const REQUIRED_ENV_VARS = [
   'VITE_FIREBASE_APP_ID',
 ]
 
-// Eșuăm devreme și explicit. Fără asta, o variabilă lipsă s-ar manifesta mult
-// mai târziu, ca o eroare obscură de la Firebase, greu de legat de cauză.
+// Fail early and explicitly. Without this, a missing variable would surface much
+// later, as an obscure Firebase error, hard to trace back to its cause.
 const missing = REQUIRED_ENV_VARS.filter((name) => !import.meta.env[name])
 if (missing.length > 0) {
   throw new Error(
-    `Configurare Firebase incompletă. Variabile lipsă: ${missing.join(', ')}.\n` +
-      'Copiază web/.env.example în web/.env și completează valorile.',
+    `Incomplete Firebase configuration. Missing variables: ${missing.join(', ')}.\n` +
+      'Copy web/.env.example to web/.env and fill in the values.',
   )
 }
 
@@ -44,16 +44,16 @@ export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
 
-/** Dezvoltarea M0–M6 rulează integral pe Emulator Suite (SRS §8): fără cloud,
- * fără card, fără costuri. Comutatorul e o variabilă de mediu, ca trecerea în
- * producție (M7) să nu ceară nicio modificare de cod. */
+/** Development M0–M6 runs entirely on the Emulator Suite (SRS §8): no cloud,
+ * no card, no costs. The switch is an environment variable, so that moving to
+ * production (M7) requires no code change. */
 export const usingEmulators =
   import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
 
 if (usingEmulators) {
   const host = '127.0.0.1'
 
-  // Porturile trebuie să corespundă cu firebase.json.
+  // The ports must match firebase.json.
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
   connectFirestoreEmulator(db, host, 8080)
   connectStorageEmulator(storage, host, 9199)

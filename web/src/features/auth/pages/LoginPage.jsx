@@ -9,20 +9,20 @@ import { Label } from '@/components/ui/label'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { useAuth } from '@/features/auth/useAuth'
 
-/** Doar PREZENȚĂ, fără verificare de format (NFR-VAL-01: „câmpurile obligatorii
- * sunt verificate doar pentru prezență, fără verificare de format"). De aceea
- * NU folosim z.string().email() — formatul emailului nu se validează pe client;
- * Firebase respinge oricum credențialele greșite. */
+/** PRESENCE only, without format checking (NFR-VAL-01: "mandatory fields are
+ * checked only for presence, without format validation"). That is why we do NOT
+ * use z.string().email() — the email format is not validated on the client;
+ * Firebase rejects wrong credentials anyway. */
 const loginSchema = z.object({
   email: z.string().min(1, 'login.errors.required'),
   password: z.string().min(1, 'login.errors.required'),
 })
 
-/** Traduce codul de eroare Firebase în cheia de mesaj (§5.2).
- * Specificația cere exact două stări vizibile: eroare generică și cont
- * dezactivat. Nu divulgăm dacă emailul există în sistem — de aceea
- * „user-not-found", „wrong-password" și „invalid-credential" duc toate la
- * același mesaj generic. */
+/** Maps the Firebase error code to the message key (§5.2).
+ * The specification asks for exactly two visible states: generic error and
+ * disabled account. We do not disclose whether the email exists in the system —
+ * that is why "user-not-found", "wrong-password" and "invalid-credential" all
+ * lead to the same generic message. */
 function messageKeyForError(error) {
   switch (error?.code) {
     case 'auth/user-disabled':
@@ -52,8 +52,8 @@ export function LoginPage() {
     setFormError(null)
     try {
       await login(values.email, values.password)
-      // Fără navigare explicită: AuthProvider primește noul token, guard-urile
-      // reacționează, iar GuestRoute redirecționează pe dashboard-ul rolului.
+      // No explicit navigation: AuthProvider receives the new token, the guards
+      // react, and GuestRoute redirects to the role's dashboard.
     } catch (error) {
       setFormError(messageKeyForError(error))
     }
@@ -110,7 +110,7 @@ export function LoginPage() {
           </Button>
         </div>
 
-        {/* Fără „am uitat parola" — interzis explicit de FR-AUTH-04. */}
+        {/* No "forgot password" — explicitly forbidden by FR-AUTH-04. */}
       </form>
 
       <LanguageSwitcher />

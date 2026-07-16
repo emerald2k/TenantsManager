@@ -5,9 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 
 /**
- * Config ESLint unic pentru tot monorepo-ul (flat config).
- * Fiecare bloc se aplică doar fișierelor din `files`, pentru că web/ rulează
- * în browser (React), iar functions/ rulează în Node (CommonJS).
+ * A single ESLint config for the whole monorepo (flat config).
+ * Each block applies only to the files in `files`, because web/ runs in the
+ * browser (React), while functions/ runs in Node (CommonJS).
  */
 export default [
   {
@@ -19,7 +19,7 @@ export default [
     ],
   },
 
-  // web/ — React în browser
+  // web/ — React in the browser
   {
     files: ['web/**/*.{js,jsx}'],
     ...js.configs.recommended,
@@ -42,13 +42,13 @@ export default [
         'warn',
         { allowConstantExport: true },
       ],
-      // Variabilele nefolosite sunt erori, cu excepția celor scrise intenționat
-      // cu majusculă sau prefixate cu _ (ex. parametri ignorați).
+      // Unused variables are errors, except those deliberately written in
+      // uppercase or prefixed with _ (e.g. ignored parameters).
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
 
-  // functions/ — Cloud Functions în Node (CommonJS)
+  // functions/ — Cloud Functions in Node (CommonJS)
   {
     files: ['functions/**/*.js'],
     ...js.configs.recommended,
@@ -59,11 +59,11 @@ export default [
     },
   },
 
-  // Testele — globalele Vitest (`globals: true` în config) nu există în pachetul
-  // `globals` (acesta livrează setul `jest`), deci le declarăm explicit, altfel
-  // no-undef le raportează pe toate. Primesc și globalele Node, pentru că banda
-  // de reguli rulează în Node (process, __dirname).
-  // Blocul vine DUPĂ cel pentru web/, ca să-i completeze globalele.
+  // The tests — the Vitest globals (`globals: true` in the config) do not exist
+  // in the `globals` package (it ships the `jest` set), so we declare them
+  // explicitly, otherwise no-undef reports every one of them. They also get the
+  // Node globals, because the rules band runs in Node (process, __dirname).
+  // The block comes AFTER the one for web/, so it completes its globals.
   {
     files: ['web/tests/**/*.{js,jsx}'],
     languageOptions: {
@@ -82,9 +82,9 @@ export default [
     },
   },
 
-  // Fișierele de configurare (rădăcină + vite) — rulează în Node la build,
-  // nu în browser, deci au nevoie de globalele Node (ex. __dirname).
-  // Blocul vine DUPĂ cel pentru web/, ca să suprascrie globalele de browser.
+  // The config files (root + vite) — they run in Node at build time, not in the
+  // browser, so they need the Node globals (e.g. __dirname).
+  // The block comes AFTER the one for web/, so it overrides the browser globals.
   {
     files: [
       '*.config.js',
@@ -101,6 +101,6 @@ export default [
     },
   },
 
-  // ULTIMUL: dezactivează regulile ESLint de stil care s-ar bate cu Prettier.
+  // LAST: disables the stylistic ESLint rules that would clash with Prettier.
   prettier,
 ]

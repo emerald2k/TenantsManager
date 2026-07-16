@@ -6,10 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { renderWithProviders } from './renderWithProviders'
 
-// Smoke-ul fundației de testare (sub-etapa A): verifică harness-ul, nu produsul.
-// Componentele testate aici sunt definite inline, intenționat — la A nu există
-// încă cod de produs de testat, iar scopul e să dovedim că banda rapidă merge:
-// jsdom + RTL + jest-dom + user-event + providerii din renderWithProviders.
+// Smoke test for the testing foundation (sub-stage A): it checks the harness, not
+// the product. The components tested here are defined inline, deliberately — at A
+// there was no product code to test yet, and the point is to prove the fast band
+// works: jsdom + RTL + jest-dom + user-event + the providers from renderWithProviders.
+//
+// The expected strings 'Limbă'/'Language' are Romanian/English on purpose: they
+// come from locales/, where Romanian is displayed content, not working language.
 
 function Greeting() {
   const { t } = useTranslation()
@@ -18,46 +21,46 @@ function Greeting() {
 
 function Counter() {
   const [count, setCount] = useState(0)
-  return <button onClick={() => setCount(count + 1)}>Clicuri: {count}</button>
+  return <button onClick={() => setCount(count + 1)}>Clicks: {count}</button>
 }
 
 function CurrentPath() {
-  return <span>Ruta: {useLocation().pathname}</span>
+  return <span>Route: {useLocation().pathname}</span>
 }
 
-describe('fundația de testare — banda rapidă', () => {
-  it('randează un component și aplică matcherele jest-dom', async () => {
+describe('testing foundation — fast band', () => {
+  it('renders a component and applies the jest-dom matchers', async () => {
     await renderWithProviders(<Greeting />)
 
     expect(screen.getByText('Limbă')).toBeInTheDocument()
   })
 
-  it('traduce prin instanța reală de i18n, în limba cerută', async () => {
+  it('translates through the real i18n instance, in the requested language', async () => {
     await renderWithProviders(<Greeting />, { language: 'en' })
 
     expect(screen.getByText('Language')).toBeInTheDocument()
   })
 
-  it('revine la română implicit, fără scurgeri de limbă între teste', async () => {
+  it('falls back to Romanian by default, with no language leaking between tests', async () => {
     await renderWithProviders(<Greeting />)
 
     expect(screen.getByText('Limbă')).toBeInTheDocument()
   })
 
-  it('procesează interacțiuni prin user-event', async () => {
+  it('processes interactions through user-event', async () => {
     const user = userEvent.setup()
     await renderWithProviders(<Counter />)
 
-    await user.click(screen.getByRole('button', { name: 'Clicuri: 0' }))
+    await user.click(screen.getByRole('button', { name: 'Clicks: 0' }))
 
     expect(
-      screen.getByRole('button', { name: 'Clicuri: 1' }),
+      screen.getByRole('button', { name: 'Clicks: 1' }),
     ).toBeInTheDocument()
   })
 
-  it('pune componentul pe ruta cerută din router', async () => {
-    await renderWithProviders(<CurrentPath />, { route: '/admin/proprietati' })
+  it('places the component on the requested route from the router', async () => {
+    await renderWithProviders(<CurrentPath />, { route: '/admin/properties' })
 
-    expect(screen.getByText('Ruta: /admin/proprietati')).toBeInTheDocument()
+    expect(screen.getByText('Route: /admin/properties')).toBeInTheDocument()
   })
 })

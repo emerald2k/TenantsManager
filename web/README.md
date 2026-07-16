@@ -1,26 +1,26 @@
-# web — frontend TenantsManager
+# web — TenantsManager frontend
 
-SPA în **JavaScript** (nu TypeScript, vezi SRS §7), Vite + React + React Router,
-Tailwind CSS + shadcn/ui, i18n RO/EN prin react-i18next.
+SPA in **JavaScript** (not TypeScript, see SRS §7), Vite + React + React Router,
+Tailwind CSS + shadcn/ui, RO/EN i18n through react-i18next.
 
-## Comenzi
-
-```bash
-npm run dev      # server de dezvoltare (http://localhost:5173)
-npm run build    # build de producție în dist/
-npm run preview  # servește build-ul de producție local
-```
-
-## Calitate cod
-
-Linting-ul și formatarea **nu** se configurează aici, ci în rădăcina monorepo-ului
-(`../eslint.config.js`, `../.prettierrc.json`), fiindcă aceleași reguli acoperă și
-`functions/`. Din rădăcină:
+## Commands
 
 ```bash
-npm run lint     # ESLint pe tot monorepo-ul
-npm run format   # Prettier pe tot monorepo-ul
+npm run dev      # development server (http://localhost:5173)
+npm run build    # production build into dist/
+npm run preview  # serves the production build locally
 ```
 
-La fiecare commit, Husky + lint-staged rulează automat ESLint și Prettier pe
-fișierele aflate în stage.
+## Code quality
+
+Linting and formatting are **not** configured here, but in the monorepo root
+(`../eslint.config.js`, `../.prettierrc.json`), because the same rules also cover
+`functions/`. From the root:
+
+```bash
+npm run lint     # ESLint over the whole monorepo
+npm run format   # Prettier over the whole monorepo
+```
+
+On every commit, Husky + lint-staged automatically run ESLint and Prettier on the
+staged files.

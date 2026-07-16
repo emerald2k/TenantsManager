@@ -1,1 +1,1 @@
-// Funcțiile Cloud Functions se adaugă progresiv, începând cu M2 (vezi SRS §7.2 și §9).
+// The Cloud Functions are added progressively, starting with M2 (see SRS §7.2 and §9).

@@ -7,14 +7,13 @@ import {
 } from '@firebase/rules-unit-testing'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
-// Smoke-ul benzii de reguli (sub-etapa A): dovedește că harness-ul funcționează
-// cap-coadă — emulator pornit, firestore.rules încărcate, allow/deny observabil.
-// Nu testează o colecție de produs: la A nu există niciuna. Prima regulă reală
-// (properties, NFR-SEC-02) vine la sub-etapa B și se sprijină pe schela asta.
+// Smoke test for the rules band (sub-stage A): it proves the harness works
+// end-to-end — emulator started, firestore.rules loaded, allow/deny observable.
+// It does not test a product collection.
 //
-// Ce verificăm: deny-ul global din firestore.rules de acum („nicio colecție
-// implementată încă"). Testul e și o plasă de siguranță — dacă cineva deschide
-// din greșeală regulile la rădăcină, pică aici.
+// What we check: the global deny in firestore.rules ("no collection implemented
+// yet"). The test is also a safety net — if someone accidentally opens the rules
+// at the root, it fails here.
 
 let testEnv
 
@@ -34,22 +33,22 @@ afterAll(async () => {
   await testEnv?.cleanup()
 })
 
-describe('firestore.rules — deny global (M0)', () => {
-  it('refuză citirea unui document de către un utilizator autentificat', async () => {
-    const db = testEnv.authenticatedContext('user-oarecare').firestore()
+describe('firestore.rules — global deny', () => {
+  it('denies a read by an authenticated user', async () => {
+    const db = testEnv.authenticatedContext('some-user').firestore()
 
-    await assertFails(getDoc(doc(db, 'orice/document')))
+    await assertFails(getDoc(doc(db, 'anything/document')))
   })
 
-  it('refuză scrierea unui document de către un utilizator autentificat', async () => {
-    const db = testEnv.authenticatedContext('user-oarecare').firestore()
+  it('denies a write by an authenticated user', async () => {
+    const db = testEnv.authenticatedContext('some-user').firestore()
 
-    await assertFails(setDoc(doc(db, 'orice/document'), { camp: 'valoare' }))
+    await assertFails(setDoc(doc(db, 'anything/document'), { field: 'value' }))
   })
 
-  it('refuză citirea unui document de către un vizitator neautentificat', async () => {
+  it('denies a read by an unauthenticated visitor', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
 
-    await assertFails(getDoc(doc(db, 'orice/document')))
+    await assertFails(getDoc(doc(db, 'anything/document')))
   })
 })

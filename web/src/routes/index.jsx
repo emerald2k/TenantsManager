@@ -12,11 +12,11 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
 
-        {/* Raport partajat (FR-REP-07c) — PUBLIC, complet neguardat.
-            Nu stă nici sub ProtectedRoute, nici sub GuestRoute: un admin
-            autentificat trebuie să poată deschide linkul ca să verifice ce
-            vede chiriașul, iar GuestRoute l-ar redirecționa pe /admin.
-            Expune EXCLUSIV raportul lunii respective — nimic altceva. */}
+        {/* Shared report (FR-REP-07c) — PUBLIC, entirely unguarded.
+            It sits under neither ProtectedRoute nor GuestRoute: an authenticated
+            admin must be able to open the link to check what the tenant sees,
+            and GuestRoute would redirect them to /admin.
+            Exposes EXCLUSIVELY that month's report — nothing else. */}
         <Route
           path="/r/:shareToken"
           element={<PlaceholderPage titleKey="pages.sharedReport" />}
@@ -33,23 +33,23 @@ export function AppRoutes() {
               element={<PlaceholderPage titleKey="pages.adminDashboard" />}
             />
             <Route
-              path="/admin/luna-curenta"
+              path="/admin/current-month"
               element={<PlaceholderPage titleKey="pages.currentMonth" />}
             />
             <Route
-              path="/admin/proprietati"
+              path="/admin/properties"
               element={<PlaceholderPage titleKey="pages.propertiesList" />}
             />
             <Route
-              path="/admin/proprietati/noua"
+              path="/admin/properties/new"
               element={<PlaceholderPage titleKey="pages.newProperty" />}
             />
             <Route
-              path="/admin/proprietati/:id"
+              path="/admin/properties/:id"
               element={<PlaceholderPage titleKey="pages.propertyDetail" />}
             />
             <Route
-              path="/admin/chiriasi"
+              path="/admin/tenants"
               element={<PlaceholderPage titleKey="pages.tenantsList" />}
             />
             <Route
@@ -57,20 +57,20 @@ export function AppRoutes() {
               element={<PlaceholderPage titleKey="pages.onboardingWizard" />}
             />
             <Route
-              path="/admin/chiriasi/:id"
+              path="/admin/tenants/:id"
               element={<PlaceholderPage titleKey="pages.tenantDetail" />}
             />
             <Route
-              path="/admin/rapoarte/:propertyId"
+              path="/admin/reports/:propertyId"
               element={<PlaceholderPage titleKey="pages.monthlyReportForm" />}
             />
-            {/* Faza 2 */}
+            {/* Phase 2 */}
             <Route
-              path="/admin/rapoarte"
+              path="/admin/reports"
               element={<PlaceholderPage titleKey="pages.reportsListPhase2" />}
             />
             <Route
-              path="/admin/raport-anual"
+              path="/admin/annual-report"
               element={<PlaceholderPage titleKey="pages.annualReportPhase2" />}
             />
           </Route>
@@ -83,7 +83,7 @@ export function AppRoutes() {
               element={<PlaceholderPage titleKey="pages.tenantDashboard" />}
             />
             <Route
-              path="/app/istoric"
+              path="/app/history"
               element={<PlaceholderPage titleKey="pages.tenantHistory" />}
             />
             <Route

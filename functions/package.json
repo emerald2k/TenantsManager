@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions pentru TenantsManager",
+  "description": "Cloud Functions for TenantsManager",
   "private": true,
   "main": "index.js",
   "engines": {
