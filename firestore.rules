@@ -2,7 +2,26 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // No collection is implemented yet (M0).
+    // The admin is identified EXCLUSIVELY through the custom claim in the token
+    // (NFR-SEC-09). The token is already validated by Firebase by the time it
+    // reaches here — we only read it.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // properties — admin-only access (SRS §7.3, NFR-SEC-02).
+    //
+    // The rule is an ACCESS boundary, not a business-logic one: it does NOT
+    // filter archived properties here. `archived == false` is a display
+    // preference and is applied in the query/hook (useProperties), where it can
+    // also be turned off for the "Show archived" toggle (FR-PROP-07). A rule
+    // filtering by `archived` would make the soft-delete (FR-PROP-06) look like
+    // a real deletion and would block the admin from seeing their own archived data.
+    match /properties/{propertyId} {
+      allow read, write: if isAdmin();
+    }
+
+    // The remaining collections are not implemented yet.
     // Per-collection rules are added as the milestones progress, per SRS §7.3.
     match /{document=**} {
       allow read, write: if false;

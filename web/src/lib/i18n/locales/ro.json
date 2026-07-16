@@ -42,6 +42,36 @@
     "tenantContract": "Chiriaș — Contract",
     "sharedReport": "Raport partajat (public, fără autentificare)"
   },
+  "properties": {
+    "fields": {
+      "name": "Nume",
+      "street": "Stradă",
+      "number": "Număr",
+      "city": "Oraș",
+      "county": "Județ",
+      "postalCode": "Cod poștal",
+      "area": "Suprafață",
+      "roomCount": "Număr camere",
+      "address": "Adresă",
+      "status": "Status",
+      "balance": "Sold restant"
+    },
+    "status": {
+      "free": "Liber",
+      "occupied": "Ocupat",
+      "archived": "Arhivat"
+    },
+    "services": {
+      "electricity": "Electricitate",
+      "gas": "Gaz",
+      "internet": "Abonament internet",
+      "tv": "Abonament TV",
+      "water": "Apă"
+    },
+    "errors": {
+      "required": "Câmp obligatoriu"
+    }
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"

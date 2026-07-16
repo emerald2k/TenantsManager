@@ -42,6 +42,36 @@
     "tenantContract": "Tenant — Contract",
     "sharedReport": "Shared report (public, no sign-in)"
   },
+  "properties": {
+    "fields": {
+      "name": "Name",
+      "street": "Street",
+      "number": "Number",
+      "city": "City",
+      "county": "County",
+      "postalCode": "Postal code",
+      "area": "Area",
+      "roomCount": "Rooms",
+      "address": "Address",
+      "status": "Status",
+      "balance": "Outstanding balance"
+    },
+    "status": {
+      "free": "Free",
+      "occupied": "Occupied",
+      "archived": "Archived"
+    },
+    "services": {
+      "electricity": "Electricity",
+      "gas": "Gas",
+      "internet": "Internet subscription",
+      "tv": "TV subscription",
+      "water": "Water"
+    },
+    "errors": {
+      "required": "Required field"
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
