@@ -108,6 +108,13 @@
       "archiveTitle": "Archiving",
       "historyTitle": "Cost history",
       "historyEmpty": "The cost history will be available once monthly reports exist."
+    },
+    "list": {
+      "title": "Properties",
+      "add": "Add property",
+      "showArchived": "Show archived",
+      "empty": "No properties yet.",
+      "error": "The properties could not be loaded. Please try again."
     }
   },
   "notFound": {

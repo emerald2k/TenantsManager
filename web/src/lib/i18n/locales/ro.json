@@ -108,6 +108,13 @@
       "archiveTitle": "Arhivare",
       "historyTitle": "Istoric costuri",
       "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare."
+    },
+    "list": {
+      "title": "Proprietăți",
+      "add": "Adaugă proprietate",
+      "showArchived": "Arată arhivate",
+      "empty": "Nicio proprietate deocamdată.",
+      "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
     }
   },
   "notFound": {

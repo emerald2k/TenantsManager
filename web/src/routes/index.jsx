@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { PlaceholderPage } from '@/components/shared/PlaceholderPage'
 import { NotFoundPage } from '@/components/shared/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { PropertiesListPage } from '@/features/properties/pages/PropertiesListPage'
 import { CreatePropertyPage } from '@/features/properties/pages/CreatePropertyPage'
 import { PropertyDetailPage } from '@/features/properties/pages/PropertyDetailPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
@@ -38,10 +39,7 @@ export function AppRoutes() {
               path="/admin/current-month"
               element={<PlaceholderPage titleKey="pages.currentMonth" />}
             />
-            <Route
-              path="/admin/properties"
-              element={<PlaceholderPage titleKey="pages.propertiesList" />}
-            />
+            <Route path="/admin/properties" element={<PropertiesListPage />} />
             <Route
               path="/admin/properties/new"
               element={<CreatePropertyPage />}
