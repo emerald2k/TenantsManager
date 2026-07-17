@@ -70,6 +70,16 @@
     },
     "errors": {
       "required": "Câmp obligatoriu"
+    },
+    "new": {
+      "title": "Proprietate nouă",
+      "submit": "Creează proprietatea",
+      "optional": "(opțional)",
+      "error": "Proprietatea nu a putut fi salvată. Încearcă din nou."
+    },
+    "detail": {
+      "created": "Proprietate creată.",
+      "notFound": "Această proprietate nu există."
     }
   },
   "notFound": {

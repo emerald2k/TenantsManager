@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { PlaceholderPage } from '@/components/shared/PlaceholderPage'
 import { NotFoundPage } from '@/components/shared/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { CreatePropertyPage } from '@/features/properties/pages/CreatePropertyPage'
+import { PropertyDetailPage } from '@/features/properties/pages/PropertyDetailPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -42,11 +44,13 @@ export function AppRoutes() {
             />
             <Route
               path="/admin/properties/new"
-              element={<PlaceholderPage titleKey="pages.newProperty" />}
+              element={<CreatePropertyPage />}
             />
+            {/* Declared AFTER /new: react-router ranks static segments above
+                dynamic ones, so "new" is never swallowed as an :id. */}
             <Route
               path="/admin/properties/:id"
-              element={<PlaceholderPage titleKey="pages.propertyDetail" />}
+              element={<PropertyDetailPage />}
             />
             <Route
               path="/admin/tenants"

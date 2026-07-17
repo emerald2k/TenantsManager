@@ -70,6 +70,16 @@
     },
     "errors": {
       "required": "Required field"
+    },
+    "new": {
+      "title": "New property",
+      "submit": "Create property",
+      "optional": "(optional)",
+      "error": "The property could not be saved. Please try again."
+    },
+    "detail": {
+      "created": "Property created.",
+      "notFound": "This property does not exist."
     }
   },
   "notFound": {
