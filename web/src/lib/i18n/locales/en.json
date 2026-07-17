@@ -2,7 +2,8 @@
   "common": {
     "language": "Language",
     "logout": "Log out",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "cancel": "Cancel"
   },
   "login": {
     "title": "Sign in",
@@ -66,7 +67,27 @@
       "gas": "Gas",
       "internet": "Internet subscription",
       "tv": "TV subscription",
-      "water": "Water"
+      "water": "Water",
+      "add": "Add service",
+      "addTitle": "Add service",
+      "addDescription": "Pick one from the catalog or add a custom service.",
+      "catalog": "Catalog",
+      "allAdded": "All catalog services are already added.",
+      "custom": "Custom service",
+      "customPlaceholder": "Service name",
+      "addCustom": "Add",
+      "empty": "No services yet.",
+      "remove": "Remove",
+      "removeTitle": "Remove service",
+      "removeConfirm": "Remove \"{{name}}\" from this property? Published reports are not affected."
+    },
+    "archive": {
+      "action": "Archive",
+      "description": "The property is hidden from the list, but its history is kept.",
+      "blockedOccupied": "An occupied property cannot be archived. End the tenancy first.",
+      "confirmTitle": "Archive property",
+      "confirmDescription": "The property is hidden from the list. It is not deleted and its history is kept.",
+      "already": "This property is archived."
     },
     "errors": {
       "required": "Required field"
@@ -78,8 +99,15 @@
       "error": "The property could not be saved. Please try again."
     },
     "detail": {
-      "created": "Property created.",
-      "notFound": "This property does not exist."
+      "notFound": "This property does not exist.",
+      "dataTitle": "Data",
+      "edit": "Edit",
+      "save": "Save changes",
+      "saveError": "The changes could not be saved. Please try again.",
+      "servicesTitle": "Services",
+      "archiveTitle": "Archiving",
+      "historyTitle": "Cost history",
+      "historyEmpty": "The cost history will be available once monthly reports exist."
     }
   },
   "notFound": {
