@@ -332,7 +332,7 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 
 **`/admin/properties/new`** — property data form; on save → detail (where the services are configured).
 
-**`/admin/properties/:id`** — 3 sections: (1) **Data** — editing, "Archive" (blocked if occupied), link to the current tenant; (2) **Services** — the active list with removal (+confirmation), "+ Add service" → catalog dialog (electricity, gas, internet, TV, water) + custom; (3) **Cost history** — table of months × (rent + maintenance + services + other + total), empty cells where the service did not exist; below the table: tenancy history. *(Phase 2: chart.)*
+**`/admin/properties/:id`** — 4 sections: (1) **Data** — the fields read-only, "Edit" opens the same form as creation; link to the current tenant *(deferred to M2: there are no tenancies before it)*; (2) **Services** — the active list with removal (+confirmation), "+ Add service" → catalog dialog (electricity, gas, internet, TV, water) + custom; (3) **Archiving** — its own section, not inside Data: "Archive" (+confirmation), blocked while the property is occupied, with an explanatory message; (4) **Cost history** — table of months × (rent + maintenance + services + other + total), empty cells where the service did not exist; below the table: tenancy history. *(Phase 2: chart.)*
 
 **`/admin/tenants`** — table: name, phone, email, property, outstanding balance, status badge (active / **in progress** / inactive / disabled); drafts with "Continue"/"Delete draft" inline; search; "+ New tenant onboarding" → creates a draft, opens the wizard.
 
@@ -415,6 +415,10 @@ properties/{propertyId}               [ACCESS: admin only]
   - ownerId, name, address { street, number, city, county, postalCode }
   - area (opt), roomCount (opt)
   - services: [ { serviceId, name, source: 'catalog' | 'custom' } ]
+                               // serviceId: for 'catalog' it is the catalog key (electricity, gas…);
+                               // for 'custom' it is a generated UUID (crypto.randomUUID) — a custom
+                               // service has no natural key, and a UUID keeps two services with the
+                               // same name distinct.
   - status: free | occupied (computed automatically)
   - archived: boolean          // soft-delete (FR-PROP-06); set explicitly to false at creation.
                                // Separate axis from `status`: `status` is occupancy (computed
