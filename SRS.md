@@ -328,7 +328,7 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 
 **`/admin/current-month`** — month/year selector (current by default, navigable backwards); list of occupied properties: name, tenant, status badge (not entered/published/paid/partial/overdue), total; click → the report form. Free properties do not appear.
 
-**`/admin/properties`** — table: name, address, status, outstanding balance (red); search, alphabetical sorting, "+ Add property"; archived hidden by default, "Show archived" toggle.
+**`/admin/properties`** — table: name, address, status, outstanding balance (red); search *(deferred past M1 — still required, rescheduled)*, alphabetical sorting, "+ Add property"; archived hidden by default, "Show archived" toggle.
 
 **`/admin/properties/new`** — property data form; on save → detail (where the services are configured).
 
