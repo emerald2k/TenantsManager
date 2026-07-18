@@ -242,6 +242,21 @@ Two ways:
 An account without this claim is automatically treated as a **tenant** (it lands
 on `/app`).
 
+### Shortcut: seed demo data
+
+With the emulators running, `npm run seed` (from `functions/`) does the two manual
+steps above in one shot **and** adds demo properties, so the app has something to
+show. It creates the admin `admin@test.ro` / `admin123` (with the `admin: true`
+claim) and writes three demo properties (one free, one with services, one archived).
+It is **idempotent** — each run rewrites the same fixed demo data, never accumulating,
+and never touches properties you created by hand. Emulator-only; it grows with each
+milestone (this is the M1 dataset).
+
+```bash
+cd functions
+npm run seed
+```
+
 ---
 
 ## Project structure
@@ -260,7 +275,8 @@ TenantsManager/
 ├── functions/                # Cloud Functions (Firebase)
 │   ├── index.js              # the functions (populated from M2)
 │   └── scripts/
-│       └── setAdminClaim.js  # setup script: grants the admin role
+│       ├── setAdminClaim.js  # setup script: grants the admin role
+│       └── seed.js           # setup script: admin + demo properties (emulator)
 ├── firebase.json             # emulator config + functions runtime + rules
 ├── .firebaserc               # the Firebase project id (tenants-manager-2026)
 ├── firestore.rules           # Firestore Security Rules
