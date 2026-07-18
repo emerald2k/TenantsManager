@@ -108,3 +108,21 @@ Stop and ask for clarification if:
 - You are about to move to the next milestone.
 
 Better one extra question than one wrong assumption. The project's principle: **measure ten times, cut once.**
+
+---
+
+## 9. Milestone audit before merging to main
+
+**No milestone branch merges into `main` without a prior read-only audit.** Claude Code gathers the evidence (`file:line`, command results); the administrator is the final gate. The audit changes nothing — it only reports.
+
+**Guiding principle: prove that nothing was LOST, not just that what exists is green.** An audit that does not actively hunt for discrepancies is not an audit. A passing test suite over a divergent spec is drift, not proof of completeness.
+
+The audit covers **five zones**:
+
+- **A. Functional completeness** — every in-scope FR mapped to code, OR explicitly marked deferred (where/when). Checked **against the SRS, not against the code** — this is what catches what is missing, not merely what exists.
+- **B. "Done" criterion** — quoted verbatim from SRS §9, confirmed point by point.
+- **C. Testing** — a complete code↔test pairing; both bands green (**run, not inferred**); anti-vacuity confirmed (a test that would pass with the behavior removed proves nothing — see §7).
+- **D. Code↔SRS consistency** — every decision that touched the SRS is actually written down, **in ALL the relevant places**. One SRS edit can touch one spot and miss another (e.g. a requirement marked deferred in §5.3 but left unmarked in §9 — the real case from the M1 audit). The audit actively looks for such residual divergences.
+- **E. Repo hygiene** — correct branch, `main` untouched until the merge, working tree clean, zero committed artifacts, i18n parity, tooling config in place.
+
+**If the audit surfaces a discrepancy, it is fixed as a separate gate BEFORE the merge** — not rationalized away, not deferred.
