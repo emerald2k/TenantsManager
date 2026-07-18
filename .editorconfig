@@ -9,5 +9,5 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 
 [*.md]
-# În Markdown, două spații la final de linie înseamnă "break de linie" — nu le tăia.
+# In Markdown, two trailing spaces mean "line break" — do not trim them.
 trim_trailing_whitespace = false

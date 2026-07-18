@@ -1,4 +1,4 @@
-# Dependințe
+# Dependencies
 node_modules/
 
 # Firebase
@@ -10,7 +10,7 @@ ui-debug.log
 pubsub-debug.log
 firebase-export-*/
 
-# Variabile de mediu
+# Environment variables
 .env
 .env.local
 

@@ -2,7 +2,8 @@
   "common": {
     "language": "Limbă",
     "logout": "Deconectare",
-    "loading": "Se încarcă..."
+    "loading": "Se încarcă...",
+    "cancel": "Anulează"
   },
   "login": {
     "title": "Autentificare",
@@ -41,6 +42,80 @@
     "tenantHistory": "Chiriaș — Istoric",
     "tenantContract": "Chiriaș — Contract",
     "sharedReport": "Raport partajat (public, fără autentificare)"
+  },
+  "properties": {
+    "fields": {
+      "name": "Nume",
+      "street": "Stradă",
+      "number": "Număr",
+      "city": "Oraș",
+      "county": "Județ",
+      "postalCode": "Cod poștal",
+      "area": "Suprafață",
+      "roomCount": "Număr camere",
+      "address": "Adresă",
+      "status": "Status",
+      "balance": "Sold restant"
+    },
+    "status": {
+      "free": "Liber",
+      "occupied": "Ocupat",
+      "archived": "Arhivat"
+    },
+    "services": {
+      "electricity": "Electricitate",
+      "gas": "Gaz",
+      "internet": "Abonament internet",
+      "tv": "Abonament TV",
+      "water": "Apă",
+      "add": "Adaugă serviciu",
+      "addTitle": "Adaugă serviciu",
+      "addDescription": "Alege unul din catalog sau adaugă un serviciu personalizat.",
+      "catalog": "Catalog",
+      "allAdded": "Toate serviciile din catalog sunt deja adăugate.",
+      "custom": "Serviciu personalizat",
+      "customPlaceholder": "Numele serviciului",
+      "addCustom": "Adaugă",
+      "empty": "Niciun serviciu deocamdată.",
+      "remove": "Elimină",
+      "removeTitle": "Elimină serviciul",
+      "removeConfirm": "Elimini „{{name}}” de la această proprietate? Rapoartele publicate nu sunt afectate."
+    },
+    "archive": {
+      "action": "Arhivează",
+      "description": "Proprietatea este ascunsă din listă, dar istoricul este păstrat.",
+      "blockedOccupied": "O proprietate ocupată nu poate fi arhivată. Încheie mai întâi închirierea.",
+      "confirmTitle": "Arhivează proprietatea",
+      "confirmDescription": "Proprietatea este ascunsă din listă. Nu este ștearsă, iar istoricul este păstrat.",
+      "already": "Această proprietate este arhivată."
+    },
+    "errors": {
+      "required": "Câmp obligatoriu"
+    },
+    "new": {
+      "title": "Proprietate nouă",
+      "submit": "Creează proprietatea",
+      "optional": "(opțional)",
+      "error": "Proprietatea nu a putut fi salvată. Încearcă din nou."
+    },
+    "detail": {
+      "notFound": "Această proprietate nu există.",
+      "dataTitle": "Date",
+      "edit": "Editează",
+      "save": "Salvează modificările",
+      "saveError": "Modificările nu au putut fi salvate. Încearcă din nou.",
+      "servicesTitle": "Servicii",
+      "archiveTitle": "Arhivare",
+      "historyTitle": "Istoric costuri",
+      "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare."
+    },
+    "list": {
+      "title": "Proprietăți",
+      "add": "Adaugă proprietate",
+      "showArchived": "Arată arhivate",
+      "empty": "Nicio proprietate deocamdată.",
+      "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
+    }
   },
   "notFound": {
     "title": "Pagina nu a fost găsită",

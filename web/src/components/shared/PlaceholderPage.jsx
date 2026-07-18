@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-/** Pagină schelet — folosită temporar pentru toate rutele din sub-etapa C,
- * până sunt implementate paginile reale în milestone-urile următoare. */
+/** Skeleton page — used temporarily for all routes, until the real pages are
+ * implemented in the following milestones. */
 export function PlaceholderPage({ titleKey }) {
   const { t } = useTranslation()
   const params = useParams()

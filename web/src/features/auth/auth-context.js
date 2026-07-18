@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 
-/** Contextul stă singur, într-un fișier fără componente și fără hook-uri.
- * Motiv: un fișier care exportă și o componentă, și altceva, strică Fast Refresh
- * (avertismentul react-refresh/only-export-components). Separarea în
- * auth-context.js / AuthProvider.jsx / useAuth.js îl elimină din start. */
+/** The context sits alone, in a file with no components and no hooks.
+ * Reason: a file that exports both a component and something else breaks Fast
+ * Refresh (the react-refresh/only-export-components warning). Splitting into
+ * auth-context.js / AuthProvider.jsx / useAuth.js eliminates it from the start. */
 export const AuthContext = createContext(null)

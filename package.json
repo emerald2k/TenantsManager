@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Rădăcina monorepo-ului: găzduiește tooling-ul de calitate a codului, comun pentru web/ și functions/.",
+  "description": "The monorepo root: hosts the code quality tooling, shared by web/ and functions/.",
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -1,92 +1,110 @@
-# CLAUDE.md — Ghid de lucru pentru acest proiect
+# CLAUDE.md — Working guide for this project
 
-Acest fișier este citit automat de Claude Code la fiecare sesiune. Conține contextul și regulile de lucru pentru proiectul **TenantsManager** (platformă de gestionare chiriași).
-
----
-
-## 1. Sursa de adevăr
-
-**`SRS-platforma-chiriasi.md`** (în rădăcina proiectului) este **specificația completă și definitivă**. Este rezultatul unei faze extinse de planificare și conține: cerințe funcționale numerotate (FR-xxx), cerințe non-funcționale (NFR-xxx), model de date, specificație UI pagină cu pagină, arhitectură tehnică, plan de milestone-uri și template-uri de email.
-
-**Reguli absolute:**
-- Citește SRS-ul înainte de a genera orice cod. Este referința pentru fiecare decizie.
-- **Nu improviza** funcționalități, câmpuri, reguli sau tehnologii care nu sunt în SRS. Dacă ceva pare neclar sau lipsește, **întreabă** — nu presupune.
-- Când implementezi ceva, referențiază cerințele relevante (ex: „implementez FR-TEN-01…FR-TEN-24").
-- Dacă apare o contradicție sau o scăpare în SRS, semnaleaz-o și cere clarificare înainte de a continua.
+This file is read automatically by Claude Code at every session. It contains the context and working rules for the **TenantsManager** project (tenant management platform).
 
 ---
 
-## 2. Mod de lucru: milestone cu milestone
+## 1. Source of truth
 
-Proiectul se construiește pe **milestone-uri** (secțiunea 9 din SRS: M0–M7). 
+**`SRS.md`** (in the project root) is the **complete and definitive specification**. It is the result of an extensive planning phase and contains: numbered functional requirements (FR-xxx), non-functional requirements (NFR-xxx), the data model, a page-by-page UI specification, the technical architecture, the milestone plan and the email templates.
 
-**Reguli:**
-- Lucrează la **un singur milestone o dată**, în ordine (M0 întâi).
-- **Nu trece la milestone-ul următor fără confirmarea explicită** a utilizatorului.
-- La începutul fiecărui milestone: rezumă pe scurt ce vei face și ce cerințe FR/NFR acoperă.
-- La finalul fiecărui milestone: verifică criteriul de „gata" definit în SRS și raportează starea.
-- Preferă pași mici și verificabili în locul generării masive dintr-o dată. Utilizatorul învață pe parcurs — explică deciziile pe măsură ce le iei.
-- **Nu comite cod de produs înainte de validarea explicită a administratorului.** Verifică singur întâi (lint, build, test de comportament), raportează rezultatul, și AȘTEAPTĂ confirmarea. Commit-urile pe branch-ul de milestone nu sunt un jurnal de lucru — fiecare e o poartă.
+**Absolute rules:**
+- Read the SRS before generating any code. It is the reference for every decision.
+- **Do not improvise** features, fields, rules or technologies that are not in the SRS. If something seems unclear or missing, **ask** — do not assume.
+- When you implement something, reference the relevant requirements (e.g. "implementing FR-TEN-01…FR-TEN-24").
+- If a contradiction or a gap appears in the SRS, flag it and ask for clarification before continuing.
+- **The code and the SRS move together.** Renaming a data-model identifier, adding a field or changing a flow in code without updating the SRS in the same move breaks the source of truth. Green tests over a divergent spec is drift, not progress.
+- **The SRS specifies the PRODUCT (what it does); this file holds the PROCESS (how we work).** Do not put implementation philosophy into the SRS — it belongs here. That is what keeps the SRS credible as a specification.
 
 ---
 
-## 3. Stack tehnic (fix — vezi secțiunea 7 din SRS)
+## 2. Working mode: milestone by milestone
 
-- **Frontend:** JavaScript (NU TypeScript), Vite + React (SPA), React Router
+The project is built on **milestones** (section 9 of the SRS: M0–M7).
+
+**Rules:**
+- Work on **a single milestone at a time**, in order (M0 first).
+- **Do not move to the next milestone without the user's explicit confirmation.**
+- At the start of each milestone: briefly summarize what you will do and which FR/NFR requirements it covers.
+- At the end of each milestone: check the "done" criterion defined in the SRS and report the state.
+- Prefer small, verifiable steps over massive generation in one go. The user is learning along the way — explain the decisions as you make them.
+- **Do not commit product code before the administrator's explicit validation.** Verify it yourself first (lint, build, behavior test), report the result, and WAIT for confirmation. Commits on a milestone branch are not a work journal — each one is a gate.
+
+---
+
+## 3. Language conventions
+
+- **The working language of the repository is English:** code, data-model identifiers, comments, test names (`describe`/`it`), commit messages, and the working documents (this file and `SRS.md`).
+- **Exception — displayed content:** the values in `web/src/lib/i18n/locales/ro.json` stay in Romanian. There, Romanian is content shown to the user, not working language. The i18n *keys* are English.
+- **Exception — the RO email templates** (SRS Appendix A): the body stays Romanian; the interpolated placeholders (`{name}`, `{dueDate}`…) are English, because they are identifiers coming from code.
+- `cnp` keeps its Romanian name deliberately: it is a Romanian domain term (the national identification number), like IBAN — it has no exact English equivalent. Documented in SRS §6.
+- **The administrator communicates in Romanian.** The repository being English does not change the conversation language — reply in Romanian unless asked otherwise.
+
+---
+
+## 4. Technical stack (fixed — see section 7 of the SRS)
+
+- **Frontend:** JavaScript (NOT TypeScript), Vite + React (SPA), React Router
 - **UI:** Tailwind CSS + shadcn/ui
-- **Formulare:** React Hook Form + Zod
+- **Forms:** React Hook Form + Zod
 - **Data:** TanStack Query
-- **Grafice:** Recharts (doar Faza 2)
-- **Backend (BaaS):** Firebase — Firestore, Authentication, Storage, Cloud Functions, extensia „Trigger Email"
+- **Charts:** Recharts (Phase 2 only)
+- **Backend (BaaS):** Firebase — Firestore, Authentication, Storage, Cloud Functions, the "Trigger Email" extension
 - **i18n:** react-i18next (RO/EN)
-- **Teste:** Vitest + React Testing Library
-- **Calitate cod:** ESLint, Prettier, Husky + lint-staged, commitlint, .editorconfig
-- **Config:** variabile de mediu prin `.env` (Vite); cheile Firebase NU se hardcodează; `.env` în `.gitignore`
-- **Structură:** monorepo — `web/` (frontend) și `functions/` (Cloud Functions) în foldere separate
+- **Tests:** Vitest + React Testing Library
+- **Code quality:** ESLint, Prettier, Husky + lint-staged, commitlint, .editorconfig
+- **Config:** environment variables through `.env` (Vite); the Firebase keys are NOT hardcoded; `.env` in `.gitignore`
+- **Structure:** monorepo — `web/` (frontend) and `functions/` (Cloud Functions) in separate folders
 - **Deploy:** manual, Firebase CLI
 
-**Nu introduce** tehnologii în afara acestei liste fără a întreba (vezi „tooling evitat conștient" în SRS: fără TypeScript, Storybook, Docker, CI/CD automat, Sentry în MVP).
+**Do not introduce** technologies outside this list without asking (see "tooling consciously avoided" in the SRS: no TypeScript, Storybook, Docker, automatic CI/CD, Sentry in the MVP).
 
 ---
 
-## 4. Dezvoltare locală
+## 5. Local development
 
-- Dezvoltarea (M0–M6) se face pe **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions) + planul gratuit Spark. **Fără card, fără cloud, fără costuri.**
-- Trecerea pe planul Blaze + deploy în producție se face abia la **M7**.
-- Proiect Firebase: `tenants-manager-2026`.
+- Development (M0–M6) runs on the **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions) + the free Spark plan. **No card, no cloud, no costs.**
+- Moving to the Blaze plan + production deploy happens only at **M7**.
+- Firebase project: `tenants-manager-2026`.
+
+**Test bands** (foundation installed at M1):
+- `npm run test:run --prefix web` — the fast band: components/hooks in jsdom, with the backend boundary mocked.
+- `npm run test:rules --prefix web` — the rules band: `firestore.rules` against the Firestore emulator. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free.
 
 ---
 
-## 5. Git & convenții
+## 6. Git & conventions
 
 **Branching model:**
-- `main` — mereu stabil și funcțional. Nu comite aici cod pe jumătate.
-- `milestone/mX-nume` — un branch per milestone (ex: `milestone/m0-fundatie`). Se unește în `main` când milestone-ul e gata și verificat.
+- `main` — always stable and functional. Do not commit half-finished code here.
+- `milestone/mX-name` — one branch per milestone (e.g. `milestone/m1-properties`). It is merged into `main` when the milestone is done and verified.
 
-**Commits:** respectă **Conventional Commits** — `<tip>: <descriere imperativ, literă mică>`.
-- Tipuri: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `style`, `build`, `ci`.
-- Exemple: `feat: add property list page`, `chore: configure eslint and prettier`, `docs: update SRS`.
-- Commit-uri mici și frecvente, fiecare cu un scop clar.
-
----
-
-## 6. Principii de calitate
-
-- **Cod curat de la prima linie:** tot codul respectă regulile ESLint/Prettier configurate în M0.
-- **Testare continuă — cod nou vine cu teste (de la M1):** testarea nu se îngrămădește la final. Fundația de testare (Vitest + React Testing Library + jsdom) se pune la **M1**; de acolo încolo **fiecare funcționalitate se livrează cu testele ei**, scrise odată cu codul, nu retroactiv. Testele end-to-end pe fluxurile critice de la M7 sunt acoperire finală de regresie, nu primul moment de testare. Vezi SRS §9.
-- **Securitate:** datele KYC (CNP, poze acte, date financiare, garant) sunt STRICT acces-admin (vezi NFR-SEC-01…09 și modelul de date din SRS §6). Chiriașul accesează doar date denormalizate în `tenancies` și propriile `monthlyReports` publicate. Verifică Security Rules la fiecare funcționalitate care atinge date sensibile.
-- **Fără validare de format** pe câmpuri (NFR-VAL-01): câmpurile sunt obligatorii doar ca prezență, fără verificare de format (CNP, telefon etc. acceptă orice). Nu adăuga validări de format decât dacă SRS le cere explicit.
-- **Localizare:** tot textul vizibil trece prin i18n (RO/EN) de la început, nu hardcodat.
-- **Explică deciziile:** utilizatorul învață. Când iei o decizie de implementare non-trivială, explică pe scurt raționamentul.
+**Commits:** follow **Conventional Commits** — `<type>: <imperative description, lowercase>`.
+- Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `style`, `build`, `ci`.
+- Examples: `feat: add property list page`, `chore: configure eslint and prettier`, `docs: update SRS`.
+- Small, frequent commits, each with a clear purpose.
 
 ---
 
-## 7. Când să te oprești și să întrebi
+## 7. Quality principles
 
-Oprește-te și cere clarificare dacă:
-- O cerință din SRS pare ambiguă, contradictorie sau lipsă.
-- Ai nevoie de o tehnologie sau un pattern care nu e în stack.
-- O decizie ar afecta modelul de date, securitatea sau un flux deja definit.
-- Ești pe cale să treci la milestone-ul următor.
+- **Clean code from the first line:** all code respects the ESLint/Prettier rules configured in M0.
+- **Continuous testing — new code comes with tests (from M1):** testing is not piled up at the end. The testing foundation (Vitest + React Testing Library + jsdom) lands at **M1**; from there on **every feature is delivered with its own tests**, written together with the code, not retroactively. The end-to-end tests on the critical flows at M7 are final regression coverage, not the first moment of testing. See SRS §9.
+- **Tests must not pass vacuously.** A test that would still pass with the behavior removed proves nothing. For a security rule, check it: make the rule permissive temporarily and confirm the deny tests fail.
+- **Security:** the KYC data (CNP, ID photos, financial data, guarantor) is STRICTLY admin-only (see NFR-SEC-01…09 and the data model in SRS §6). The tenant only accesses denormalized data in `tenancies` and their own published `monthlyReports`. Check the Security Rules for every feature that touches sensitive data.
+- **Security Rules are an ACCESS boundary, not a business-logic boundary.** Display preferences (e.g. hiding archived properties) belong in the query/hook, not in the rules: a rule filtering by `archived` would make soft-delete look like a real deletion and would block the admin from seeing their own archived data.
+- **No format validation** on fields (NFR-VAL-01): fields are mandatory only as presence, without format checking (CNP, phone etc. accept anything). Do not add format validations unless the SRS explicitly requires them.
+- **Localization:** all visible text goes through i18n (RO/EN) from the start, not hardcoded.
+- **Explain the decisions:** the user is learning. When you make a non-trivial implementation decision, briefly explain the reasoning.
 
-Mai bine o întrebare în plus decât o presupunere greșită. Principiul proiectului: **măsoară de zece ori, taie o dată.**
+---
+
+## 8. When to stop and ask
+
+Stop and ask for clarification if:
+- A requirement in the SRS seems ambiguous, contradictory or missing.
+- You need a technology or a pattern that is not in the stack.
+- A decision would affect the data model, security or an already-defined flow.
+- You are about to move to the next milestone.
+
+Better one extra question than one wrong assumption. The project's principle: **measure ten times, cut once.**

@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'nav.dashboard', end: true },
-  { to: '/admin/luna-curenta', label: 'nav.currentMonth' },
-  { to: '/admin/proprietati', label: 'nav.properties' },
-  { to: '/admin/chiriasi', label: 'nav.tenants' },
+  { to: '/admin/current-month', label: 'nav.currentMonth' },
+  { to: '/admin/properties', label: 'nav.properties' },
+  { to: '/admin/tenants', label: 'nav.tenants' },
 ]
 
 export function AdminLayout() {

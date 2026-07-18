@@ -1,10 +1,11 @@
-# Normalizează sfârșiturile de linie: LF atât în repo, cât și în working directory,
-# indiferent de setarea locală core.autocrlf. Fără asta, pe Windows fișierele ar fi
-# scoase la checkout cu CRLF, iar Prettier (endOfLine: "lf") le-ar semnala pe toate
-# ca neformatate — conflict permanent între git și formatter.
+# Normalize line endings: LF both in the repo and in the working directory,
+# regardless of the local core.autocrlf setting. Without this, on Windows the
+# files would be checked out with CRLF, and Prettier (endOfLine: "lf") would flag
+# every one of them as unformatted — a permanent conflict between git and the
+# formatter.
 * text=auto eol=lf
 
-# Fișiere binare — git nu trebuie să atingă conținutul lor.
+# Binary files — git must not touch their content.
 *.png binary
 *.jpg binary
 *.jpeg binary

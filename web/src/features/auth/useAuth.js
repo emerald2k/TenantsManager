@@ -4,7 +4,7 @@ import { AuthContext } from '@/features/auth/auth-context'
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) {
-    throw new Error('useAuth trebuie folosit în interiorul unui <AuthProvider>')
+    throw new Error('useAuth must be used inside an <AuthProvider>')
   }
   return ctx
 }
