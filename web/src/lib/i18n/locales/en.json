@@ -117,6 +117,63 @@
       "error": "The properties could not be loaded. Please try again."
     }
   },
+  "onboarding": {
+    "errors": {
+      "required": "Required field"
+    },
+    "optional": "(optional)",
+    "steps": {
+      "personal": "Personal data",
+      "documents": "ID document photos",
+      "financial": "Financial data",
+      "contract": "Contract"
+    },
+    "options": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "languages": {
+      "ro": "Romanian",
+      "en": "English"
+    },
+    "fields": {
+      "name": "Full name",
+      "dateOfBirth": "Date of birth",
+      "cnp": "CNP",
+      "phone": "Phone",
+      "email": "Email",
+      "preferredLanguage": "Preferred language",
+      "mailingAddress": "Mailing address",
+      "previousAddress": "Previous address",
+      "emergencyContactName": "Emergency contact name",
+      "emergencyContactPhone": "Emergency contact phone",
+      "occupantCount": "Number of occupants",
+      "smoker": "Smoker",
+      "petsHas": "Pets",
+      "petsType": "Pet type",
+      "vehicleHas": "Vehicle",
+      "vehicleMake": "Vehicle make",
+      "vehiclePlateNumber": "Plate number",
+      "idDocumentPhotos": "ID document photos",
+      "employer": "Employer",
+      "occupation": "Occupation",
+      "employmentDuration": "Employment duration",
+      "monthlyIncomeSource": "Income source",
+      "monthlyIncomeAmount": "Monthly income",
+      "guarantorName": "Guarantor name",
+      "guarantorCnp": "Guarantor CNP",
+      "guarantorPhone": "Guarantor phone",
+      "guarantorIdDocumentPhotos": "Guarantor ID photos",
+      "previousReferenceName": "Previous reference name",
+      "previousReferencePhone": "Previous reference phone",
+      "propertyId": "Property",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "monthlyRent": "Monthly rent",
+      "securityDeposit": "Security deposit",
+      "dueDay": "Due day"
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"

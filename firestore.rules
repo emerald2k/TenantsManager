@@ -21,6 +21,17 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // onboardingDrafts — admin-only access (SRS §6, NFR-SEC-02).
+    //
+    // The draft holds partial KYC data (the step 1-4 fields) before an account
+    // exists; it is strictly admin-only, exactly like `users`. The tenant never
+    // touches a draft — no account is created until KYC completion (FR-TEN-16,
+    // FR-TEN-17). Deleted automatically on completion (FR-TEN-18) or manually
+    // (FR-TEN-20); both are admin writes covered by this same rule.
+    match /onboardingDrafts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+
     // The remaining collections are not implemented yet.
     // Per-collection rules are added as the milestones progress, per SRS §7.3.
     match /{document=**} {

@@ -117,6 +117,63 @@
       "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
     }
   },
+  "onboarding": {
+    "errors": {
+      "required": "Câmp obligatoriu"
+    },
+    "optional": "(opțional)",
+    "steps": {
+      "personal": "Date personale",
+      "documents": "Poze act de identitate",
+      "financial": "Date financiare",
+      "contract": "Contract"
+    },
+    "options": {
+      "yes": "Da",
+      "no": "Nu"
+    },
+    "languages": {
+      "ro": "Română",
+      "en": "Engleză"
+    },
+    "fields": {
+      "name": "Nume complet",
+      "dateOfBirth": "Data nașterii",
+      "cnp": "CNP",
+      "phone": "Telefon",
+      "email": "Email",
+      "preferredLanguage": "Limba preferată",
+      "mailingAddress": "Adresă de corespondență",
+      "previousAddress": "Adresă anterioară",
+      "emergencyContactName": "Nume contact de urgență",
+      "emergencyContactPhone": "Telefon contact de urgență",
+      "occupantCount": "Număr de locatari",
+      "smoker": "Fumător",
+      "petsHas": "Animale de companie",
+      "petsType": "Tip animal",
+      "vehicleHas": "Vehicul",
+      "vehicleMake": "Marcă vehicul",
+      "vehiclePlateNumber": "Număr de înmatriculare",
+      "idDocumentPhotos": "Poze act de identitate",
+      "employer": "Angajator",
+      "occupation": "Ocupație",
+      "employmentDuration": "Vechime în muncă",
+      "monthlyIncomeSource": "Sursă venit",
+      "monthlyIncomeAmount": "Venit lunar",
+      "guarantorName": "Nume garant",
+      "guarantorCnp": "CNP garant",
+      "guarantorPhone": "Telefon garant",
+      "guarantorIdDocumentPhotos": "Poze act garant",
+      "previousReferenceName": "Nume referință anterioară",
+      "previousReferencePhone": "Telefon referință anterioară",
+      "propertyId": "Proprietate",
+      "startDate": "Dată început",
+      "endDate": "Dată sfârșit",
+      "monthlyRent": "Chirie lunară",
+      "securityDeposit": "Garanție",
+      "dueDay": "Zi scadentă"
+    }
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"
