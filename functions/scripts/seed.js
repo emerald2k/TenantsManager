@@ -2,10 +2,13 @@
  * seed — demo data for the emulator, run manually. STRICT tooling, never cloud.
  *
  * Populates the Emulator Suite with a deterministic demo dataset so the app has
- * something to show without hand-entering it. This is the **M1 version**: it seeds
- * only what the model defines at M1 — the admin account and properties. It GROWS
- * each milestone (users/tenancies/reports arrive at M2/M4); do not seed shapes the
- * code does not have yet.
+ * something to show without hand-entering it. It GROWS each milestone; do not seed
+ * shapes the code does not have yet.
+ *  - M1: the admin account + properties.
+ *  - M2: one KYC-complete tenant (users) + an active tenancy on an occupied property,
+ *    written DIRECTLY (not through finalizeKyc), with the denormalizations reproduced
+ *    by hand — exactly what finalizeKyc would have written. The M1 `seed-prop-free`
+ *    stays free and serves the "finalization allowed" case.
  *
  * Idempotent: every run DELETES the demo data and rewrites it identically, so the
  * emulator lands in the same state no matter how many times it runs — no
@@ -51,6 +54,17 @@ const SEED_PROPERTY_IDS = [
 // state stays identical between runs — a fresh random id each run would break
 // idempotency.
 const CUSTOM_SERVICE_ID = '11111111-1111-4111-8111-111111111111'
+
+// M2 fixtures — the occupied scenario. Fixed ids/uid keep the seed idempotent and
+// the tenant's `users` doc id equal to their Auth uid (the finalizeKyc convention;
+// the tenant app reads `tenancies` where userId == auth.uid, SRS §6).
+const SEED_TENANT = {
+  uid: 'seed-tenant',
+  email: 'chirias@test.ro',
+  password: 'chirias123',
+}
+const SEED_OCCUPIED_PROPERTY_ID = 'seed-prop-occupied'
+const SEED_TENANCY_ID = 'seed-tenancy-occupied'
 
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
@@ -127,6 +141,94 @@ function demoProperties(ownerId) {
   }
 }
 
+/** The occupied property (SRS §6 properties shape). `status: 'occupied'` is set by
+ * hand: normally it is computed from active tenancies, but there is no trigger yet,
+ * so the seed reproduces the end state directly. */
+function occupiedProperty(ownerId) {
+  return {
+    name: 'Apartament Zorilor',
+    address: {
+      street: 'Str. Observatorului',
+      number: '34',
+      city: 'Cluj-Napoca',
+      county: 'Cluj',
+      postalCode: '400363',
+    },
+    area: '72',
+    roomCount: '3',
+    ownerId,
+    services: [
+      { serviceId: 'electricity', name: 'Electricitate', source: 'catalog' },
+      { serviceId: 'gas', name: 'Gaz', source: 'catalog' },
+    ],
+    status: 'occupied',
+    archived: false,
+  }
+}
+
+/** The KYC-complete tenant (SRS §6 users shape). Realistic profile with a well-formed
+ * CNP, useful for exercising the duplicate-CNP path in later sub-stages. `status:
+ * 'active'` — the account is active immediately (FR-TEN-24). */
+function tenantUser() {
+  return {
+    name: 'Andrei Ionescu',
+    dateOfBirth: '1988-05-12',
+    email: SEED_TENANT.email,
+    phone: '0745123456',
+    preferredLanguage: 'ro',
+    cnp: '1880512123456',
+    idDocumentPhotos: [
+      {
+        url: 'gs://demo/seed-tenant/ci-front.jpg',
+        name: 'ci-front.jpg',
+        type: 'image',
+      },
+    ],
+    previousAddress: 'Str. Dorobanților 5, Cluj-Napoca',
+    emergencyContact: { name: 'Elena Ionescu', phone: '0745999888' },
+    occupantCount: '2',
+    smoker: false,
+    pets: { has: true, type: 'pisică' },
+    vehicle: { has: true, make: 'Volkswagen', plateNumber: 'CJ22XYZ' },
+    employer: 'Endava',
+    occupation: 'Software Developer',
+    employmentDuration: '5 ani',
+    monthlyIncome: { source: 'salariu', amount: '9000' },
+    guarantor: {
+      name: 'Mihai Ionescu',
+      cnp: '1550310123456',
+      phone: '0740111222',
+    },
+    previousReference: { name: 'Ana Pop', phone: '0730444555' },
+    status: 'active',
+  }
+}
+
+/**
+ * The active tenancy (SRS §6 tenancies shape), with the denormalizations reproduced
+ * BY HAND because the seed bypasses finalizeKyc: `tenantName` copied from the user,
+ * `property { name, address }` copied from the occupied property. Without them the
+ * tenant's security model breaks — the tenant app reads only this denormalized data,
+ * never `users`/`properties` directly (SRS §6).
+ */
+function activeTenancy(ownerId, property) {
+  return {
+    userId: SEED_TENANT.uid,
+    ownerId,
+    propertyId: SEED_OCCUPIED_PROPERTY_ID,
+    tenantName: tenantUser().name,
+    property: { name: property.name, address: property.address },
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    monthlyRent: '2500',
+    securityDeposit: '2500',
+    dueDay: '10',
+    currentBalance: 0,
+    status: 'active',
+    attachedDocuments: [],
+  }
+}
+
 function readProjectId() {
   const rcPath = path.join(__dirname, '..', '..', '.firebaserc')
   const rc = JSON.parse(fs.readFileSync(rcPath, 'utf8'))
@@ -187,6 +289,70 @@ async function reseedProperties(ownerId) {
   }
 }
 
+/**
+ * Creates the demo tenant Auth account if missing (idempotent, like `ensureAdmin`).
+ *
+ * DECISION — the Auth account IS created: it costs one call that mirrors
+ * `ensureAdmin` exactly, and it lets the tenant sign in (`chirias@test.ro`) to
+ * exercise the tenant app from M5 without hand-creating an account. It gets NO admin
+ * claim. The fixed uid is reused as the `users` doc id, keeping the seed consistent
+ * with finalizeKyc's `users/{authUid}`.
+ */
+async function ensureTenant() {
+  const auth = getAuth()
+  try {
+    const user = await auth.getUserByEmail(SEED_TENANT.email)
+    console.log(
+      `Tenant already exists: ${SEED_TENANT.email} (uid: ${user.uid})`,
+    )
+    return user.uid
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') throw error
+    const user = await auth.createUser({
+      uid: SEED_TENANT.uid,
+      email: SEED_TENANT.email,
+      password: SEED_TENANT.password,
+      displayName: tenantUser().name,
+      emailVerified: true,
+    })
+    console.log(`Tenant created: ${SEED_TENANT.email} (uid: ${user.uid})`)
+    return user.uid
+  }
+}
+
+/** The M2 occupied scenario: an occupied property + the tenant's `users` doc + the
+ * active tenancy that links them, deleted then rewritten (deterministic, no dupes). */
+async function reseedOccupied(ownerId) {
+  const db = getFirestore()
+  const propertyRef = db.collection('properties').doc(SEED_OCCUPIED_PROPERTY_ID)
+  const userRef = db.collection('users').doc(SEED_TENANT.uid)
+  const tenancyRef = db.collection('tenancies').doc(SEED_TENANCY_ID)
+
+  const delBatch = db.batch()
+  delBatch.delete(propertyRef)
+  delBatch.delete(userRef)
+  delBatch.delete(tenancyRef)
+  await delBatch.commit()
+
+  const property = occupiedProperty(ownerId)
+  const writeBatch = db.batch()
+  writeBatch.set(propertyRef, property)
+  writeBatch.set(userRef, tenantUser())
+  writeBatch.set(tenancyRef, activeTenancy(ownerId, property))
+  await writeBatch.commit()
+
+  console.log('Wrote the occupied scenario:')
+  console.log(
+    `  - property ${SEED_OCCUPIED_PROPERTY_ID}: "${property.name}" (occupied)`,
+  )
+  console.log(
+    `  - user ${SEED_TENANT.uid}: "${tenantUser().name}" (cnp ${tenantUser().cnp})`,
+  )
+  console.log(
+    `  - tenancy ${SEED_TENANCY_ID}: active, denormalized tenantName + property`,
+  )
+}
+
 async function main() {
   // Emulator only. A production seed is out of scope — this data is for local dev.
   process.env.FIREBASE_AUTH_EMULATOR_HOST = AUTH_EMULATOR_HOST
@@ -201,9 +367,14 @@ async function main() {
 
   const ownerId = await ensureAdmin()
   await reseedProperties(ownerId)
+  await ensureTenant()
+  await reseedOccupied(ownerId)
 
   console.log('\n✅ Seed complete.')
-  console.log(`   Sign in as ${ADMIN.email} / ${ADMIN.password}`)
+  console.log(`   Admin sign-in:  ${ADMIN.email} / ${ADMIN.password}`)
+  console.log(
+    `   Tenant sign-in: ${SEED_TENANT.email} / ${SEED_TENANT.password}`,
+  )
 }
 
 main().catch((error) => {
