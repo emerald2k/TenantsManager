@@ -126,7 +126,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-TEN-04 | **Step 3**: employer, occupation/role, employment duration, source+level of monthly income, guarantor (name, CNP, phone — mandatory; guarantor ID photos — **optional, non-blocking**), previous reference (name, phone). |
 | FR-TEN-05 | **Step 4**: contract data (see 3.3). |
 | FR-TEN-06 | All fields in steps 1 and 3 are mandatory, except: mailing address, guarantor ID photos. |
-| FR-TEN-07 | Existing email at Step 1 → new tenancy linked to the existing account, jump directly to Step 4. |
+| FR-TEN-07 | Existing email at Step 1 → new tenancy linked to the existing account, jump directly to Step 4. On finalization, the tenant receives a short notification email (Anexa A7). |
 | FR-TEN-08 | New email → the account is created on KYC completion (Cloud Function `finalizeKyc`). |
 | FR-TEN-09 | **All** tenant data (profile + KYC) is stored in the `users` collection, with **admin-only** access — the tenant has no read access to their own document. The tenant application uses exclusively the denormalized data from the tenancy and their own reports. |
 | FR-TEN-10 | Sensitive data is kept permanently, without automatic deletion. |
@@ -402,6 +402,10 @@ users/{userId}                        [ACCESS: admin only]
 onboardingDrafts/{draftId}            [ACCESS: admin only]
   - the fields of steps 1-4 (partial), currentStep (1-4),
     createdAt, updatedAt, status: 'in_progress'
+  - existingUserId (opt): set when Step 1 matches an existing tenant's email
+    (FR-TEN-07) — the draft then represents a new tenancy on that account rather
+    than a new tenant; Steps 1-3 KYC fields become irrelevant, only Step 4
+    (contract) data is required for finalization.
   // deleted automatically on KYC completion (FR-TEN-18)
 
 tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads where userId == auth.uid]
@@ -521,6 +525,8 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 | `setAdminClaim` | setup script (once) | Sets the custom claim `admin: true` on the account created in the Console. |
 
 **Note — `finalizeKyc` returns the credentials to the admin:** onboarding is completed face-to-face on a tablet, with the tenant present, so the admin can communicate the password directly instead of waiting for the email to arrive. The `mail` email stays the durable record channel; the callable response is only for immediate confirmation at the desk. This is consistent with `resetTenantPassword`, which already returns the generated password to the admin.
+
+If the draft's `existingUserId` is set (FR-TEN-07), the function skips Auth/`users` creation and password generation — it creates only the new `tenancies` document on the existing account, verifies the account has no other active tenancy (FR-CON-02) and the property is free (FR-TEN-14/23), and sends a short assignment notification (Anexa A7) instead of the credentials email.
 
 ### 7.3 Security Rules — principles
 - Admin = custom claim `admin == true` → full access everywhere.
@@ -658,3 +664,14 @@ All emails to the tenant are sent in their preferred language. Emails to the adm
 ### A6 — Report preparation reminder (to the admin; RO only)
 **Subject:** Pregătește lista de plată — {property}
 > Contul pentru {property} are scadența pe {dueDate}. Raportul lunii încă nu e semnat — pregătește costurile și emite lista.
+
+### A7 — New tenancy assigned (to an existing tenant)
+**RO — Subject:** Ai o nouă locuință în platformă — {property}
+> Bună, {name},
+> Rapoartele lunare pentru această locuință vor apărea în contul tău obișnuit.
+> Accesează platforma la: {url}
+
+**EN — Subject:** You have a new tenancy — {property}
+> Hi {name},
+> Monthly reports for this property will appear in your usual account.
+> Access the platform at: {url}
