@@ -507,7 +507,7 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 
 | Function | Type | Role |
 |---|---|---|
-| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft. Atomic. |
+| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft, and **returns the credentials (email + password) to the admin** in the response. Atomic. |
 | `resetTenantPassword` | callable (admin) | Generates a new password, sets it on the account, returns it to the admin. |
 | `setTenantAccountStatus` | callable (admin) | Disables / re-enables a tenant's account. Sets `disabled: true/false` on the Firebase Auth account (requires the Admin SDK — the client cannot) and synchronizes `users.status` in Firestore. On **disabling** it also revokes the active tokens (`revokeRefreshTokens`), so that an open session dies immediately, not at the next login. Backs the "Disable/Re-enable" button in §5.3 (**Account** tab) and the states in FR-TEN-24. |
 | `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy; writes the new/updated report email into `mail`. |
@@ -515,6 +515,8 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 | `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin). |
 | `getSharedReport` | callable (public, no auth) | Serves a shared report based on the `shareToken`. Validates the token, checks `shareTokenRevoked == false` and `status == 'signed'`, returns **only** the report's fields. The only path of anonymous access to data; the collection stays closed in Security Rules (FR-REP-07c). |
 | `setAdminClaim` | setup script (once) | Sets the custom claim `admin: true` on the account created in the Console. |
+
+**Note — `finalizeKyc` returns the credentials to the admin:** onboarding is completed face-to-face on a tablet, with the tenant present, so the admin can communicate the password directly instead of waiting for the email to arrive. The `mail` email stays the durable record channel; the callable response is only for immediate confirmation at the desk. This is consistent with `resetTenantPassword`, which already returns the generated password to the admin.
 
 ### 7.3 Security Rules — principles
 - Admin = custom claim `admin == true` → full access everywhere.
