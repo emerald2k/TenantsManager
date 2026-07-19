@@ -12,14 +12,28 @@ import {
 } from '@/features/onboarding/hooks'
 
 // Fast band — the boundary (the hooks) is mocked, no emulator. The factory must list
-// EVERY hook the wizard/StepPersonal/StepFinancial call: `vi.mock` replaces the
-// WHOLE module, and a hook left out comes back undefined and the page crashes.
+// EVERY hook the wizard/StepPersonal/StepFinancial/PhotoCapture call: `vi.mock`
+// replaces the WHOLE module, and a hook left out comes back undefined and the page
+// crashes.
 vi.mock('@/features/onboarding/hooks', () => ({
   useDraft: vi.fn(),
   useUpdateDraft: vi.fn(),
   useCheckExistingEmail: vi.fn(),
   useCheckDuplicateCnp: vi.fn(),
 }))
+
+// PhotoCapture (Sub-stage D) touches Storage + compression directly. Neither
+// button is clicked in these wiring-level tests — only rendering and the min-1
+// validation are — so mocking the boundary (never invoked here) is enough to let
+// the real component render.
+vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn(),
+  uploadBytes: vi.fn(),
+  getDownloadURL: vi.fn(),
+  deleteObject: vi.fn(),
+}))
+vi.mock('browser-image-compression', () => ({ default: vi.fn() }))
 
 const navigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -84,9 +98,11 @@ function renderWizard(draft) {
 }
 
 describe('OnboardingWizardPage — shell', () => {
-  it('renders the step-2 placeholder without crashing', async () => {
+  it('renders the step-2 photo capture without crashing', async () => {
     await renderWizard({ ...STEP3_DRAFT, currentStep: 2 })
-    expect(screen.getByText('Disponibil în Sub-etapa D')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Fotografiază documentul' }),
+    ).toBeInTheDocument()
   })
 
   it('renders the step-4 placeholder without crashing', async () => {
@@ -119,7 +135,9 @@ describe('OnboardingWizardPage — shell', () => {
         expect.objectContaining({ id: 'draft-1', currentStep: 2 }),
       )
     })
-    expect(screen.getByText('Disponibil în Sub-etapa D')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Fotografiază documentul' }),
+    ).toBeInTheDocument()
   })
 
   it('Save and close saves and navigates back to the tenant list', async () => {
@@ -225,6 +243,43 @@ describe('OnboardingWizardPage — Step 1 personal data (FR-TEN-02)', () => {
   })
 })
 
+describe('OnboardingWizardPage — Step 2 ID document photos (FR-TEN-03)', () => {
+  it('blocks Continue with an inline error when no photo was captured', async () => {
+    const user = userEvent.setup()
+    await renderWizard({ ...STEP3_DRAFT, currentStep: 2, idDocumentPhotos: [] })
+
+    await user.click(screen.getByRole('button', { name: 'Continuă' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Câmp obligatoriu').length).toBeGreaterThan(0)
+    })
+    expect(updateMutate).not.toHaveBeenCalled()
+  })
+
+  it('allows Continue once at least one photo is present', async () => {
+    const user = userEvent.setup()
+    await renderWizard({
+      ...STEP3_DRAFT,
+      currentStep: 2,
+      idDocumentPhotos: [
+        {
+          url: 'https://storage.example/id.jpg',
+          name: 'id.jpg',
+          type: 'image',
+        },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Continuă' }))
+
+    await waitFor(() => {
+      expect(updateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'draft-1', currentStep: 3 }),
+      )
+    })
+  })
+})
+
 describe('OnboardingWizardPage — Step 3 financial data + guarantor (FR-TEN-04)', () => {
   it('shows an inline error per missing mandatory field on Continue', async () => {
     const user = userEvent.setup()
@@ -251,8 +306,13 @@ describe('OnboardingWizardPage — Step 3 financial data + guarantor (FR-TEN-04)
     })
   })
 
-  it('renders the guarantor photo-upload placeholder without crashing', async () => {
+  it('renders the guarantor photo capture without crashing, guarantor.idDocumentPhotos absent', async () => {
+    // STEP3_DRAFT's guarantor has no idDocumentPhotos — exactly what `reset` produces
+    // after a shallow merge with draftFormDefaults replaces the whole `guarantor`
+    // object. PhotoCapture must default the watched array instead of crashing.
     await renderWizard(STEP3_DRAFT)
-    expect(screen.getByText('Încărcare poze — Sub-etapa D')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Fotografiază documentul' }),
+    ).toBeInTheDocument()
   })
 })

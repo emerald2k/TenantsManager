@@ -178,7 +178,11 @@
       "continue": "Continuă",
       "saveAndClose": "Salvează și închide",
       "stepComingSoon": "Disponibil în Sub-etapa {{stage}}",
-      "guarantorPhotosPlaceholder": "Încărcare poze — Sub-etapa D",
+      "photoCapture": {
+        "button": "Fotografiază documentul",
+        "delete": "Șterge",
+        "tooLarge": "Fișierul depășește 10 MB."
+      },
       "existingTenantTitle": "Chiriaș existent — chirie nouă",
       "existingTenantDescription": "Există deja un cont cu acest email, pe numele \"{{name}}\". Confirmă pentru a începe o chirie nouă pe acest cont.",
       "existingTenantConfirm": "Confirmă",

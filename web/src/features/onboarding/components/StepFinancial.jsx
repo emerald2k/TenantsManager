@@ -2,6 +2,7 @@ import { useFormContext } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhotoCapture } from '@/features/onboarding/components/PhotoCapture'
 
 function FieldError({ error, t }) {
   if (!error) return null
@@ -12,11 +13,11 @@ function FieldError({ error, t }) {
  * Step 3 — financial / professional data + guarantor (FR-TEN-04, SRS §6). Same
  * shared-form pattern as Step 1 (`useFormContext`, not its own `useForm`).
  *
- * `guarantor.idDocumentPhotos` stays a placeholder text — the upload widget is
- * Sub-stage D's job; the field itself is already optional in the schema (Sub-stage
- * A), so leaving it untouched here does not block partial or full validation.
+ * `guarantor.idDocumentPhotos` reuses `PhotoCapture` (Sub-stage D), `required=false`
+ * — the field is already optional in the schema (Sub-stage A), so its absence does
+ * not block partial or full validation (FR-TEN-06).
  */
-export function StepFinancial() {
+export function StepFinancial({ draftId }) {
   const { t } = useTranslation()
   const {
     register,
@@ -92,9 +93,14 @@ export function StepFinancial() {
           <Input id="guarantor.phone" {...register('guarantor.phone')} />
           <FieldError error={errors.guarantor?.phone} t={t} />
         </div>
-        <p className="text-sm text-muted-foreground">
-          {t('onboarding.wizard.guarantorPhotosPlaceholder')}
-        </p>
+        <div className="flex flex-col gap-2">
+          <Label>{t('onboarding.fields.guarantorIdDocumentPhotos')}</Label>
+          <PhotoCapture
+            draftId={draftId}
+            fieldPath="guarantor.idDocumentPhotos"
+            required={false}
+          />
+        </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-4 rounded-md border border-border p-4">

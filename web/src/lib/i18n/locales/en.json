@@ -178,7 +178,11 @@
       "continue": "Continue",
       "saveAndClose": "Save and close",
       "stepComingSoon": "Coming in Sub-stage {{stage}}",
-      "guarantorPhotosPlaceholder": "Photo upload — Sub-stage D",
+      "photoCapture": {
+        "button": "Photograph document",
+        "delete": "Delete",
+        "tooLarge": "The file exceeds 10 MB."
+      },
       "existingTenantTitle": "Existing tenant — new tenancy",
       "existingTenantDescription": "An account already exists for this email, under the name \"{{name}}\". Confirm to start a new tenancy on this account.",
       "existingTenantConfirm": "Confirm",

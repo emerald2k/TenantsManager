@@ -7,17 +7,18 @@ import { useDraft, useUpdateDraft } from '@/features/onboarding/hooks'
 import {
   draftFormDefaults,
   step1Schema,
+  step2Schema,
   step3Schema,
 } from '@/features/onboarding/schema'
 import { StepPersonal } from '@/features/onboarding/components/StepPersonal'
 import { StepFinancial } from '@/features/onboarding/components/StepFinancial'
+import { PhotoCapture } from '@/features/onboarding/components/PhotoCapture'
 
 const STEP_KEYS = ['personal', 'documents', 'financial', 'contract']
 
-// Only steps 1 and 3 have a schema to validate against yet (Sub-stage C). Steps 2/4
-// are placeholders (Sub-stage D/E) — Continue passes through them unvalidated until
-// their real content lands.
-const STEP_SCHEMAS = { 1: step1Schema, 3: step3Schema }
+// Step 4 is still a placeholder (Sub-stage E) — Continue passes through it
+// unvalidated until its real content lands.
+const STEP_SCHEMAS = { 1: step1Schema, 2: step2Schema, 3: step3Schema }
 
 /**
  * The onboarding wizard shell (FR-TEN-01…08, SRS §5.1/§5.3, `/admin/onboarding/:draftId`).
@@ -130,11 +131,13 @@ export function OnboardingWizardPage() {
             <StepPersonal onCnpConflictChange={setCnpConflict} />
           )}
           {currentStep === 2 && (
-            <p className="text-sm text-muted-foreground">
-              {t('onboarding.wizard.stepComingSoon', { stage: 'D' })}
-            </p>
+            <PhotoCapture
+              draftId={draftId}
+              fieldPath="idDocumentPhotos"
+              required
+            />
           )}
-          {currentStep === 3 && <StepFinancial />}
+          {currentStep === 3 && <StepFinancial draftId={draftId} />}
           {currentStep === 4 && (
             <p className="text-sm text-muted-foreground">
               {t('onboarding.wizard.stepComingSoon', { stage: 'E' })}
