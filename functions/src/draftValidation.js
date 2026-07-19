@@ -80,6 +80,12 @@ const fullDraftSchema = z
     monthlyRent: required(),
     securityDeposit: optional(),
     dueDay: required(),
+    // existingUserId (FR-TEN-07): set when the draft is a new tenancy on an existing
+    // account (matched by email at Step 1, web Sub-stage C), instead of a brand-new
+    // tenant. Mirrors web/src/features/onboarding/schema.js — field only, no
+    // business logic yet: the conditional handling (skip re-KYC, jump to Step 4) is
+    // Sub-stage E's job, at finalization.
+    existingUserId: z.string().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     // Conditionals (FR-TEN-02): pet type required if has pets; make + plate required

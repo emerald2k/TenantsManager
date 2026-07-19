@@ -149,11 +149,26 @@ function refineConditionals(data, ctx) {
   }
 }
 
+/**
+ * `existingUserId` (FR-TEN-07): set when the draft represents a NEW TENANCY ON AN
+ * EXISTING ACCOUNT (matched by email at Step 1), instead of a brand-new tenant.
+ * `null` is the "not applicable" default — NOT the same as `undefined` (absent):
+ * Firestore stores `null` explicitly, so a draft always carries the field once
+ * created, and its presence is unambiguous from the very first read.
+ *
+ * Sub-stage C only adds the field and lets it flow through untouched. It does NOT
+ * conditionally relax Steps 1-3 when set — a draft linked to an existing account
+ * still collects the same fields today; the branching (skip re-entering KYC data,
+ * jump straight to Step 4) is Sub-stage E's job, at finalization.
+ */
+const existingUserId = { existingUserId: z.string().nullable().optional() }
+
 /** The complete draft: all four steps, all mandatory fields, the conditionals. */
 export const fullDraftSchema = step1Schema
   .extend(step2Schema.shape)
   .extend(step3Schema.shape)
   .extend(step4Schema.shape)
+  .extend(existingUserId)
   .superRefine(refineConditionals)
 
 /**
@@ -189,6 +204,7 @@ export const partialDraftSchema = z.object({
   monthlyRent: optional(),
   securityDeposit: optional(),
   dueDay: optional(),
+  existingUserId: z.string().nullable().optional(),
 })
 
 /**
@@ -223,4 +239,5 @@ export const draftFormDefaults = {
   monthlyRent: '',
   securityDeposit: '',
   dueDay: '',
+  existingUserId: null,
 }

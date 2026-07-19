@@ -29,6 +29,12 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 - At the end of each milestone: check the "done" criterion defined in the SRS and report the state.
 - Prefer small, verifiable steps over massive generation in one go. The user is learning along the way — explain the decisions as you make them.
 - **Do not commit product code before the administrator's explicit validation.** Verify it yourself first (lint, build, behavior test), report the result, and WAIT for confirmation. Commits on a milestone branch are not a work journal — each one is a gate.
+- **`CURRENT_SPRINT.md`, at the project root, is a LOCAL context checkpoint** — regenerated so a new session (possibly a different model) can resume work without losing architectural context.
+  - Regenerate it ONLY at gates, after a sub-stage is committed — never mid-sub-stage, never on incoherent state (half-written code, temporarily red tests). A checkpoint written on such a state misleads whatever session reads it next.
+  - **Emergency exception:** if a session-limit warning fires mid-sub-stage, a snapshot MAY be written outside a gate — but it MUST be explicitly labeled as a mid-sub-stage snapshot (not a stable checkpoint), state plainly that nothing in it should be trusted as complete/tested/committed without verification, and instruct the next session to re-run `git status` / `git diff` / the test suite before continuing rather than trusting the file's claims.
+  - It is in `.gitignore` and is NEVER committed — it is a transition snapshot, not durable documentation.
+  - **It is NOT a source of truth.** It holds no architecture decisions, product requirements, or process rules — those belong in `SRS.md` / this file. It only summarizes "where things stand" and points back to `SRS.md`, `CLAUDE.md`, and `git log` for detail. A decision worth keeping durably belongs in `SRS.md`, not here.
+  - Typical content: current milestone + the last committed sub-stage (SHA + message) + branch; the sub-stages of the current milestone committed so far; the next sub-stage in sequence; working-tree/test state; the essential process rules (SRS = source of truth, commits are gates, §9 audit before merging to main).
 
 ---
 

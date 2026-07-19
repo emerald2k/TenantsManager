@@ -172,6 +172,25 @@
       "monthlyRent": "Chirie lunară",
       "securityDeposit": "Garanție",
       "dueDay": "Zi scadentă"
+    },
+    "wizard": {
+      "back": "Înapoi",
+      "continue": "Continuă",
+      "saveAndClose": "Salvează și închide",
+      "stepComingSoon": "Disponibil în Sub-etapa {{stage}}",
+      "guarantorPhotosPlaceholder": "Încărcare poze — Sub-etapa D",
+      "existingTenantTitle": "Chiriaș existent — chirie nouă",
+      "existingTenantDescription": "Există deja un cont cu acest email, pe numele \"{{name}}\". Confirmă pentru a începe o chirie nouă pe acest cont.",
+      "existingTenantConfirm": "Confirmă",
+      "existingTenantLinked": "Acest draft este legat de chiriașul existent \"{{name}}\". Finalizarea unei chirii noi pe un cont existent va fi disponibilă începând cu Sub-etapa E.",
+      "cnpConflict": "Există deja un chiriaș cu acest CNP: \"{{name}}\"."
+    }
+  },
+  "tenants": {
+    "list": {
+      "title": "Chiriași",
+      "add": "Onboarding chiriaș nou",
+      "error": "Draftul nu a putut fi creat. Încearcă din nou."
     }
   },
   "notFound": {

@@ -172,6 +172,25 @@
       "monthlyRent": "Monthly rent",
       "securityDeposit": "Security deposit",
       "dueDay": "Due day"
+    },
+    "wizard": {
+      "back": "Back",
+      "continue": "Continue",
+      "saveAndClose": "Save and close",
+      "stepComingSoon": "Coming in Sub-stage {{stage}}",
+      "guarantorPhotosPlaceholder": "Photo upload — Sub-stage D",
+      "existingTenantTitle": "Existing tenant — new tenancy",
+      "existingTenantDescription": "An account already exists for this email, under the name \"{{name}}\". Confirm to start a new tenancy on this account.",
+      "existingTenantConfirm": "Confirm",
+      "existingTenantLinked": "This draft is linked to the existing tenant \"{{name}}\". Completing a new tenancy on an existing account is available starting Sub-stage E.",
+      "cnpConflict": "A tenant with this CNP already exists: \"{{name}}\"."
+    }
+  },
+  "tenants": {
+    "list": {
+      "title": "Tenants",
+      "add": "New tenant onboarding",
+      "error": "The draft could not be created. Please try again."
     }
   },
   "notFound": {

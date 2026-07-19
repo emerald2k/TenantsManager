@@ -6,8 +6,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { deleteObject, listAll, ref } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase'
@@ -165,6 +168,51 @@ export function useDeleteDraft() {
     onSuccess: (_result, id) => {
       queryClient.invalidateQueries({ queryKey: draftKeys.lists() })
       queryClient.invalidateQueries({ queryKey: draftKeys.detail(id) })
+    },
+  })
+}
+
+// ────────────────────── useCheckExistingEmail ─────────────────────
+/**
+ * Live check on the Step 1 email field (FR-TEN-07): looks up `users` for an account
+ * already registered with this email. A mutation, not a query — it fires once,
+ * imperatively, from the field's onBlur handler, not automatically on render.
+ * Returns `{ id, name }` of the matching account, or `null` if none.
+ *
+ * KNOWN GAP (flagged, not fixed here): `firestore.rules` has no client-read rule for
+ * `users` yet — only the Cloud Function (Admin SDK) has touched it so far. Until that
+ * rule lands, this will resolve to `permission-denied` in the real browser. See the
+ * Sub-stage C report for the drafted rule pending Bogdan's approval.
+ */
+export function useCheckExistingEmail() {
+  return useMutation({
+    mutationFn: async (email) => {
+      const snap = await getDocs(
+        query(collection(db, 'users'), where('email', '==', email), limit(1)),
+      )
+      if (snap.empty) return null
+      const match = snap.docs[0]
+      return { id: match.id, name: match.data().name }
+    },
+  })
+}
+
+// ────────────────────── useCheckDuplicateCnp ──────────────────────
+/**
+ * Live check on the Step 1 cnp field (FR-TEN-22): early-warning UX only — the
+ * authoritative check is server-side, in finalizeKyc (Sub-stage B), which re-verifies
+ * at completion time regardless of what this returned. Same `users` rule gap as
+ * `useCheckExistingEmail` above.
+ */
+export function useCheckDuplicateCnp() {
+  return useMutation({
+    mutationFn: async (cnp) => {
+      const snap = await getDocs(
+        query(collection(db, 'users'), where('cnp', '==', cnp), limit(1)),
+      )
+      if (snap.empty) return null
+      const match = snap.docs[0]
+      return { id: match.id, name: match.data().name }
     },
   })
 }

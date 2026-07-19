@@ -122,6 +122,39 @@ describe('onboarding schema — required yes/no booleans (undefined-until-chosen
   })
 })
 
+describe('onboarding schema — existingUserId (FR-TEN-07)', () => {
+  // Set when Step 1's live email check (Sub-stage C) matches an existing account —
+  // the draft becomes "new tenancy on existing account" instead of a brand-new
+  // tenant. Sub-stage C only adds the field and lets it pass through untouched; no
+  // conditional relaxation of Steps 1-3 happens yet (that is Sub-stage E, at
+  // finalization). Here we only prove the schema accepts it, in every shape, without
+  // crashing — present, absent, or explicitly null.
+
+  it('partial validation accepts a draft with existingUserId set', () => {
+    const partial = { name: 'Ion', existingUserId: 'user-abc' }
+    expect(partialDraftSchema.safeParse(partial).success).toBe(true)
+  })
+
+  it('partial validation accepts existingUserId absent', () => {
+    expect(partialDraftSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('partial validation accepts existingUserId explicitly null', () => {
+    expect(partialDraftSchema.safeParse({ existingUserId: null }).success).toBe(
+      true,
+    )
+  })
+
+  it('full validation accepts a complete draft with existingUserId set', () => {
+    const withExistingUser = { ...COMPLETE, existingUserId: 'user-abc' }
+    expect(fullDraftSchema.safeParse(withExistingUser).success).toBe(true)
+  })
+
+  it('full validation accepts a complete draft with existingUserId absent', () => {
+    expect(fullDraftSchema.safeParse(COMPLETE).success).toBe(true)
+  })
+})
+
 describe('onboarding schema — partial validation (autosave)', () => {
   it('accepts an incomplete draft (a subset of step-1 fields)', () => {
     const partial = { name: 'Ion', cnp: '123', preferredLanguage: 'ro' }
