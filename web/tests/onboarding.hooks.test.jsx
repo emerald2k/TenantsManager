@@ -16,6 +16,7 @@ import {
   useDraft,
   useDraftsList,
   useUpdateDraft,
+  useUserById,
 } from '@/features/onboarding/hooks'
 
 // Hook tests with the BOUNDARY MOCKED — no emulator. They check the data layer's
@@ -197,6 +198,65 @@ describe('useUpdateDraft — autosave (FR-TEN-17)', () => {
       queryKey: ['onboardingDrafts', 'detail', 'd1'],
     })
   })
+
+  // Bug reproduction (Sub-stage E): `draftFormDefaults` deliberately leaves
+  // preferredLanguage/smoker/pets.has/vehicle.has `undefined` until the admin
+  // picks — correct for validation, but `updateDoc()` THROWS SYNCHRONOUSLY on
+  // any undefined field, before any network call. On the existing-tenant path,
+  // autosave(4) fires with Steps 1-3 still untouched, so the write always
+  // carried undefined and always failed — silently, since `useUpdateDraft` has
+  // no `onError`. Diagnosed live: the Firestore doc stayed at its
+  // creation-only fields (createdAt === updatedAt) no matter how many times
+  // the wizard "confirmed" the existing tenant.
+  it('strips undefined keys, including nested ones, before writing to Firestore', async () => {
+    const { result } = await renderHookWithProviders(() => useUpdateDraft())
+
+    await result.current.mutateAsync({
+      id: 'd1',
+      values: {
+        name: 'Ion',
+        existingUserId: 'seed-tenant',
+        preferredLanguage: undefined,
+        smoker: undefined,
+        pets: { has: undefined, type: '' },
+        vehicle: { has: undefined, make: '', plateNumber: '' },
+        securityDeposit: null,
+      },
+      currentStep: 4,
+    })
+
+    const payload = updateDoc.mock.calls[0][1]
+
+    function assertNoUndefinedDeep(value, path) {
+      if (Array.isArray(value)) {
+        value.forEach((item, i) => assertNoUndefinedDeep(item, `${path}[${i}]`))
+        return
+      }
+      if (value !== null && typeof value === 'object') {
+        for (const [key, val] of Object.entries(value)) {
+          expect(val, `${path}.${key} must not be undefined`).not.toBe(
+            undefined,
+          )
+          assertNoUndefinedDeep(val, `${path}.${key}`)
+        }
+      }
+    }
+    assertNoUndefinedDeep(payload, 'payload')
+
+    // The KEYS themselves must be gone, not just falsy-checked — an explicit
+    // `undefined` value still satisfies a loose falsy check but still crashes
+    // updateDoc().
+    expect(payload).not.toHaveProperty('preferredLanguage')
+    expect(payload).not.toHaveProperty('smoker')
+    expect(payload.pets).not.toHaveProperty('has')
+    expect(payload.vehicle).not.toHaveProperty('has')
+
+    // Untouched but MEANINGFUL values survive as-is: `null` is a chosen
+    // "explicitly empty" (securityDeposit), not an unset field.
+    expect(payload.pets).toEqual({ type: '' })
+    expect(payload.securityDeposit).toBe(null)
+    expect(payload.existingUserId).toBe('seed-tenant')
+  })
 })
 
 describe('useDeleteDraft (FR-TEN-20)', () => {
@@ -236,5 +296,45 @@ describe('useDeleteDraft (FR-TEN-20)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['onboardingDrafts', 'list'],
     })
+  })
+})
+
+describe('useUserById (Sub-stage E, FR-TEN-07 — existing-tenant banner)', () => {
+  it('reads the requested user document', async () => {
+    getDoc.mockResolvedValue({
+      exists: () => true,
+      id: 'user-1',
+      data: () => ({ name: 'Maria Ionescu', email: 'maria@example.com' }),
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useUserById('user-1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual({
+      id: 'user-1',
+      name: 'Maria Ionescu',
+      email: 'maria@example.com',
+    })
+  })
+
+  it('signals an error if the user does not exist', async () => {
+    getDoc.mockResolvedValue({ exists: () => false })
+
+    const { result } = await renderHookWithProviders(() =>
+      useUserById('missing'),
+    )
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+  })
+
+  it('reads nothing without an id', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useUserById(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDoc).not.toHaveBeenCalled()
   })
 })

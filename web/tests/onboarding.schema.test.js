@@ -18,7 +18,7 @@ const COMPLETE = {
   preferredLanguage: 'ro',
   previousAddress: 'Str. Veche 1',
   emergencyContact: { name: 'Maria', phone: '0700000000' },
-  occupantCount: '2',
+  occupantCount: 2,
   smoker: false,
   pets: { has: false },
   vehicle: { has: false },
@@ -27,16 +27,17 @@ const COMPLETE = {
   ],
   employer: 'ACME SRL',
   occupation: 'Engineer',
-  employmentDuration: '3 years',
-  monthlyIncome: { source: 'salary', amount: '5000' },
+  employmentDuration: 3,
+  monthlyIncome: { source: 'salary', amount: 5000 },
   guarantor: { name: 'Gigi', cnp: '1800101123456', phone: '0722222222' },
   previousReference: { name: 'Vlad', phone: '0733333333' },
   propertyId: 'prop-1',
   startDate: '2026-08-01',
   endDate: '2027-08-01',
-  monthlyRent: '2000',
-  securityDeposit: '2000',
-  dueDay: '5',
+  monthlyRent: 2000,
+  securityDeposit: 2000,
+  dueDay: 5,
+  reportReminderDaysBefore: 3,
 }
 
 describe('onboarding schema — full validation (completion)', () => {
@@ -176,6 +177,222 @@ describe('onboarding schema — partial validation (autosave)', () => {
     const partial = { name: 'Ion', cnp: '123' }
     expect(partialDraftSchema.safeParse(partial).success).toBe(true)
     expect(fullDraftSchema.safeParse(partial).success).toBe(false)
+  })
+})
+
+describe('onboarding schema — existingUserId branches full validation (Sub-stage E, FR-TEN-07)', () => {
+  // Only Step 4 (+ existingUserId itself) — Steps 1-3 are irrelevant once the draft
+  // is linked to an existing account (SRS §6 onboardingDrafts.existingUserId).
+  const STEP4_ONLY = {
+    existingUserId: 'user-abc',
+    propertyId: 'prop-1',
+    startDate: '2026-08-01',
+    endDate: '2027-08-01',
+    monthlyRent: 2000,
+    dueDay: 5,
+    reportReminderDaysBefore: 3,
+  }
+
+  it('passes full validation with existingUserId set and only Step 4 filled', () => {
+    expect(fullDraftSchema.safeParse(STEP4_ONLY).success).toBe(true)
+  })
+
+  it('fails full validation with the SAME Step 4 data but existingUserId absent — unchanged old behavior', () => {
+    const { existingUserId, ...withoutExistingUserId } = STEP4_ONLY
+    void existingUserId
+    expect(fullDraftSchema.safeParse(withoutExistingUserId).success).toBe(false)
+  })
+
+  it('still requires every Step 4 field when existingUserId is set', () => {
+    const { propertyId, ...missingProperty } = STEP4_ONLY
+    void propertyId
+    expect(fullDraftSchema.safeParse(missingProperty).success).toBe(false)
+  })
+
+  it('does not require Step 1-3 conditionals (pets/vehicle) on the existingUserId branch', () => {
+    // pets/vehicle are entirely absent from STEP4_ONLY — the new-tenant branch would
+    // reject this (smoker/pets.has/vehicle.has undefined-until-chosen), but the
+    // existingUserId branch never looks at them.
+    expect(fullDraftSchema.safeParse(STEP4_ONLY).success).toBe(true)
+  })
+})
+
+describe('onboarding schema — reportReminderDaysBefore (FR-CON-01)', () => {
+  it('accepts a complete draft (reportReminderDaysBefore present, like dueDay)', () => {
+    expect(fullDraftSchema.safeParse(COMPLETE).success).toBe(true)
+  })
+
+  it('rejects a complete draft missing reportReminderDaysBefore — required, same strictness as dueDay', () => {
+    const { reportReminderDaysBefore, ...withoutIt } = COMPLETE
+    void reportReminderDaysBefore
+    expect(fullDraftSchema.safeParse(withoutIt).success).toBe(false)
+  })
+
+  it('rejects a non-number value — a real numeric field, not presence-only text', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        reportReminderDaysBefore: '3',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('partial validation accepts it absent or as a number', () => {
+    expect(partialDraftSchema.safeParse({}).success).toBe(true)
+    expect(
+      partialDraftSchema.safeParse({ reportReminderDaysBefore: 5 }).success,
+    ).toBe(true)
+  })
+})
+
+describe('onboarding schema — numeric fields (Sub-stage E, type correction)', () => {
+  // dueDay, monthlyRent, securityDeposit, occupantCount, employmentDuration were
+  // presence-only STRINGS through Sub-stage A — a latent bug for M4's report
+  // arithmetic. They are now REAL numbers (z.number()), the one deliberate
+  // exception to this file's "everything stays text" NFR-VAL-01 stance — CNP,
+  // phone, addresses, names are UNCHANGED.
+
+  it('dueDay: rejects a non-numeric string, accepts a valid number, rejects 0 and 32, accepts 1 and 31', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, dueDay: '5' }).success,
+    ).toBe(false)
+    expect(fullDraftSchema.safeParse({ ...COMPLETE, dueDay: 5 }).success).toBe(
+      true,
+    )
+    expect(fullDraftSchema.safeParse({ ...COMPLETE, dueDay: 0 }).success).toBe(
+      false,
+    )
+    expect(fullDraftSchema.safeParse({ ...COMPLETE, dueDay: 32 }).success).toBe(
+      false,
+    )
+    expect(fullDraftSchema.safeParse({ ...COMPLETE, dueDay: 1 }).success).toBe(
+      true,
+    )
+    expect(fullDraftSchema.safeParse({ ...COMPLETE, dueDay: 31 }).success).toBe(
+      true,
+    )
+  })
+
+  it('monthlyRent: rejects a non-numeric string, accepts a valid number >= 0', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, monthlyRent: '2000' }).success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, monthlyRent: 0 }).success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, monthlyRent: 2000 }).success,
+    ).toBe(true)
+  })
+
+  it('securityDeposit: optional, but rejects a non-numeric string when present; accepts a number >= 0 or absence', () => {
+    const { securityDeposit, ...withoutIt } = COMPLETE
+    void securityDeposit
+    expect(fullDraftSchema.safeParse(withoutIt).success).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, securityDeposit: '2000' })
+        .success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, securityDeposit: 2000 }).success,
+    ).toBe(true)
+  })
+
+  it('occupantCount: rejects a non-numeric string, rejects 0, accepts a number >= 1', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, occupantCount: '2' }).success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, occupantCount: 0 }).success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, occupantCount: 1 }).success,
+    ).toBe(true)
+  })
+
+  it('employmentDuration: semantic change — PURE YEARS as a number, not free text; rejects "3 years", accepts a number >= 0', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, employmentDuration: '3 years' })
+        .success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, employmentDuration: 0 }).success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, employmentDuration: 3 }).success,
+    ).toBe(true)
+  })
+
+  it('monthlyIncome.amount: rejects a non-numeric string, accepts a valid number >= 0 (was UI type="number" but STRING in the schema — the inconsistency this closes)', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        monthlyIncome: { ...COMPLETE.monthlyIncome, amount: '5000' },
+      }).success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        monthlyIncome: { ...COMPLETE.monthlyIncome, amount: 0 },
+      }).success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        monthlyIncome: { ...COMPLETE.monthlyIncome, amount: 5000 },
+      }).success,
+    ).toBe(true)
+  })
+
+  it('monthlyIncome.amount: blank ("") and NaN (untouched valueAsNumber input) are treated as absent — required (FR-TEN-04), so validation fails with the REQUIRED message, not a raw Zod message', () => {
+    const blank = fullDraftSchema.safeParse({
+      ...COMPLETE,
+      monthlyIncome: { ...COMPLETE.monthlyIncome, amount: '' },
+    })
+    expect(blank.success).toBe(false)
+    expect(blank.error.issues[0].message).toBe('onboarding.errors.required')
+
+    const nan = fullDraftSchema.safeParse({
+      ...COMPLETE,
+      monthlyIncome: { ...COMPLETE.monthlyIncome, amount: NaN },
+    })
+    expect(nan.success).toBe(false)
+    expect(nan.error.issues[0].message).toBe('onboarding.errors.required')
+  })
+
+  it('CNP, phone, addresses, names stay free text — unaffected by the numeric-type change', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, cnp: 'not-even-numeric!' })
+        .success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, phone: 'abc' }).success,
+    ).toBe(true)
+  })
+
+  it('securityDeposit: draftFormDefaults\' own "" (untouched field, present not absent) is treated as absent, not a type error', () => {
+    // The wizard form NEVER leaves a numeric field literally `undefined`
+    // (Firestore rejects `undefined` on write) — `draftFormDefaults.securityDeposit`
+    // is `''` until typed. `getValues()` on an untouched Step 4 therefore hands
+    // `fullDraftSchema` a PRESENT empty string, not an absent key.
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, securityDeposit: '' }).success,
+    ).toBe(true)
+  })
+
+  it('securityDeposit: NaN (what an untouched `valueAsNumber` number input actually reads via getValues()) is ALSO treated as absent', () => {
+    // register(field, { valueAsNumber: true }) reads the DOM's `valueAsNumber`
+    // property, which is NaN — not '' — for an empty <input type="number">. Both
+    // representations of "untouched" must be tolerated the same way.
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, securityDeposit: NaN }).success,
+    ).toBe(true)
+  })
+
+  it('dueDay/monthlyRent/occupantCount/employmentDuration: NaN still fails full validation, with the i18n REQUIRED message — not a raw untranslated Zod message', () => {
+    const result = fullDraftSchema.safeParse({ ...COMPLETE, dueDay: NaN })
+    expect(result.success).toBe(false)
+    expect(result.error.issues[0].message).toBe('onboarding.errors.required')
   })
 })
 

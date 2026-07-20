@@ -107,7 +107,9 @@
       "servicesTitle": "Servicii",
       "archiveTitle": "Arhivare",
       "historyTitle": "Istoric costuri",
-      "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare."
+      "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare.",
+      "dueDay": "Scadență",
+      "daysUntilDue": "{{count}} zile rămase"
     },
     "list": {
       "title": "Proprietăți",
@@ -157,7 +159,7 @@
       "idDocumentPhotos": "Poze act de identitate",
       "employer": "Angajator",
       "occupation": "Ocupație",
-      "employmentDuration": "Vechime în muncă",
+      "employmentDuration": "Vechime (ani)",
       "monthlyIncomeSource": "Sursă venit",
       "monthlyIncomeAmount": "Venit lunar",
       "guarantorName": "Nume garant",
@@ -171,13 +173,22 @@
       "endDate": "Dată sfârșit",
       "monthlyRent": "Chirie lunară",
       "securityDeposit": "Garanție",
-      "dueDay": "Zi scadentă"
+      "dueDay": "Zi scadentă",
+      "reportReminderDaysBefore": "Reminder raport (zile înainte de scadență)"
+    },
+    "placeholders": {
+      "cnp": "ex: 1234567890123",
+      "phone": "ex: 0712345678",
+      "address": "ex: Str. Exemplu nr. 10, Cluj-Napoca",
+      "employer": "ex: SC Exemplu SRL",
+      "occupation": "ex: Contabil",
+      "monthlyIncomeAmount": "ex: 3000",
+      "rent": "ex: 1500"
     },
     "wizard": {
       "back": "Înapoi",
       "continue": "Continuă",
       "saveAndClose": "Salvează și închide",
-      "stepComingSoon": "Disponibil în Sub-etapa {{stage}}",
       "photoCapture": {
         "button": "Fotografiază documentul",
         "delete": "Șterge",
@@ -186,8 +197,25 @@
       "existingTenantTitle": "Chiriaș existent — chirie nouă",
       "existingTenantDescription": "Există deja un cont cu acest email, pe numele \"{{name}}\". Confirmă pentru a începe o chirie nouă pe acest cont.",
       "existingTenantConfirm": "Confirmă",
-      "existingTenantLinked": "Acest draft este legat de chiriașul existent \"{{name}}\". Finalizarea unei chirii noi pe un cont existent va fi disponibilă începând cu Sub-etapa E.",
-      "cnpConflict": "Există deja un chiriaș cu acest CNP: \"{{name}}\"."
+      "cnpConflict": "Există deja un chiriaș cu acest CNP: \"{{name}}\".",
+      "autosaveFailed": "Salvarea automată a eșuat — verifică conexiunea."
+    },
+    "stepContract": {
+      "assigningTo": "Asignare pentru: {{name}} ({{email}})",
+      "propertyOccupiedOption": "(ocupată)",
+      "finalize": "Finalizează",
+      "successNewTitle": "Cont creat",
+      "password": "Parolă",
+      "copyPassword": "Copiază",
+      "successExistingTitle": "Tenanță creată pentru {{name}}",
+      "goToTenants": "Către lista de chiriași",
+      "cnpDialogTitle": "CNP duplicat",
+      "viewProfile": "Vezi profilul",
+      "errors": {
+        "occupied": "Proprietatea selectată este deja ocupată de o altă tenanță activă.",
+        "activeTenancy": "Acest cont are deja o tenanță activă. Încheie-o înainte de a continua.",
+        "generic": "Finalizarea a eșuat. Încearcă din nou."
+      }
     }
   },
   "tenants": {

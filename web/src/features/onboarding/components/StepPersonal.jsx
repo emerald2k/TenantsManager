@@ -30,13 +30,20 @@ function FieldError({ error, t }) {
  *
  * Two live checks fire on blur, deliberately different in kind:
  *  - email → existing account (FR-TEN-07): a VALID flow, confirmed via dialog, sets
- *    `existingUserId` on the draft and stops there (Sub-stage E finishes it).
+ *    `existingUserId` on the draft and jumps STRAIGHT to Step 4 (Sub-stage E) — the
+ *    account already has Steps 1-3 data, re-collecting it would duplicate it.
  *  - cnp → duplicate person (FR-TEN-22): a CONFLICT, not a choice — an inline
  *    blocking warning, no dialog, Continue disabled via `onCnpConflictChange`. The
  *    server-side check in finalizeKyc (Sub-stage B) remains the final authority;
  *    this is early-warning UX only.
+ *
+ * `onExistingTenantConfirmed` is the parent's (OnboardingWizardPage) real jump —
+ * this component only sets the field and asks; it has no `currentStep` of its own.
  */
-export function StepPersonal({ onCnpConflictChange }) {
+export function StepPersonal({
+  onCnpConflictChange,
+  onExistingTenantConfirmed,
+}) {
   const { t } = useTranslation()
   const {
     register,
@@ -48,7 +55,6 @@ export function StepPersonal({ onCnpConflictChange }) {
   const checkCnp = useCheckDuplicateCnp()
 
   const [candidate, setCandidate] = useState(null)
-  const [linkedName, setLinkedName] = useState(null)
   const [cnpConflict, setCnpConflict] = useState(null)
 
   const existingUserId = watch('existingUserId')
@@ -64,8 +70,8 @@ export function StepPersonal({ onCnpConflictChange }) {
 
   function confirmExistingTenant() {
     setValue('existingUserId', candidate.id)
-    setLinkedName(candidate.name)
     setCandidate(null)
+    onExistingTenantConfirmed?.()
   }
 
   async function handleCnpBlur(event) {
@@ -99,7 +105,7 @@ export function StepPersonal({ onCnpConflictChange }) {
         <Label htmlFor="dateOfBirth">
           {t('onboarding.fields.dateOfBirth')}
         </Label>
-        <Input id="dateOfBirth" {...register('dateOfBirth')} />
+        <Input id="dateOfBirth" type="date" {...register('dateOfBirth')} />
         <FieldError error={errors.dateOfBirth} t={t} />
       </div>
 
@@ -107,6 +113,7 @@ export function StepPersonal({ onCnpConflictChange }) {
         <Label htmlFor="cnp">{t('onboarding.fields.cnp')}</Label>
         <Input
           id="cnp"
+          placeholder={t('onboarding.placeholders.cnp')}
           {...register('cnp', {
             onBlur: handleCnpBlur,
             onChange: handleCnpChange,
@@ -122,7 +129,11 @@ export function StepPersonal({ onCnpConflictChange }) {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="phone">{t('onboarding.fields.phone')}</Label>
-        <Input id="phone" {...register('phone')} />
+        <Input
+          id="phone"
+          placeholder={t('onboarding.placeholders.phone')}
+          {...register('phone')}
+        />
         <FieldError error={errors.phone} t={t} />
       </div>
 
@@ -130,11 +141,6 @@ export function StepPersonal({ onCnpConflictChange }) {
         <Label htmlFor="email">{t('onboarding.fields.email')}</Label>
         <Input id="email" {...register('email', { onBlur: handleEmailBlur })} />
         <FieldError error={errors.email} t={t} />
-        {existingUserId && (
-          <p className="text-sm text-muted-foreground">
-            {t('onboarding.wizard.existingTenantLinked', { name: linkedName })}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -160,14 +166,22 @@ export function StepPersonal({ onCnpConflictChange }) {
             {t('onboarding.optional')}
           </span>
         </Label>
-        <Input id="mailingAddress" {...register('mailingAddress')} />
+        <Input
+          id="mailingAddress"
+          placeholder={t('onboarding.placeholders.address')}
+          {...register('mailingAddress')}
+        />
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="previousAddress">
           {t('onboarding.fields.previousAddress')}
         </Label>
-        <Input id="previousAddress" {...register('previousAddress')} />
+        <Input
+          id="previousAddress"
+          placeholder={t('onboarding.placeholders.address')}
+          {...register('previousAddress')}
+        />
         <FieldError error={errors.previousAddress} t={t} />
       </div>
 
@@ -188,6 +202,7 @@ export function StepPersonal({ onCnpConflictChange }) {
         </Label>
         <Input
           id="emergencyContact.phone"
+          placeholder={t('onboarding.placeholders.phone')}
           {...register('emergencyContact.phone')}
         />
         <FieldError error={errors.emergencyContact?.phone} t={t} />
@@ -197,7 +212,12 @@ export function StepPersonal({ onCnpConflictChange }) {
         <Label htmlFor="occupantCount">
           {t('onboarding.fields.occupantCount')}
         </Label>
-        <Input id="occupantCount" {...register('occupantCount')} />
+        <Input
+          id="occupantCount"
+          type="number"
+          min="1"
+          {...register('occupantCount', { valueAsNumber: true })}
+        />
         <FieldError error={errors.occupantCount} t={t} />
       </div>
 

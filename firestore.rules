@@ -43,6 +43,17 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // tenancies — admin full access; the tenant reads ONLY their own tenancy
+    // (SRS §6: "admin full; the tenant reads where userId == auth.uid"). First
+    // client access to this collection (Sub-stage E) — until now only finalizeKyc
+    // (Admin SDK, bypasses rules) ever wrote it. Writes stay admin-only: the
+    // tenant portal (M3) never mutates a tenancy, only reads it.
+    match /tenancies/{tenancyId} {
+      allow read: if isAdmin() ||
+        (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     // The remaining collections are not implemented yet.
     // Per-collection rules are added as the milestones progress, per SRS §7.3.
     match /{document=**} {

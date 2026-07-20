@@ -5,6 +5,7 @@ import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from './renderWithProviders'
 import { PropertyDetailPage } from '@/features/properties/pages/PropertyDetailPage'
 import {
+  useActiveTenancyForProperty,
   useAddService,
   useArchiveProperty,
   useProperty,
@@ -22,6 +23,7 @@ vi.mock('@/features/properties/hooks', () => ({
   useAddService: vi.fn(),
   useRemoveService: vi.fn(),
   useArchiveProperty: vi.fn(),
+  useActiveTenancyForProperty: vi.fn(),
 }))
 
 /** The shape a real `useMutation` returns, reduced to what the page touches. */
@@ -71,6 +73,10 @@ beforeEach(() => {
   useAddService.mockReturnValue(addMutation)
   useRemoveService.mockReturnValue(removeMutation)
   useArchiveProperty.mockReturnValue(archiveMutation)
+  useActiveTenancyForProperty.mockReturnValue({
+    data: undefined,
+    isPending: false,
+  })
 })
 
 async function renderPage(property = PROPERTY) {
@@ -283,6 +289,38 @@ describe('PropertyDetailPage', () => {
           'Istoricul costurilor va fi disponibil după ce există rapoarte lunare.',
         ),
       ).toBeVisible()
+    })
+  })
+
+  describe('due-day countdown (FR-PROP-11, Sub-stage E)', () => {
+    const OCCUPIED_PROPERTY = { ...PROPERTY, status: 'occupied' }
+
+    it('shows the due day + days-remaining countdown next to the badge, for an occupied property', async () => {
+      useActiveTenancyForProperty.mockReturnValue({
+        data: { id: 't1', propertyId: 'p1', status: 'active', dueDay: 5 },
+        isPending: false,
+      })
+
+      await renderPage(OCCUPIED_PROPERTY)
+
+      expect(screen.getByText(/Scadență/)).toBeVisible()
+    })
+
+    it('shows nothing for a free property (no active tenancy query result)', async () => {
+      await renderPage(PROPERTY) // status: 'free', useActiveTenancyForProperty → undefined
+
+      expect(screen.queryByText(/Scadență/)).toBeNull()
+    })
+
+    it('does not crash while the active tenancy is still loading', async () => {
+      useActiveTenancyForProperty.mockReturnValue({
+        data: undefined,
+        isPending: true,
+      })
+
+      await renderPage(OCCUPIED_PROPERTY)
+
+      expect(screen.queryByText(/Scadență/)).toBeNull()
     })
   })
 })

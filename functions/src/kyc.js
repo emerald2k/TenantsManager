@@ -3,36 +3,42 @@ const { getApps, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { logger } = require('firebase-functions')
 const { validateFullDraft } = require('./draftValidation')
 const { buildCredentialsEmail } = require('./mail-templates/credentials')
+const { buildAssignmentEmail } = require('./mail-templates/assignment')
 
 /**
- * finalizeKyc (SRS §7.2, FR-TEN-16/18/22/23, FR-AUTH-06/07).
+ * finalizeKyc (SRS §7.2, FR-TEN-07/16/18/22/23, FR-AUTH-06/07, FR-CON-02).
  *
- * Turns a completed onboarding draft into a real tenant: it validates the draft,
- * checks the CNP is unique and the property is free, creates the Auth account,
- * writes `users` + `tenancies` + the credentials email, deletes the draft — and
- * returns the credentials to the admin for face-to-face handover.
+ * Turns a completed onboarding draft into a real tenancy. BRANCHES on
+ * `draft.existingUserId` (FR-TEN-07, Sub-stage E):
  *
- * Atomicity, in this exact order (the safety decisions taken with the admin):
- *  1. validate the draft (stop before touching anything if incomplete);
- *  2. pre-check the CNP against `users` (fail-fast, BEFORE Auth — a duplicate never
- *     creates an account);
- *  3. create the Auth account + generate the password (Auth is a separate system,
- *     it cannot join the Firestore transaction, so it happens first);
- *  4. a Firestore transaction re-checks CNP + property-free, then writes everything
- *     and deletes the draft — all or nothing;
- *  5. COMPENSATION: if the transaction fails AFTER the account was created, delete
- *     the account, so a failed finalize never leaves an orphan (a future
- *     "email already in use" then always means a real tenant — FR-TEN-07).
+ *  - ABSENT (brand-new tenant): validates the draft, checks the CNP is unique and
+ *    the property is free, creates the Auth account, writes `users` + `tenancies`
+ *    + the credentials email (A1), deletes the draft, returns the credentials to
+ *    the admin for face-to-face handover.
+ *  - SET (new tenancy on an EXISTING account): Steps 1-3 are irrelevant (the
+ *    account already has that data) — no Auth account, no password. Verifies the
+ *    linked account exists, the property is free, and the account has no OTHER
+ *    active tenancy (FR-CON-02), then writes ONLY `tenancies` + a short
+ *    assignment email (A7), deletes the draft.
+ *
+ * Both branches flip `properties/{propertyId}.status` to `'occupied'` in the same
+ * transaction that creates the tenancy (FR-PROP-05) — finalizeKyc is the only
+ * place M2 creates an active tenancy, so an inline write is enough; no separate
+ * trigger exists (SRS §7.2 lists none). This is a DISPLAY signal only — the
+ * authoritative occupancy gate for both branches stays the `status=='active'`
+ * tenancy query inside the transaction, unaffected by this field's timeliness.
  */
 
 if (!getApps().length) {
   initializeApp()
 }
 
-// The login URL that goes into the credentials email. Env-configurable so the same
-// code serves the emulator and production; defaults to the local dev server.
+// The login URL that goes into the credentials/assignment email. Env-configurable
+// so the same code serves the emulator and production; defaults to the local dev
+// server.
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 
 // A clean charset — no 0/O/1/l/I — so the admin can read the password aloud without
@@ -52,7 +58,8 @@ function generatePassword() {
 
 /** The `users` document (SRS §6) — the KYC/profile fields from the draft, plus the
  * initial status. The contract fields and the draft's own system fields are left
- * out: contract data belongs to `tenancies`. */
+ * out: contract data belongs to `tenancies`. Only ever used on the new-tenant
+ * branch — the existing-user branch never touches `users`. */
 function toUserDocument(draft) {
   const user = {
     name: draft.name,
@@ -83,56 +90,134 @@ function toUserDocument(draft) {
   return user
 }
 
-/** The `tenancies` document (SRS §6) with the denormalizations: `tenantName` from
- * the user, `property { name, address }` from the property doc. */
-function toTenancyDocument(draft, { userId, ownerId, property }) {
+/**
+ * The `tenancies` document (SRS §6) with the denormalizations: `property
+ * {name, address}` from the property doc. `tenantName` is passed in EXPLICITLY,
+ * not derived from `draft.name` here — on the existing-user branch `draft.name`
+ * does not exist (Steps 1-3 are skipped), so the caller sources it from wherever
+ * the tenant's name actually lives on that branch (`users/{existingUserId}.name`).
+ */
+function toTenancyDocument(draft, { userId, ownerId, tenantName, property }) {
   const tenancy = {
     userId,
     ownerId,
     propertyId: draft.propertyId,
-    tenantName: draft.name,
+    tenantName,
     property: { name: property.name, address: property.address },
     startDate: draft.startDate,
     endDate: draft.endDate,
     monthlyRent: draft.monthlyRent,
     dueDay: draft.dueDay,
+    reportReminderDaysBefore: draft.reportReminderDaysBefore,
     currentBalance: 0,
     status: 'active',
     attachedDocuments: [],
   }
-  // securityDeposit is optional (FR-CON-01).
-  if (draft.securityDeposit?.trim()) {
+  // securityDeposit is optional (FR-CON-01). A NUMBER now (Sub-stage E, type
+  // correction) — `typeof === 'number'` replaces the old `?.trim()` string check,
+  // which would throw calling `.trim()` on a number.
+  if (typeof draft.securityDeposit === 'number') {
     tenancy.securityDeposit = draft.securityDeposit
   }
   return tenancy
 }
 
 /**
- * The core, callable directly by the tests against the emulators. `adminUid` is the
- * calling admin's uid — it becomes the tenancy's `ownerId` (single admin, NFR-SEC-04).
- * Throws `HttpsError` with a clear code on every failure path.
+ * Existing-user branch (FR-TEN-07): no Auth account, no CNP check (the draft
+ * carries no `cnp` at all on this branch — Steps 1-3 are absent), no compensation
+ * needed (nothing is created before the transaction).
  */
-async function finalizeKycCore(draftId, adminUid) {
-  const db = getFirestore()
-  const auth = getAuth()
+async function finalizeExistingUserTenancy(db, draft, draftRef, adminUid) {
+  const tenancyRef = db.collection('tenancies').doc()
+  const mailRef = db.collection('mail').doc()
+  const userRef = db.collection('users').doc(draft.existingUserId)
+  const propertyRef = db.collection('properties').doc(draft.propertyId)
 
-  // 1. VALIDATE ────────────────────────────────────────────────────────────────
-  const draftRef = db.collection('onboardingDrafts').doc(draftId)
-  const draftSnap = await draftRef.get()
-  if (!draftSnap.exists) {
-    throw new HttpsError('not-found', `Draft ${draftId} does not exist.`)
-  }
-  const draft = draftSnap.data()
+  await db.runTransaction(async (tx) => {
+    // ALL READS FIRST — the Admin SDK forbids a read after a write in a transaction.
+    const activeTenancyOnPropertyQuery = db
+      .collection('tenancies')
+      .where('propertyId', '==', draft.propertyId)
+      .where('status', '==', 'active')
+      .limit(1)
+    const activeTenancyOnUserQuery = db
+      .collection('tenancies')
+      .where('userId', '==', draft.existingUserId)
+      .where('status', '==', 'active')
+      .limit(1)
 
-  const validation = validateFullDraft(draft)
-  if (!validation.valid) {
-    throw new HttpsError(
-      'failed-precondition',
-      'The draft is incomplete and cannot be finalized.',
-      { issues: validation.issues },
+    const [userSnap, propertySnap, propertyActiveSnap, userActiveSnap] =
+      await Promise.all([
+        tx.get(userRef),
+        tx.get(propertyRef),
+        tx.get(activeTenancyOnPropertyQuery),
+        tx.get(activeTenancyOnUserQuery),
+      ])
+
+    // Defensive: the draft's existingUserId should always point at a real account.
+    if (!userSnap.exists) {
+      throw new HttpsError(
+        'not-found',
+        'The linked tenant account does not exist.',
+      )
+    }
+    if (!propertySnap.exists) {
+      throw new HttpsError('not-found', 'The selected property does not exist.')
+    }
+    if (!propertyActiveSnap.empty) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The property is occupied; end the current tenancy first.',
+        { reason: 'property-occupied' },
+      )
+    }
+    // FR-CON-02: one account, at most one active tenancy at a time.
+    if (!userActiveSnap.empty) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account already has an active tenancy; end it first.',
+        { reason: 'active-tenancy' },
+      )
+    }
+
+    const user = userSnap.data()
+    const property = propertySnap.data()
+
+    tx.set(
+      tenancyRef,
+      toTenancyDocument(draft, {
+        userId: draft.existingUserId,
+        ownerId: adminUid,
+        tenantName: user.name,
+        property,
+      }),
     )
-  }
+    tx.set(
+      mailRef,
+      buildAssignmentEmail(user.preferredLanguage, {
+        name: user.name,
+        email: user.email,
+        property: property.name,
+        url: APP_URL,
+      }),
+    )
+    tx.update(propertyRef, { status: 'occupied' })
+    tx.delete(draftRef)
+  })
 
+  return {
+    tenancyId: tenancyRef.id,
+    userId: draft.existingUserId,
+    accountCreated: false,
+  }
+}
+
+/**
+ * New-tenant branch — unchanged behavior from Sub-stage B, plus `accountCreated:
+ * true` in the response and the `properties.status = 'occupied'` write (FR-PROP-05,
+ * new in Sub-stage E — see the file header).
+ */
+async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
   // 2. PRE-CHECK CNP (fail-fast, before Auth) — FR-TEN-22 ────────────────────────
   const cnpConflict = await db
     .collection('users')
@@ -162,9 +247,18 @@ async function finalizeKycCore(draftId, adminUid) {
     })
     createdUid = userRecord.uid
   } catch (error) {
-    // An existing email is a real tenant (they have an account), NOT an orphan — so
-    // no compensation. The existing-email → new-tenancy path is deferred to Sub-stage
-    // E (wizard flow, FR-TEN-07); here we only fail clearly.
+    // TEMPORARY diagnostic instrumentation (not a fix) — logs the RAW error
+    // exactly as it arrived from `auth.createUser`, before anything below
+    // rethrows it or substitutes the generic already-exists HttpsError.
+    logger.error('finalizeKyc FAILED (Auth createUser)', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+    })
+    // An existing email is a real tenant (they have an account), NOT an orphan —
+    // so no compensation. The client is expected to have routed this draft
+    // through the existing-user branch already (FR-TEN-07, Step 1 email check);
+    // reaching here means that check was bypassed — fail clearly.
     if (error.code === 'auth/email-already-exists') {
       throw new HttpsError(
         'already-exists',
@@ -216,17 +310,20 @@ async function finalizeKycCore(draftId, adminUid) {
         throw new HttpsError(
           'failed-precondition',
           'The property is occupied; end the current tenancy first.',
+          { reason: 'property-occupied' },
         )
       }
       const property = propertySnap.data()
 
-      // 4b. Write users + tenancies + mail, delete the draft — all or nothing.
+      // 4b. Write users + tenancies + mail, flip the property, delete the draft —
+      // all or nothing.
       tx.set(userRef, toUserDocument(draft))
       tx.set(
         tenancyRef,
         toTenancyDocument(draft, {
           userId: createdUid,
           ownerId: adminUid,
+          tenantName: draft.name,
           property,
         }),
       )
@@ -240,6 +337,7 @@ async function finalizeKycCore(draftId, adminUid) {
           url: APP_URL,
         }),
       )
+      tx.update(propertyRef, { status: 'occupied' })
       tx.delete(draftRef)
     })
 
@@ -249,8 +347,19 @@ async function finalizeKycCore(draftId, adminUid) {
       tenancyId: tenancyRef.id,
       email: draft.email,
       password,
+      accountCreated: true,
     }
   } catch (error) {
+    // TEMPORARY diagnostic instrumentation (not a fix) — logs the RAW error
+    // exactly as it arrived out of the transaction, BEFORE compensation runs
+    // and before it is rethrown. Nothing downstream of this line transforms
+    // the error into anything else — `throw error` below is verbatim — but
+    // logging first guarantees we capture it even if that changes.
+    logger.error('finalizeKyc FAILED (transaction)', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+    })
     // 5. COMPENSATION — the transaction failed after the account was created; remove
     // the account so no orphan survives, then surface the ORIGINAL failure.
     if (createdUid) {
@@ -258,6 +367,41 @@ async function finalizeKycCore(draftId, adminUid) {
     }
     throw error
   }
+}
+
+/**
+ * The core, callable directly by the tests against the emulators. `adminUid` is the
+ * calling admin's uid — it becomes the tenancy's `ownerId` (single admin, NFR-SEC-04).
+ * Throws `HttpsError` with a clear code on every failure path.
+ */
+async function finalizeKycCore(draftId, adminUid) {
+  const db = getFirestore()
+
+  // 1. VALIDATE ────────────────────────────────────────────────────────────────
+  const draftRef = db.collection('onboardingDrafts').doc(draftId)
+  const draftSnap = await draftRef.get()
+  if (!draftSnap.exists) {
+    throw new HttpsError('not-found', `Draft ${draftId} does not exist.`)
+  }
+  const draft = draftSnap.data()
+
+  // validateFullDraft already branches on existingUserId (mirrors the web schema,
+  // CLAUDE.md §7): Steps 1-3 are required only when it is absent.
+  const validation = validateFullDraft(draft)
+  if (!validation.valid) {
+    throw new HttpsError(
+      'failed-precondition',
+      'The draft is incomplete and cannot be finalized.',
+      { issues: validation.issues },
+    )
+  }
+
+  if (draft.existingUserId) {
+    return finalizeExistingUserTenancy(db, draft, draftRef, adminUid)
+  }
+
+  const auth = getAuth()
+  return finalizeNewTenant(db, auth, draft, draftRef, adminUid)
 }
 
 /**

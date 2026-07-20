@@ -28,13 +28,21 @@ export function StepFinancial({ draftId }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="employer">{t('onboarding.fields.employer')}</Label>
-        <Input id="employer" {...register('employer')} />
+        <Input
+          id="employer"
+          placeholder={t('onboarding.placeholders.employer')}
+          {...register('employer')}
+        />
         <FieldError error={errors.employer} t={t} />
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="occupation">{t('onboarding.fields.occupation')}</Label>
-        <Input id="occupation" {...register('occupation')} />
+        <Input
+          id="occupation"
+          placeholder={t('onboarding.placeholders.occupation')}
+          {...register('occupation')}
+        />
         <FieldError error={errors.occupation} t={t} />
       </div>
 
@@ -42,7 +50,12 @@ export function StepFinancial({ draftId }) {
         <Label htmlFor="employmentDuration">
           {t('onboarding.fields.employmentDuration')}
         </Label>
-        <Input id="employmentDuration" {...register('employmentDuration')} />
+        <Input
+          id="employmentDuration"
+          type="number"
+          min="0"
+          {...register('employmentDuration', { valueAsNumber: true })}
+        />
         <FieldError error={errors.employmentDuration} t={t} />
       </div>
 
@@ -63,7 +76,10 @@ export function StepFinancial({ draftId }) {
         </Label>
         <Input
           id="monthlyIncome.amount"
-          {...register('monthlyIncome.amount')}
+          type="number"
+          min="0"
+          placeholder={t('onboarding.placeholders.monthlyIncomeAmount')}
+          {...register('monthlyIncome.amount', { valueAsNumber: true })}
         />
         <FieldError error={errors.monthlyIncome?.amount} t={t} />
       </div>
@@ -83,14 +99,22 @@ export function StepFinancial({ draftId }) {
           <Label htmlFor="guarantor.cnp">
             {t('onboarding.fields.guarantorCnp')}
           </Label>
-          <Input id="guarantor.cnp" {...register('guarantor.cnp')} />
+          <Input
+            id="guarantor.cnp"
+            placeholder={t('onboarding.placeholders.cnp')}
+            {...register('guarantor.cnp')}
+          />
           <FieldError error={errors.guarantor?.cnp} t={t} />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="guarantor.phone">
             {t('onboarding.fields.guarantorPhone')}
           </Label>
-          <Input id="guarantor.phone" {...register('guarantor.phone')} />
+          <Input
+            id="guarantor.phone"
+            placeholder={t('onboarding.placeholders.phone')}
+            {...register('guarantor.phone')}
+          />
           <FieldError error={errors.guarantor?.phone} t={t} />
         </div>
         <div className="flex flex-col gap-2">
@@ -123,6 +147,7 @@ export function StepFinancial({ draftId }) {
           </Label>
           <Input
             id="previousReference.phone"
+            placeholder={t('onboarding.placeholders.phone')}
             {...register('previousReference.phone')}
           />
           <FieldError error={errors.previousReference?.phone} t={t} />

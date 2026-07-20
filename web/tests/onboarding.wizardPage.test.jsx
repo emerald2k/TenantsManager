@@ -9,30 +9,41 @@ import {
   useCheckExistingEmail,
   useDraft,
   useUpdateDraft,
+  useUserById,
 } from '@/features/onboarding/hooks'
+import { useProperties } from '@/features/properties/hooks'
+import { httpsCallable } from 'firebase/functions'
 
 // Fast band — the boundary (the hooks) is mocked, no emulator. The factory must list
-// EVERY hook the wizard/StepPersonal/StepFinancial/PhotoCapture call: `vi.mock`
-// replaces the WHOLE module, and a hook left out comes back undefined and the page
-// crashes.
+// EVERY hook the wizard/StepPersonal/StepFinancial/PhotoCapture/StepContract call:
+// `vi.mock` replaces the WHOLE module, and a hook left out comes back undefined
+// and the page crashes.
 vi.mock('@/features/onboarding/hooks', () => ({
   useDraft: vi.fn(),
   useUpdateDraft: vi.fn(),
   useCheckExistingEmail: vi.fn(),
   useCheckDuplicateCnp: vi.fn(),
+  useUserById: vi.fn(),
 }))
 
-// PhotoCapture (Sub-stage D) touches Storage + compression directly. Neither
-// button is clicked in these wiring-level tests — only rendering and the min-1
-// validation are — so mocking the boundary (never invoked here) is enough to let
-// the real component render.
-vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
+vi.mock('@/features/properties/hooks', () => ({ useProperties: vi.fn() }))
+
+// PhotoCapture (Sub-stage D) touches Storage + compression directly, StepContract
+// (Sub-stage E) calls the `finalizeKyc` callable. Neither the upload button nor
+// Finalizează is clicked in these wiring-level tests — only rendering and the
+// min-1/full-validation blocking are — so mocking the boundary (never invoked
+// here) is enough to let the real components render.
+vi.mock('@/lib/firebase', () => ({
+  storage: { __fake: 'storage' },
+  functions: { __fake: 'functions' },
+}))
 vi.mock('firebase/storage', () => ({
   ref: vi.fn(),
   uploadBytes: vi.fn(),
   getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
 }))
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }))
 vi.mock('browser-image-compression', () => ({ default: vi.fn() }))
 
 const navigate = vi.fn()
@@ -42,8 +53,10 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 }))
 
 const updateMutate = vi.fn()
+const updateMutateAsync = vi.fn()
 const checkEmailMutateAsync = vi.fn()
 const checkCnpMutateAsync = vi.fn()
+const finalizeKycMock = vi.fn()
 
 const EMPTY_DRAFT = { id: 'draft-1', status: 'in_progress', currentStep: 1 }
 
@@ -56,7 +69,7 @@ const STEP1_FILLED = {
   preferredLanguage: 'ro',
   previousAddress: 'Str. Veche 1',
   emergencyContact: { name: 'Maria', phone: '0700000000' },
-  occupantCount: '2',
+  occupantCount: 2,
   smoker: false,
   pets: { has: false },
   vehicle: { has: false },
@@ -69,19 +82,32 @@ const STEP3_DRAFT = {
   ...STEP1_FILLED,
   employer: 'ACME SRL',
   occupation: 'Engineer',
-  employmentDuration: '3 years',
-  monthlyIncome: { source: 'salary', amount: '5000' },
+  employmentDuration: 3,
+  monthlyIncome: { source: 'salary', amount: 5000 },
   guarantor: { name: 'Gigi', cnp: '1800101123456', phone: '0722222222' },
   previousReference: { name: 'Vlad', phone: '0733333333' },
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useUpdateDraft.mockReturnValue({ mutate: updateMutate, isPending: false })
+  updateMutateAsync.mockResolvedValue(undefined)
+  useUpdateDraft.mockReturnValue({
+    mutate: updateMutate,
+    mutateAsync: updateMutateAsync,
+    isPending: false,
+    isError: false,
+    error: null,
+  })
   checkEmailMutateAsync.mockResolvedValue(null)
   checkCnpMutateAsync.mockResolvedValue(null)
   useCheckExistingEmail.mockReturnValue({ mutateAsync: checkEmailMutateAsync })
   useCheckDuplicateCnp.mockReturnValue({ mutateAsync: checkCnpMutateAsync })
+  useUserById.mockReturnValue({ data: undefined, isPending: false })
+  useProperties.mockReturnValue({ data: [], isPending: false })
+  httpsCallable.mockReturnValue(finalizeKycMock)
+  finalizeKycMock.mockResolvedValue({
+    data: { tenancyId: 't1', accountCreated: false },
+  })
 })
 
 function renderWizard(draft) {
@@ -105,9 +131,11 @@ describe('OnboardingWizardPage — shell', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders the step-4 placeholder without crashing', async () => {
+  it('renders the step-4 contract form (StepContract) without crashing', async () => {
     await renderWizard({ ...STEP3_DRAFT, currentStep: 4 })
-    expect(screen.getByText('Disponibil în Sub-etapa E')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Finalizează' }),
+    ).toBeInTheDocument()
   })
 
   it('Continue autosaves (useUpdateDraft) and advances to the next step', async () => {
@@ -121,7 +149,9 @@ describe('OnboardingWizardPage — shell', () => {
         expect.objectContaining({ id: 'draft-1', currentStep: 4 }),
       )
     })
-    expect(screen.getByText('Disponibil în Sub-etapa E')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Finalizează' }),
+    ).toBeInTheDocument()
   })
 
   it('Back autosaves (useUpdateDraft) and returns to the previous step', async () => {
@@ -167,6 +197,81 @@ describe('OnboardingWizardPage — shell', () => {
   })
 })
 
+describe('OnboardingWizardPage — autosave failure surfaced (Sub-stage E safety net)', () => {
+  // Bug reproduction: `useUpdateDraft`'s mutation can fail for ANY reason (not
+  // just the undefined-fields bug fixed alongside this) and, before this, the
+  // wizard never read `isError`/`error` — the admin saw the wizard advance to
+  // the next step as if nothing happened, with the draft silently unsaved.
+  it('shows a visible alert when autosave fails, without blocking navigation', async () => {
+    useUpdateDraft.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+      isError: true,
+      error: new Error('permission-denied'),
+    })
+    await renderWizard(STEP3_DRAFT)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Salvarea automată a eșuat — verifică conexiunea.',
+    )
+    // Not blocked: the admin can still act.
+    expect(screen.getByRole('button', { name: 'Continuă' })).toBeEnabled()
+  })
+
+  it('shows nothing when autosave has not failed', async () => {
+    await renderWizard(STEP3_DRAFT)
+    expect(
+      screen.queryByText('Salvarea automată a eșuat — verifică conexiunea.'),
+    ).toBeNull()
+  })
+})
+
+describe('OnboardingWizardPage — Step 4 wiring: Finalizează persists first (autosave gap fix)', () => {
+  // Wiring-level companion to the StepContract unit tests: proves
+  // `OnboardingWizardPage` actually PASSES a working `onBeforeFinalize` down —
+  // not just that StepContract calls whatever it's given.
+  it('autosaves the Step 4 values via mutateAsync BEFORE calling finalizeKyc', async () => {
+    const user = userEvent.setup()
+    useProperties.mockReturnValue({
+      data: [{ id: 'prop-1', name: 'Apartament Centru', status: 'free' }],
+      isPending: false,
+    })
+    await renderWizard({
+      ...STEP3_DRAFT,
+      currentStep: 4,
+      idDocumentPhotos: [
+        {
+          url: 'https://storage.example/id.jpg',
+          name: 'id.jpg',
+          type: 'image',
+        },
+      ],
+      propertyId: 'prop-1',
+      startDate: '2026-08-01',
+      endDate: '2027-08-01',
+      monthlyRent: 2000,
+      dueDay: 5,
+      reportReminderDaysBefore: 3,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(updateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'draft-1',
+          currentStep: 4,
+          values: expect.objectContaining({
+            propertyId: 'prop-1',
+            monthlyRent: 2000,
+          }),
+        }),
+      )
+    })
+    expect(finalizeKycMock).toHaveBeenCalledWith({ draftId: 'draft-1' })
+  })
+})
+
 describe('OnboardingWizardPage — Step 1 personal data (FR-TEN-02)', () => {
   it('shows an inline error per missing mandatory field on Continue', async () => {
     const user = userEvent.setup()
@@ -201,7 +306,11 @@ describe('OnboardingWizardPage — Step 1 personal data (FR-TEN-02)', () => {
     expect(screen.getByLabelText('Tip animal')).toBeInTheDocument()
   })
 
-  it('email match opens the existing-tenant dialog and sets existingUserId on confirm', async () => {
+  it('email match opens the existing-tenant dialog and, on confirm, jumps FOR REAL to Step 4 (Sub-stage E, FR-TEN-07)', async () => {
+    // Sub-stage C only set existingUserId and stopped, showing a "coming in E"
+    // message. Sub-stage E replaces that with a real jump: autosave(currentStep:4)
+    // + the step indicator/content actually move to Step 4 — Steps 1-3 never get
+    // validated or revisited on this path.
     const user = userEvent.setup()
     checkEmailMutateAsync.mockResolvedValue({
       id: 'user-1',
@@ -220,10 +329,13 @@ describe('OnboardingWizardPage — Step 1 personal data (FR-TEN-02)', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmă' }))
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Acest draft este legat de chiriașul existent/),
-      ).toBeInTheDocument()
+      expect(updateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'draft-1', currentStep: 4 }),
+      )
     })
+    expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent(
+      '4. Contract',
+    )
   })
 
   it('cnp match shows a blocking warning and disables Continue', async () => {
@@ -240,6 +352,30 @@ describe('OnboardingWizardPage — Step 1 personal data (FR-TEN-02)', () => {
       )
     })
     expect(screen.getByRole('button', { name: 'Continuă' })).toBeDisabled()
+  })
+
+  it('uses native inputs for dateOfBirth (date) and occupantCount (number, min 1), with CNP/phone placeholders (Sub-stage E)', async () => {
+    await renderWizard(EMPTY_DRAFT)
+
+    expect(screen.getByLabelText('Data nașterii')).toHaveAttribute(
+      'type',
+      'date',
+    )
+    const occupantCount = screen.getByLabelText('Număr de locatari')
+    expect(occupantCount).toHaveAttribute('type', 'number')
+    expect(occupantCount).toHaveAttribute('min', '1')
+    expect(screen.getByLabelText('CNP')).toHaveAttribute(
+      'placeholder',
+      'ex: 1234567890123',
+    )
+    expect(screen.getByLabelText('Telefon')).toHaveAttribute(
+      'placeholder',
+      'ex: 0712345678',
+    )
+    expect(screen.getByLabelText('Telefon contact de urgență')).toHaveAttribute(
+      'placeholder',
+      'ex: 0712345678',
+    )
   })
 })
 
@@ -293,6 +429,28 @@ describe('OnboardingWizardPage — Step 3 financial data + guarantor (FR-TEN-04)
     expect(updateMutate).not.toHaveBeenCalled()
   })
 
+  it('captures monthlyIncome.amount as a NUMBER, not a string (Sub-stage E follow-up — valueAsNumber)', async () => {
+    const user = userEvent.setup()
+    await renderWizard(STEP3_DRAFT)
+
+    const amountInput = screen.getByLabelText('Venit lunar')
+    await user.clear(amountInput)
+    await user.type(amountInput, '4500')
+    await user.click(screen.getByRole('button', { name: 'Continuă' }))
+
+    await waitFor(() => {
+      expect(updateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'draft-1',
+          currentStep: 4,
+          values: expect.objectContaining({
+            monthlyIncome: expect.objectContaining({ amount: 4500 }),
+          }),
+        }),
+      )
+    })
+  })
+
   it('allows Continue with guarantor photos absent — optional, non-blocking', async () => {
     const user = userEvent.setup()
     await renderWizard(STEP3_DRAFT)
@@ -314,5 +472,40 @@ describe('OnboardingWizardPage — Step 3 financial data + guarantor (FR-TEN-04)
     expect(
       screen.getByRole('button', { name: 'Fotografiază documentul' }),
     ).toBeInTheDocument()
+  })
+
+  it('uses a native number input for employmentDuration ("Vechime (ani)"), placeholders for monthlyIncome.amount/guarantor/previousReference/employer/occupation (Sub-stage E)', async () => {
+    await renderWizard(STEP3_DRAFT)
+
+    const employmentDuration = screen.getByLabelText('Vechime (ani)')
+    expect(employmentDuration).toHaveAttribute('type', 'number')
+    expect(employmentDuration).toHaveAttribute('min', '0')
+    expect(screen.getByLabelText('Venit lunar')).toHaveAttribute(
+      'type',
+      'number',
+    )
+    expect(screen.getByLabelText('Venit lunar')).toHaveAttribute(
+      'placeholder',
+      'ex: 3000',
+    )
+    expect(screen.getByLabelText('CNP garant')).toHaveAttribute(
+      'placeholder',
+      'ex: 1234567890123',
+    )
+    expect(screen.getByLabelText('Telefon garant')).toHaveAttribute(
+      'placeholder',
+      'ex: 0712345678',
+    )
+    expect(
+      screen.getByLabelText('Telefon referință anterioară'),
+    ).toHaveAttribute('placeholder', 'ex: 0712345678')
+    expect(screen.getByLabelText('Angajator')).toHaveAttribute(
+      'placeholder',
+      'ex: SC Exemplu SRL',
+    )
+    expect(screen.getByLabelText('Ocupație')).toHaveAttribute(
+      'placeholder',
+      'ex: Contabil',
+    )
   })
 })

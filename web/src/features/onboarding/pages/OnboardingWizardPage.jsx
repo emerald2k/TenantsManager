@@ -13,11 +13,13 @@ import {
 import { StepPersonal } from '@/features/onboarding/components/StepPersonal'
 import { StepFinancial } from '@/features/onboarding/components/StepFinancial'
 import { PhotoCapture } from '@/features/onboarding/components/PhotoCapture'
+import { StepContract } from '@/features/onboarding/components/StepContract'
 
 const STEP_KEYS = ['personal', 'documents', 'financial', 'contract']
 
-// Step 4 is still a placeholder (Sub-stage E) — Continue passes through it
-// unvalidated until its real content lands.
+// Step 4 has no entry here: it is the LAST step, completed via its own
+// "Finalizează" button (StepContract), not via Continue/`validateStep` — full
+// validation (`fullDraftSchema`) runs there, on click.
 const STEP_SCHEMAS = { 1: step1Schema, 2: step2Schema, 3: step3Schema }
 
 /**
@@ -98,6 +100,34 @@ export function OnboardingWizardPage() {
     navigate('/admin/tenants')
   }
 
+  /**
+   * Step 4's own autosave (FR-TEN-17) — unlike Steps 1-3, arriving at Step 4 has
+   * no Continue click to autosave on, so its fields would otherwise stay
+   * unsaved until Finalizează. AWAITED (unlike `autosave()`'s fire-and-forget
+   * `.mutate`): `finalizeKyc` reads the draft as persisted in Firestore, so the
+   * write must complete — and any failure must reach StepContract — before it
+   * calls the callable.
+   */
+  async function persistBeforeFinalize() {
+    await updateDraft.mutateAsync({
+      id: draftId,
+      values: getValues(),
+      currentStep: 4,
+    })
+  }
+
+  /**
+   * The real jump for FR-TEN-07 (Sub-stage E): confirming "existing tenant — new
+   * tenancy" on Step 1 sets `existingUserId` (StepPersonal) and lands directly on
+   * Step 4 — Steps 1-3 are irrelevant once linked to an existing account. No
+   * `validateStep` call: unlike Continue, this is not leaving a step whose OWN
+   * fields must first be complete.
+   */
+  function handleExistingTenantConfirmed() {
+    autosave(4)
+    setCurrentStep(4)
+  }
+
   if (draftPending) {
     return (
       <p className="p-6 text-sm text-muted-foreground">{t('common.loading')}</p>
@@ -126,9 +156,18 @@ export function OnboardingWizardPage() {
           })}
         </ol>
 
+        {updateDraft.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {t('onboarding.wizard.autosaveFailed')}
+          </p>
+        )}
+
         <div>
           {currentStep === 1 && (
-            <StepPersonal onCnpConflictChange={setCnpConflict} />
+            <StepPersonal
+              onCnpConflictChange={setCnpConflict}
+              onExistingTenantConfirmed={handleExistingTenantConfirmed}
+            />
           )}
           {currentStep === 2 && (
             <PhotoCapture
@@ -139,9 +178,10 @@ export function OnboardingWizardPage() {
           )}
           {currentStep === 3 && <StepFinancial draftId={draftId} />}
           {currentStep === 4 && (
-            <p className="text-sm text-muted-foreground">
-              {t('onboarding.wizard.stepComingSoon', { stage: 'E' })}
-            </p>
+            <StepContract
+              draftId={draftId}
+              onBeforeFinalize={persistBeforeFinalize}
+            />
           )}
         </div>
 

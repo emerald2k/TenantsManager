@@ -46,6 +46,51 @@ function draftRef(id) {
   return doc(db, COLLECTION, id)
 }
 
+/**
+ * A PLAIN object literal — `{ name: ... }`, not a class instance. Firestore's own
+ * types (Timestamp, FieldValue/serverTimestamp() sentinels, DocumentReference,
+ * GeoPoint) all have their own prototype; treating them as opaque instead of
+ * recursing into them is what keeps `stripUndefinedDeep` from tearing one apart
+ * into a plain map of its internal fields.
+ */
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (Object.getPrototypeOf(value) === Object.prototype ||
+      Object.getPrototypeOf(value) === null)
+  )
+}
+
+/**
+ * `updateDoc`/`setDoc` THROW SYNCHRONOUSLY, before any network call, on a field
+ * whose value is `undefined` — anywhere in the object, including nested (Sub-stage
+ * E bug: `draftFormDefaults` deliberately leaves preferredLanguage/smoker/pets.has/
+ * vehicle.has `undefined` until chosen — correct for validation, fatal for a raw
+ * write). This strips those keys, recursively, right before the data reaches
+ * Firestore — the wizard's per-step schemas stay the single source of truth for
+ * what a COMPLETE draft requires; this only protects the autosave transport.
+ *
+ * `null` is untouched deliberately — it is a value the admin (or a default) chose,
+ * distinct from a field nothing has touched yet. Arrays keep their structure
+ * (`idDocumentPhotos` etc.) — only their object ELEMENTS get recursed into.
+ */
+function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item))
+  }
+  if (isPlainObject(value)) {
+    const result = {}
+    for (const [key, val] of Object.entries(value)) {
+      if (val === undefined) continue
+      result[key] = stripUndefinedDeep(val)
+    }
+    return result
+  }
+  return value
+}
+
 // ───────────────────────── useDraftsList ─────────────────────────
 /**
  * The list of in-progress drafts (FR-TEN-19). They surface in the tenant list with
@@ -122,7 +167,7 @@ export function useUpdateDraft() {
   return useMutation({
     mutationFn: ({ id, values, currentStep }) =>
       updateDoc(draftRef(id), {
-        ...values,
+        ...stripUndefinedDeep(values),
         ...(currentStep !== undefined ? { currentStep } : {}),
         updatedAt: serverTimestamp(),
       }),
@@ -213,6 +258,28 @@ export function useCheckDuplicateCnp() {
       if (snap.empty) return null
       const match = snap.docs[0]
       return { id: match.id, name: match.data().name }
+    },
+  })
+}
+
+// ────────────────────────── useUserById ───────────────────────────
+/**
+ * A single `users` document, by id (Sub-stage E, FR-TEN-07). Backs the "Assigning
+ * to: {name} ({email})" banner on Step 4 when the draft is linked to an existing
+ * account (`existingUserId`) — the same admin-only `users` rule from Sub-stage C
+ * covers this read. `enabled` holds the read back until there is an id, exactly
+ * like `useDraft`/`useProperty`.
+ */
+export function useUserById(userId) {
+  return useQuery({
+    queryKey: ['users', 'detail', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const snap = await getDoc(doc(db, 'users', userId))
+      if (!snap.exists()) {
+        throw new Error(`User ${userId} does not exist`)
+      }
+      return { id: snap.id, ...snap.data() }
     },
   })
 }
