@@ -66,6 +66,17 @@ const SEED_TENANT = {
 const SEED_OCCUPIED_PROPERTY_ID = 'seed-prop-occupied'
 const SEED_TENANCY_ID = 'seed-tenancy-occupied'
 
+// Sub-stage F fixture — a second KYC-complete tenant with NO active tenancy.
+// `SEED_TENANT` above always has one (the occupied scenario), so starting a NEW
+// tenancy on THAT account is always correctly blocked by FR-CON-02 — there was no
+// way to reach the "existing tenant, new tenancy" SUCCESS path (FR-TEN-07,
+// accountCreated:false) live, only its rejection. This account has none, so it can.
+const SEED_TENANT_NO_TENANCY = {
+  uid: 'seed-tenant-free',
+  email: 'cristina@test.ro',
+  password: 'chirias123',
+}
+
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
  * by `useCreateProperty` (web/src/features/properties/hooks.js) over the form values
@@ -193,13 +204,51 @@ function tenantUser() {
     employer: 'Endava',
     occupation: 'Software Developer',
     employmentDuration: 5,
-    monthlyIncome: { source: 'salariu', amount: '9000' },
+    monthlyIncome: { source: 'salariu', amount: 9000 },
     guarantor: {
       name: 'Mihai Ionescu',
       cnp: '1550310123456',
       phone: '0740111222',
     },
     previousReference: { name: 'Ana Pop', phone: '0730444555' },
+    status: 'active',
+  }
+}
+
+/** The second KYC-complete tenant (Sub-stage F, SRS §6 users shape) — same shape as
+ * `tenantUser()`, different identity (name/email/cnp), no pets/vehicle, and
+ * deliberately NO tenancy written for them anywhere in this file. */
+function tenantNoTenancyUser() {
+  return {
+    name: 'Cristina Marin',
+    dateOfBirth: '1995-03-20',
+    email: SEED_TENANT_NO_TENANCY.email,
+    phone: '0755123456',
+    preferredLanguage: 'ro',
+    cnp: '2950320123456',
+    idDocumentPhotos: [
+      {
+        url: 'gs://demo/seed-tenant-free/ci-front.jpg',
+        name: 'ci-front.jpg',
+        type: 'image',
+      },
+    ],
+    previousAddress: 'Str. Republicii 10, Cluj-Napoca',
+    emergencyContact: { name: 'Radu Marin', phone: '0755999888' },
+    occupantCount: 1,
+    smoker: false,
+    pets: { has: false, type: '' },
+    vehicle: { has: false, make: '', plateNumber: '' },
+    employer: 'Bosch',
+    occupation: 'QA Engineer',
+    employmentDuration: 3,
+    monthlyIncome: { source: 'salariu', amount: 7000 },
+    guarantor: {
+      name: 'Ioana Marin',
+      cnp: '1650715123456',
+      phone: '0740222333',
+    },
+    previousReference: { name: 'Bogdan Ilie', phone: '0730555666' },
     status: 'active',
   }
 }
@@ -320,6 +369,51 @@ async function ensureTenant() {
   }
 }
 
+/**
+ * Creates the second demo tenant's Auth account if missing — identical pattern to
+ * `ensureTenant()`. No admin claim. `SEED_TENANT_NO_TENANCY.uid` is reused as the
+ * `users` doc id, same finalizeKyc convention.
+ */
+async function ensureTenantNoTenancy() {
+  const auth = getAuth()
+  try {
+    const user = await auth.getUserByEmail(SEED_TENANT_NO_TENANCY.email)
+    console.log(
+      `Tenant (no tenancy) already exists: ${SEED_TENANT_NO_TENANCY.email} (uid: ${user.uid})`,
+    )
+    return user.uid
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') throw error
+    const user = await auth.createUser({
+      uid: SEED_TENANT_NO_TENANCY.uid,
+      email: SEED_TENANT_NO_TENANCY.email,
+      password: SEED_TENANT_NO_TENANCY.password,
+      displayName: tenantNoTenancyUser().name,
+      emailVerified: true,
+    })
+    console.log(
+      `Tenant (no tenancy) created: ${SEED_TENANT_NO_TENANCY.email} (uid: ${user.uid})`,
+    )
+    return user.uid
+  }
+}
+
+/** Sub-stage F: (re)writes the second tenant's `users` doc — delete then rewrite,
+ * same deterministic pattern as the rest of this file. Deliberately touches NO
+ * `tenancies` document: that absence is the whole point of this fixture. */
+async function reseedTenantNoTenancy() {
+  const db = getFirestore()
+  const userRef = db.collection('users').doc(SEED_TENANT_NO_TENANCY.uid)
+
+  await userRef.delete()
+  const user = tenantNoTenancyUser()
+  await userRef.set(user)
+
+  console.log(
+    `  - user ${SEED_TENANT_NO_TENANCY.uid}: "${user.name}" (cnp ${user.cnp}), NO active tenancy`,
+  )
+}
+
 /** The M2 occupied scenario: an occupied property + the tenant's `users` doc + the
  * active tenancy that links them, deleted then rewritten (deterministic, no dupes). */
 async function reseedOccupied(ownerId) {
@@ -369,11 +463,16 @@ async function main() {
   await reseedProperties(ownerId)
   await ensureTenant()
   await reseedOccupied(ownerId)
+  await ensureTenantNoTenancy()
+  await reseedTenantNoTenancy()
 
   console.log('\n✅ Seed complete.')
   console.log(`   Admin sign-in:  ${ADMIN.email} / ${ADMIN.password}`)
   console.log(
-    `   Tenant sign-in: ${SEED_TENANT.email} / ${SEED_TENANT.password}`,
+    `   Tenant sign-in (active tenancy): ${SEED_TENANT.email} / ${SEED_TENANT.password}`,
+  )
+  console.log(
+    `   Tenant sign-in (no tenancy):     ${SEED_TENANT_NO_TENANCY.email} / ${SEED_TENANT_NO_TENANCY.password}`,
   )
 }
 
