@@ -10,14 +10,12 @@ import {
   SERVICE_SOURCE,
 } from '@/features/properties/serviceCatalog'
 import {
-  useActiveTenancyForProperty,
   useAddService,
   useArchiveProperty,
   useProperty,
   useRemoveService,
   useUpdateProperty,
 } from '@/features/properties/hooks'
-import { computeDaysUntilDueDay } from '@/features/properties/dueDayCountdown'
 
 /**
  * Property detail (SRS §5.3): Data, Services, Archiving, plus the cost-history
@@ -91,14 +89,6 @@ export function PropertyDetailPage() {
   const { id } = useParams()
 
   const { data: property, isPending, isError } = useProperty(id)
-  // FR-PROP-06/11: archiving is blocked, and the due-day countdown is shown, only
-  // while occupied. The active-tenancy read is skipped entirely for a free
-  // property (hooks stay unconditional — only the ARGUMENT is; React's rule is
-  // about call order, not about what's passed in).
-  const isOccupied = property?.status === 'occupied'
-  const { data: activeTenancy } = useActiveTenancyForProperty(
-    isOccupied ? id : undefined,
-  )
   const updateProperty = useUpdateProperty()
   const addService = useAddService()
   const removeService = useRemoveService()
@@ -126,11 +116,9 @@ export function PropertyDetailPage() {
   }
 
   const services = property.services ?? []
-  // FR-PROP-11: null while the active tenancy hasn't loaded yet, or its dueDay is
-  // not a usable positive integer (computeDaysUntilDueDay itself decides that).
-  const daysUntilDue = activeTenancy?.dueDay
-    ? computeDaysUntilDueDay(activeTenancy.dueDay)
-    : null
+  // FR-PROP-06: archiving is blocked while the property is occupied. At D every
+  // property is 'free', so this activates at M2, when tenancies compute `status`.
+  const isOccupied = property.status === 'occupied'
 
   async function handleUpdate(values) {
     // Throwing propagates to PropertyForm, which shows the error and KEEPS edit
@@ -164,13 +152,6 @@ export function PropertyDetailPage() {
         <p className="text-sm text-muted-foreground">
           {t(
             `properties.status.${property.archived ? 'archived' : property.status}`,
-          )}
-          {isOccupied && daysUntilDue !== null && (
-            <>
-              {' · '}
-              {t('properties.detail.dueDay')}: {activeTenancy.dueDay} (
-              {t('properties.detail.daysUntilDue', { count: daysUntilDue })})
-            </>
           )}
         </p>
       </div>

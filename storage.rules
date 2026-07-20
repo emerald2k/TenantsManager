@@ -2,20 +2,7 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // The admin is identified EXCLUSIVELY through the custom claim in the token
-    // (NFR-SEC-09), same convention as firestore.rules.
-    function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
-    }
-
-    // /drafts/{draftId}/* — admin only (SRS §6). Onboarding ID photos (tenant +
-    // guarantor) are uploaded here as they are captured (Sub-stage D); the folder
-    // is flat, the tenant-vs-guarantor distinction lives in the Firestore draft's
-    // arrays, not in the Storage path.
-    match /drafts/{draftId}/{fileName} {
-      allow read, write: if isAdmin();
-    }
-
+    // No path is implemented yet (M0).
     // Per-path rules are added as the milestones progress, per SRS §6.
     match /{allPaths=**} {
       allow read, write: if false;

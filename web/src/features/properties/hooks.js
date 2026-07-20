@@ -7,7 +7,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  limit,
   query,
   updateDoc,
   where,
@@ -192,33 +191,6 @@ export function useRemoveService() {
         queryKey: propertyKeys.detail(propertyId),
       })
       queryClient.invalidateQueries({ queryKey: propertyKeys.lists() })
-    },
-  })
-}
-
-/**
- * The active tenancy for a property, if any (Sub-stage E, FR-PROP-11): backs the
- * due-day + countdown shown next to the status badge on the property detail page.
- * `null` (not an error) when the property is free — a free property is a normal,
- * expected state, not a failure. `enabled` holds the read back until there is a
- * propertyId, exactly like `useProperty`.
- */
-export function useActiveTenancyForProperty(propertyId) {
-  return useQuery({
-    queryKey: ['tenancies', 'activeForProperty', propertyId],
-    enabled: Boolean(propertyId),
-    queryFn: async () => {
-      const snap = await getDocs(
-        query(
-          collection(db, 'tenancies'),
-          where('propertyId', '==', propertyId),
-          where('status', '==', 'active'),
-          limit(1),
-        ),
-      )
-      if (snap.empty) return null
-      const match = snap.docs[0]
-      return { id: match.id, ...match.data() }
     },
   })
 }

@@ -59,29 +59,6 @@ export default [
     },
   },
 
-  // functions/ tests + config — Vitest in Node (ESM). Same reasoning as the
-  // web/tests block; comes AFTER the functions CommonJS block so it overrides the
-  // sourceType for these files and adds the Vitest globals.
-  {
-    files: ['functions/test/**/*.js', 'functions/vitest.config.js'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'module',
-      globals: {
-        ...globals.node,
-        describe: 'readonly',
-        it: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
-        vi: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-      },
-    },
-  },
-
   // The tests — the Vitest globals (`globals: true` in the config) do not exist
   // in the `globals` package (it ships the `jest` set), so we declare them
   // explicitly, otherwise no-undef reports every one of them. They also get the

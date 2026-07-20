@@ -68,7 +68,7 @@ Standalone web application (SPA), backend entirely on Firebase (BaaS). Two inter
 - History per property: monthly evolution of each service's cost + total.
 - Marking payments, automatic handling of arrears and credits.
 - Tenant access to their own reports, documents and attached invoices.
-- Automatic email notifications for account/payment/contract events, in the tenant's preferred language; monthly report notifications are sent on admin request.
+- Automatic email notifications, in the tenant's preferred language.
 
 ### 2.5 User classes
 
@@ -126,7 +126,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-TEN-04 | **Step 3**: employer, occupation/role, employment duration, source+level of monthly income, guarantor (name, CNP, phone — mandatory; guarantor ID photos — **optional, non-blocking**), previous reference (name, phone). |
 | FR-TEN-05 | **Step 4**: contract data (see 3.3). |
 | FR-TEN-06 | All fields in steps 1 and 3 are mandatory, except: mailing address, guarantor ID photos. |
-| FR-TEN-07 | Existing email at Step 1 → new tenancy linked to the existing account, jump directly to Step 4. On finalization, the tenant receives a short notification email (Anexa A7). |
+| FR-TEN-07 | Existing email at Step 1 → new tenancy linked to the existing account, jump directly to Step 4. |
 | FR-TEN-08 | New email → the account is created on KYC completion (Cloud Function `finalizeKyc`). |
 | FR-TEN-09 | **All** tenant data (profile + KYC) is stored in the `users` collection, with **admin-only** access — the tenant has no read access to their own document. The tenant application uses exclusively the denormalized data from the tenancy and their own reports. |
 | FR-TEN-10 | Sensitive data is kept permanently, without automatic deletion. |
@@ -149,7 +149,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 
 | ID | Requirement |
 |---|---|
-| FR-CON-01 | Contract: property, start date, end date (mandatory), monthly rent, security deposit (optional), due day, report-preparation reminder lead time (`reportReminderDaysBefore`, default 3 days). |
+| FR-CON-01 | Contract: property, start date, end date (mandatory), monthly rent, security deposit (optional), due day. |
 | FR-CON-02 | One account — at most one active tenancy at a time. |
 | FR-CON-03 | Manual termination at any time, including early. |
 | FR-CON-04 | Termination blocked if there are unpaid arrears. |
@@ -173,7 +173,6 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-PROP-08 | Removing a service does not affect published reports (name+cost snapshot); the service disappears only from future reports. |
 | FR-PROP-09 | The property page includes the **cost history**: table of months × (rent + maintenance + services + other + total) — the evolution of each service's cost over time. *(Phase 2: chart on the same data.)* |
 | FR-PROP-10 | The property's name and address are denormalized into the active tenancy and synchronized automatically (Cloud Function) when the property is edited. |
-| FR-PROP-11 | For an occupied property, the property detail page displays the active tenancy's due day (`dueDay`) and a countdown of days remaining until its next occurrence — a calendar calculation, independent of whether a monthly report exists yet for the current month. |
 
 ### 3.5 Expenses & Monthly Reports module (REP)
 
@@ -189,9 +188,9 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-REP-04b | The system **automatically suggests** rounding down to the nearest multiple of 5 RON (e.g. 2518.71 → suggestion 2515), based on the administrator's current practice — to facilitate cash payment. The suggestion is displayed as a pre-filled value in the final total field, but remains **fully editable** — the administrator can accept it, change it to another value, or return to the exact computed total. The suggestion is never applied without confirming publication. |
 | FR-REP-04c | **`finalTotal` is the only amount owed** and the basis for all subsequent payment calculations. Arrears and credit are computed exclusively against `finalTotal` (the rounded amount), NOT against `calculatedTotal`. Example: calculatedTotal 2518.71 → finalTotal rounded 2515.00 → the tenant pays 2000 → the arrears are 515.00 (not 518.71). The rounding difference never reappears, in any form. |
 | FR-REP-05 | Due date taken from the contract (due day), manual override per month possible. |
-| FR-REP-06 | On **signing** (finalizing the list), the report becomes visible to the tenant in their portal immediately. Sending the email notification is a **separate, optional action** — the administrator triggers it via a "Send by email" button whenever they choose; it is never automatic. |
+| FR-REP-06 | On **signing** (finalizing the list) → email notification to the tenant (in their language), with a link to the report. |
 | FR-REP-07 | **Signing** is the act by which the administrator confirms the validity and finality of the payment list. Report states: `draft` (in progress, invisible to the tenant) → `signed` (finalized, locked, visible to the tenant). After signing, the report is **locked for editing**. |
-| FR-REP-07a | A signed report can be **unlocked** by the administrator through an explicit action (button "Unlock for correction" + confirmation dialog). After correction and re-signing, the administrator can **optionally** notify the tenant via email ("list updated") using the same button — not automatic. Editing is not possible without prior unlocking — a signed report cannot be modified accidentally. |
+| FR-REP-07a | A signed report can be **unlocked** by the administrator through an explicit action (button "Unlock for correction" + confirmation dialog). After correction and re-signing, the tenant automatically receives a **"list updated"** notification. Editing is not possible without prior unlocking — a signed report cannot be modified accidentally. |
 | FR-REP-07b | **Signed report export**, available to the administrator in three forms: (a) **PDF** (archive/email), (b) **PNG image** (ready to send on WhatsApp — reproduces the table with the cost lines and attachments), (c) **shareable link** (see FR-REP-07c). |
 | FR-REP-07c | **Shareable link without authentication** — allows the tenant to see the report instantly, without login (e.g. sent on WhatsApp). Mandatory rules: (1) it contains a **long random token, impossible to guess** (not sequential IDs); (2) it opens **only that month's report** — NOT the tenant portal, NOT the history, NOT the contract, NOT personal data; (3) it **does not expire**, but can be **manually revoked** by the administrator at any time (revocation invalidates the link permanently); (4) for the complete history, contract and other reports, the tenant must authenticate into their account. |
 | FR-REP-08 | There is no automatic publication — the report is visible to the tenant only after signing. Corrections are made through unlock → edit → re-sign (FR-REP-07a). |
@@ -201,7 +200,6 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-REP-12 | Recalculation of arrears/credits (from retroactive reports or cancelled payments) propagates **only into future reports** — published ones remain untouched; corrections on published months are made through manual editing. |
 | FR-REP-13 | The first month of a contract started mid-month: full rent; pro-rata adjustment is done manually (FR-REP-02). |
 | FR-REP-14 | A report is uniquely identified by the combination **property + month + year**. There cannot be two reports for the same property in the same month — when attempting to create a duplicate, the system opens the existing report for editing. |
-| FR-REP-15 | The system sends the administrator a preparation reminder `reportReminderDaysBefore` days before the tenancy's due day — only if the property is occupied and no signed report exists yet for the current month. Sent by `dailyScheduler`, 09:00 Europe/Bucharest, Romanian only (admin-facing). |
 
 ### 3.6 Payments & Arrears module (PAY)
 
@@ -334,7 +332,7 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 
 **`/admin/properties/new`** — property data form; on save → detail (where the services are configured).
 
-**`/admin/properties/:id`** — 4 sections: (1) **Data** — the fields read-only, "Edit" opens the same form as creation; link to the current tenant *(deferred to M2: there are no tenancies before it)*; (2) **Services** — the active list with removal (+confirmation), "+ Add service" → catalog dialog (electricity, gas, internet, TV, water) + custom; (3) **Archiving** — its own section, not inside Data: "Archive" (+confirmation), blocked while the property is occupied, with an explanatory message; (4) **Cost history** — table of months × (rent + maintenance + services + other + total), empty cells where the service did not exist; below the table: tenancy history. *(Phase 2: chart.)* For occupied properties, the due day and the days-remaining countdown are shown next to the status badge (FR-PROP-11).
+**`/admin/properties/:id`** — 4 sections: (1) **Data** — the fields read-only, "Edit" opens the same form as creation; link to the current tenant *(deferred to M2: there are no tenancies before it)*; (2) **Services** — the active list with removal (+confirmation), "+ Add service" → catalog dialog (electricity, gas, internet, TV, water) + custom; (3) **Archiving** — its own section, not inside Data: "Archive" (+confirmation), blocked while the property is occupied, with an explanatory message; (4) **Cost history** — table of months × (rent + maintenance + services + other + total), empty cells where the service did not exist; below the table: tenancy history. *(Phase 2: chart.)*
 
 **`/admin/tenants`** — table: name, phone, email, property, outstanding balance, status badge (active / **in progress** / inactive / disabled); drafts with "Continue"/"Delete draft" inline; search; "+ New tenant onboarding" → creates a draft, opens the wizard.
 
@@ -358,7 +356,7 @@ The body is a **table of cost lines**, each line having the same structure (insp
 - (5) **Previous arrears/credit** — readonly (red/green)
 - (6) **Due date** — pre-filled, editable
 
-Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **suggestion of rounding down to a multiple of 5** — FR-REP-04b; the admin accepts it, changes it, or returns to the exact total) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), **copy shareable link** (with a **revoke** button), and "Send by email" (optional, triggers the A2/A3 notification on demand).
+Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **suggestion of rounding down to a multiple of 5** — FR-REP-04b; the admin accepts it, changes it, or returns to the exact total) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked; the tenant receives a notification"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation; on re-signing the tenant receives "list updated"), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), and **copy shareable link** (with a **revoke** button).
 
 After publication — **payment** section: amount, method, date, "Mark payment", "Cancel payment", credit indicator on overpayment.
 
@@ -402,10 +400,6 @@ users/{userId}                        [ACCESS: admin only]
 onboardingDrafts/{draftId}            [ACCESS: admin only]
   - the fields of steps 1-4 (partial), currentStep (1-4),
     createdAt, updatedAt, status: 'in_progress'
-  - existingUserId (opt): set when Step 1 matches an existing tenant's email
-    (FR-TEN-07) — the draft then represents a new tenancy on that account rather
-    than a new tenant; Steps 1-3 KYC fields become irrelevant, only Step 4
-    (contract) data is required for finalization.
   // deleted automatically on KYC completion (FR-TEN-18)
 
 tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads where userId == auth.uid]
@@ -413,8 +407,6 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - tenantName (denormalized from users, at creation)
   - property { name, address } (denormalized, synchronized by onPropertyUpdate)
   - startDate, endDate, monthlyRent, securityDeposit (opt), dueDay
-  - reportReminderDaysBefore: number (default 3, admin-editable at assignment or
-    later — same step as dueDay)
   - currentBalance: number (updated automatically by onReportWrite — NFR-PERF-04)
   - status: active | ended
   - attachedDocuments[] (signed contract — visible to the tenant)
@@ -515,18 +507,14 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 
 | Function | Type | Role |
 |---|---|---|
-| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft, and **returns the credentials (email + password) to the admin** in the response. Atomic. |
+| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft. Atomic. |
 | `resetTenantPassword` | callable (admin) | Generates a new password, sets it on the account, returns it to the admin. |
 | `setTenantAccountStatus` | callable (admin) | Disables / re-enables a tenant's account. Sets `disabled: true/false` on the Firebase Auth account (requires the Admin SDK — the client cannot) and synchronizes `users.status` in Firestore. On **disabling** it also revokes the active tokens (`revokeRefreshTokens`), so that an open session dies immediately, not at the next login. Backs the "Disable/Re-enable" button in §5.3 (**Account** tab) and the states in FR-TEN-24. |
 | `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy; writes the new/updated report email into `mail`. |
 | `onPropertyUpdate` | Firestore trigger | Synchronizes `property { name, address }` in the active tenancy. |
-| `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin) + report-preparation reminders (`reportReminderDaysBefore` before the due day, admin-facing, only if unsigned for the current month). |
+| `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin). |
 | `getSharedReport` | callable (public, no auth) | Serves a shared report based on the `shareToken`. Validates the token, checks `shareTokenRevoked == false` and `status == 'signed'`, returns **only** the report's fields. The only path of anonymous access to data; the collection stays closed in Security Rules (FR-REP-07c). |
 | `setAdminClaim` | setup script (once) | Sets the custom claim `admin: true` on the account created in the Console. |
-
-**Note — `finalizeKyc` returns the credentials to the admin:** onboarding is completed face-to-face on a tablet, with the tenant present, so the admin can communicate the password directly instead of waiting for the email to arrive. The `mail` email stays the durable record channel; the callable response is only for immediate confirmation at the desk. This is consistent with `resetTenantPassword`, which already returns the generated password to the admin.
-
-If the draft's `existingUserId` is set (FR-TEN-07), the function skips Auth/`users` creation and password generation — it creates only the new `tenancies` document on the existing account, verifies the account has no other active tenancy (FR-CON-02) and the property is free (FR-TEN-14/23), and sends a short assignment notification (Anexa A7) instead of the credentials email.
 
 ### 7.3 Security Rules — principles
 - Admin = custom claim `admin == true` → full access everywhere.
@@ -660,18 +648,3 @@ All emails to the tenant are sent in their preferred language. Emails to the adm
 > Contractul chiriașului {name} pentru proprietatea {property} expiră la {endDate}.
 > Acțiuni posibile: prelungește contractul (editează data de sfârșit) sau planifică încheierea și offboarding-ul.
 > Deschide tenanța: {url}
-
-### A6 — Report preparation reminder (to the admin; RO only)
-**Subject:** Pregătește lista de plată — {property}
-> Contul pentru {property} are scadența pe {dueDate}. Raportul lunii încă nu e semnat — pregătește costurile și emite lista.
-
-### A7 — New tenancy assigned (to an existing tenant)
-**RO — Subject:** Ai o nouă locuință în platformă — {property}
-> Bună, {name},
-> Rapoartele lunare pentru această locuință vor apărea în contul tău obișnuit.
-> Accesează platforma la: {url}
-
-**EN — Subject:** You have a new tenancy — {property}
-> Hi {name},
-> Monthly reports for this property will appear in your usual account.
-> Access the platform at: {url}

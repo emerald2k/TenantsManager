@@ -12,7 +12,6 @@ import {
 } from 'firebase/firestore'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
-  useActiveTenancyForProperty,
   useAddService,
   useArchiveProperty,
   useCreateProperty,
@@ -45,7 +44,6 @@ vi.mock('firebase/firestore', () => ({
     constraints,
   })),
   where: vi.fn((field, op, value) => ({ __where: [field, op, value] })),
-  limit: vi.fn((n) => ({ __limit: n })),
   getDocs: vi.fn(),
   getDoc: vi.fn(),
   addDoc: vi.fn(),
@@ -58,7 +56,6 @@ vi.mock('firebase/firestore', () => ({
 function listSnapshot(properties) {
   return {
     docs: properties.map(({ id, ...data }) => ({ id, data: () => data })),
-    empty: properties.length === 0,
   }
 }
 
@@ -313,49 +310,5 @@ describe('useAddService / useRemoveService (FR-PROP-02)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['properties', 'detail', 'p1'],
     })
-  })
-})
-
-describe('useActiveTenancyForProperty (Sub-stage E, FR-PROP-11)', () => {
-  it('returns the active tenancy for the property', async () => {
-    getDocs.mockResolvedValue(
-      listSnapshot([
-        { id: 't1', propertyId: 'p1', status: 'active', dueDay: '5' },
-      ]),
-    )
-
-    const { result } = await renderHookWithProviders(() =>
-      useActiveTenancyForProperty('p1'),
-    )
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data).toEqual({
-      id: 't1',
-      propertyId: 'p1',
-      status: 'active',
-      dueDay: '5',
-    })
-    expect(where).toHaveBeenCalledWith('propertyId', '==', 'p1')
-    expect(where).toHaveBeenCalledWith('status', '==', 'active')
-  })
-
-  it('returns null when the property has no active tenancy', async () => {
-    getDocs.mockResolvedValue(listSnapshot([]))
-
-    const { result } = await renderHookWithProviders(() =>
-      useActiveTenancyForProperty('p1'),
-    )
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data).toBeNull()
-  })
-
-  it('reads nothing without a propertyId', async () => {
-    const { result } = await renderHookWithProviders(() =>
-      useActiveTenancyForProperty(undefined),
-    )
-
-    expect(result.current.fetchStatus).toBe('idle')
-    expect(getDocs).not.toHaveBeenCalled()
   })
 })

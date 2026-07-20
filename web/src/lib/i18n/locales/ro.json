@@ -107,9 +107,7 @@
       "servicesTitle": "Servicii",
       "archiveTitle": "Arhivare",
       "historyTitle": "Istoric costuri",
-      "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare.",
-      "dueDay": "Scadență",
-      "daysUntilDue": "{{count}} zile rămase"
+      "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare."
     },
     "list": {
       "title": "Proprietăți",
@@ -117,112 +115,6 @@
       "showArchived": "Arată arhivate",
       "empty": "Nicio proprietate deocamdată.",
       "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
-    }
-  },
-  "onboarding": {
-    "errors": {
-      "required": "Câmp obligatoriu"
-    },
-    "optional": "(opțional)",
-    "steps": {
-      "personal": "Date personale",
-      "documents": "Poze act de identitate",
-      "financial": "Date financiare",
-      "contract": "Contract"
-    },
-    "options": {
-      "yes": "Da",
-      "no": "Nu"
-    },
-    "languages": {
-      "ro": "Română",
-      "en": "Engleză"
-    },
-    "fields": {
-      "name": "Nume complet",
-      "dateOfBirth": "Data nașterii",
-      "cnp": "CNP",
-      "phone": "Telefon",
-      "email": "Email",
-      "preferredLanguage": "Limba preferată",
-      "mailingAddress": "Adresă de corespondență",
-      "previousAddress": "Adresă anterioară",
-      "emergencyContactName": "Nume contact de urgență",
-      "emergencyContactPhone": "Telefon contact de urgență",
-      "occupantCount": "Număr de locatari",
-      "smoker": "Fumător",
-      "petsHas": "Animale de companie",
-      "petsType": "Tip animal",
-      "vehicleHas": "Vehicul",
-      "vehicleMake": "Marcă vehicul",
-      "vehiclePlateNumber": "Număr de înmatriculare",
-      "idDocumentPhotos": "Poze act de identitate",
-      "employer": "Angajator",
-      "occupation": "Ocupație",
-      "employmentDuration": "Vechime (ani)",
-      "monthlyIncomeSource": "Sursă venit",
-      "monthlyIncomeAmount": "Venit lunar",
-      "guarantorName": "Nume garant",
-      "guarantorCnp": "CNP garant",
-      "guarantorPhone": "Telefon garant",
-      "guarantorIdDocumentPhotos": "Poze act garant",
-      "previousReferenceName": "Nume referință anterioară",
-      "previousReferencePhone": "Telefon referință anterioară",
-      "propertyId": "Proprietate",
-      "startDate": "Dată început",
-      "endDate": "Dată sfârșit",
-      "monthlyRent": "Chirie lunară",
-      "securityDeposit": "Garanție",
-      "dueDay": "Zi scadentă",
-      "reportReminderDaysBefore": "Reminder raport (zile înainte de scadență)"
-    },
-    "placeholders": {
-      "cnp": "ex: 1234567890123",
-      "phone": "ex: 0712345678",
-      "address": "ex: Str. Exemplu nr. 10, Cluj-Napoca",
-      "employer": "ex: SC Exemplu SRL",
-      "occupation": "ex: Contabil",
-      "monthlyIncomeAmount": "ex: 3000",
-      "rent": "ex: 1500"
-    },
-    "wizard": {
-      "back": "Înapoi",
-      "continue": "Continuă",
-      "saveAndClose": "Salvează și închide",
-      "photoCapture": {
-        "button": "Fotografiază documentul",
-        "delete": "Șterge",
-        "tooLarge": "Fișierul depășește 10 MB."
-      },
-      "existingTenantTitle": "Chiriaș existent — chirie nouă",
-      "existingTenantDescription": "Există deja un cont cu acest email, pe numele \"{{name}}\". Confirmă pentru a începe o chirie nouă pe acest cont.",
-      "existingTenantConfirm": "Confirmă",
-      "cnpConflict": "Există deja un chiriaș cu acest CNP: \"{{name}}\".",
-      "autosaveFailed": "Salvarea automată a eșuat — verifică conexiunea."
-    },
-    "stepContract": {
-      "assigningTo": "Asignare pentru: {{name}} ({{email}})",
-      "propertyOccupiedOption": "(ocupată)",
-      "finalize": "Finalizează",
-      "successNewTitle": "Cont creat",
-      "password": "Parolă",
-      "copyPassword": "Copiază",
-      "successExistingTitle": "Tenanță creată pentru {{name}}",
-      "goToTenants": "Către lista de chiriași",
-      "cnpDialogTitle": "CNP duplicat",
-      "viewProfile": "Vezi profilul",
-      "errors": {
-        "occupied": "Proprietatea selectată este deja ocupată de o altă tenanță activă.",
-        "activeTenancy": "Acest cont are deja o tenanță activă. Încheie-o înainte de a continua.",
-        "generic": "Finalizarea a eșuat. Încearcă din nou."
-      }
-    }
-  },
-  "tenants": {
-    "list": {
-      "title": "Chiriași",
-      "add": "Onboarding chiriaș nou",
-      "error": "Draftul nu a putut fi creat. Încearcă din nou."
     }
   },
   "notFound": {
