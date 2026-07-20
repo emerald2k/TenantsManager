@@ -3,7 +3,6 @@ const { getApps, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { logger } = require('firebase-functions')
 const { validateFullDraft } = require('./draftValidation')
 const { buildCredentialsEmail } = require('./mail-templates/credentials')
 const { buildAssignmentEmail } = require('./mail-templates/assignment')
@@ -247,14 +246,6 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
     })
     createdUid = userRecord.uid
   } catch (error) {
-    // TEMPORARY diagnostic instrumentation (not a fix) — logs the RAW error
-    // exactly as it arrived from `auth.createUser`, before anything below
-    // rethrows it or substitutes the generic already-exists HttpsError.
-    logger.error('finalizeKyc FAILED (Auth createUser)', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-    })
     // An existing email is a real tenant (they have an account), NOT an orphan —
     // so no compensation. The client is expected to have routed this draft
     // through the existing-user branch already (FR-TEN-07, Step 1 email check);
@@ -350,16 +341,6 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
       accountCreated: true,
     }
   } catch (error) {
-    // TEMPORARY diagnostic instrumentation (not a fix) — logs the RAW error
-    // exactly as it arrived out of the transaction, BEFORE compensation runs
-    // and before it is rethrown. Nothing downstream of this line transforms
-    // the error into anything else — `throw error` below is verbatim — but
-    // logging first guarantees we capture it even if that changes.
-    logger.error('finalizeKyc FAILED (transaction)', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-    })
     // 5. COMPENSATION — the transaction failed after the account was created; remove
     // the account so no orphan survives, then surface the ORIGINAL failure.
     if (createdUid) {

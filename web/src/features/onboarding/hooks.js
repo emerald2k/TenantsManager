@@ -222,12 +222,9 @@ export function useDeleteDraft() {
  * Live check on the Step 1 email field (FR-TEN-07): looks up `users` for an account
  * already registered with this email. A mutation, not a query — it fires once,
  * imperatively, from the field's onBlur handler, not automatically on render.
- * Returns `{ id, name }` of the matching account, or `null` if none.
- *
- * KNOWN GAP (flagged, not fixed here): `firestore.rules` has no client-read rule for
- * `users` yet — only the Cloud Function (Admin SDK) has touched it so far. Until that
- * rule lands, this will resolve to `permission-denied` in the real browser. See the
- * Sub-stage C report for the drafted rule pending Bogdan's approval.
+ * Returns `{ id, name }` of the matching account, or `null` if none. Reads `users`
+ * from the browser as the admin — allowed by the admin-only `users` rule
+ * (firestore.rules).
  */
 export function useCheckExistingEmail() {
   return useMutation({
@@ -246,8 +243,8 @@ export function useCheckExistingEmail() {
 /**
  * Live check on the Step 1 cnp field (FR-TEN-22): early-warning UX only — the
  * authoritative check is server-side, in finalizeKyc (Sub-stage B), which re-verifies
- * at completion time regardless of what this returned. Same `users` rule gap as
- * `useCheckExistingEmail` above.
+ * at completion time regardless of what this returned. Reads `users` as the admin,
+ * same admin-only `users` rule as `useCheckExistingEmail` above.
  */
 export function useCheckDuplicateCnp() {
   return useMutation({

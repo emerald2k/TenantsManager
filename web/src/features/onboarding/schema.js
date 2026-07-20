@@ -3,12 +3,15 @@ import { z } from 'zod'
 /**
  * Validation schema for the onboarding draft (FR-TEN-01…08, FR-CON-01, SRS §6).
  *
- * PRESENCE-ONLY (NFR-VAL-01): a mandatory field means strictly "it is not empty".
- * No regex, no masks — `cnp`, `phone`, `email` accept any non-empty string. The
- * numeric-looking fields (occupantCount, monthlyRent, dueDay, income amount) stay
- * strings for the same reason M1 kept `area`/`roomCount` as strings: coercing to a
- * number would reject "abc", which is exactly the format validation NFR-VAL-01
- * forbids.
+ * PRESENCE-ONLY (NFR-VAL-01): a mandatory TEXT field means strictly "it is not
+ * empty". No regex, no masks — `cnp`, `phone`, `email` accept any non-empty string.
+ * The genuinely numeric fields (occupantCount, monthlyRent, securityDeposit,
+ * dueDay, employmentDuration, income amount, reportReminderDaysBefore) are REAL
+ * numbers (Sub-stage E, type correction — see the `numberField` note below): they
+ * are arithmetic inputs (M4's report totals, FR-PROP-11's countdown, FR-CON-01's
+ * contract terms), not free text that happens to look numeric, so a type check
+ * belongs on them. This is not format policing — there is still no upper-bound
+ * pattern beyond each field's own domain (e.g. dueDay is a calendar day 1-31).
  *
  * The field names come VERBATIM from SRS §6 (the `users` + tenancy model), so the
  * eventual finalizeKyc transfer (draft → users/tenancies) is a straight copy. The
