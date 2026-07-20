@@ -107,7 +107,9 @@
       "servicesTitle": "Services",
       "archiveTitle": "Archiving",
       "historyTitle": "Cost history",
-      "historyEmpty": "The cost history will be available once monthly reports exist."
+      "historyEmpty": "The cost history will be available once monthly reports exist.",
+      "dueDay": "Due",
+      "daysUntilDue": "{{count}} days left"
     },
     "list": {
       "title": "Properties",
@@ -115,6 +117,112 @@
       "showArchived": "Show archived",
       "empty": "No properties yet.",
       "error": "The properties could not be loaded. Please try again."
+    }
+  },
+  "onboarding": {
+    "errors": {
+      "required": "Required field"
+    },
+    "optional": "(optional)",
+    "steps": {
+      "personal": "Personal data",
+      "documents": "ID document photos",
+      "financial": "Financial data",
+      "contract": "Contract"
+    },
+    "options": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "languages": {
+      "ro": "Romanian",
+      "en": "English"
+    },
+    "fields": {
+      "name": "Full name",
+      "dateOfBirth": "Date of birth",
+      "cnp": "CNP",
+      "phone": "Phone",
+      "email": "Email",
+      "preferredLanguage": "Preferred language",
+      "mailingAddress": "Mailing address",
+      "previousAddress": "Previous address",
+      "emergencyContactName": "Emergency contact name",
+      "emergencyContactPhone": "Emergency contact phone",
+      "occupantCount": "Number of occupants",
+      "smoker": "Smoker",
+      "petsHas": "Pets",
+      "petsType": "Pet type",
+      "vehicleHas": "Vehicle",
+      "vehicleMake": "Vehicle make",
+      "vehiclePlateNumber": "Plate number",
+      "idDocumentPhotos": "ID document photos",
+      "employer": "Employer",
+      "occupation": "Occupation",
+      "employmentDuration": "Seniority (years)",
+      "monthlyIncomeSource": "Income source",
+      "monthlyIncomeAmount": "Monthly income",
+      "guarantorName": "Guarantor name",
+      "guarantorCnp": "Guarantor CNP",
+      "guarantorPhone": "Guarantor phone",
+      "guarantorIdDocumentPhotos": "Guarantor ID photos",
+      "previousReferenceName": "Previous reference name",
+      "previousReferencePhone": "Previous reference phone",
+      "propertyId": "Property",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "monthlyRent": "Monthly rent",
+      "securityDeposit": "Security deposit",
+      "dueDay": "Due day",
+      "reportReminderDaysBefore": "Report reminder (days before due date)"
+    },
+    "placeholders": {
+      "cnp": "e.g. 1234567890123",
+      "phone": "e.g. 0712345678",
+      "address": "e.g. 10 Example St, Cluj-Napoca",
+      "employer": "e.g. Example Ltd",
+      "occupation": "e.g. Accountant",
+      "monthlyIncomeAmount": "e.g. 3000",
+      "rent": "e.g. 1500"
+    },
+    "wizard": {
+      "back": "Back",
+      "continue": "Continue",
+      "saveAndClose": "Save and close",
+      "photoCapture": {
+        "button": "Photograph document",
+        "delete": "Delete",
+        "tooLarge": "The file exceeds 10 MB."
+      },
+      "existingTenantTitle": "Existing tenant — new tenancy",
+      "existingTenantDescription": "An account already exists for this email, under the name \"{{name}}\". Confirm to start a new tenancy on this account.",
+      "existingTenantConfirm": "Confirm",
+      "cnpConflict": "A tenant with this CNP already exists: \"{{name}}\".",
+      "autosaveFailed": "Autosave failed — check your connection."
+    },
+    "stepContract": {
+      "assigningTo": "Assigning to: {{name}} ({{email}})",
+      "propertyOccupiedOption": "(occupied)",
+      "finalize": "Finalize",
+      "successNewTitle": "Account created",
+      "password": "Password",
+      "copyPassword": "Copy",
+      "successExistingTitle": "Tenancy created for {{name}}",
+      "goToTenants": "Go to tenant list",
+      "cnpDialogTitle": "Duplicate CNP",
+      "viewProfile": "View profile",
+      "errors": {
+        "occupied": "The selected property is already occupied by another active tenancy.",
+        "activeTenancy": "This account already has an active tenancy. End it before continuing.",
+        "generic": "Finalization failed. Please try again."
+      }
+    }
+  },
+  "tenants": {
+    "list": {
+      "title": "Tenants",
+      "add": "New tenant onboarding",
+      "error": "The draft could not be created. Please try again."
     }
   },
   "notFound": {

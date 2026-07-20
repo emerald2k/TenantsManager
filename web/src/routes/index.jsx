@@ -5,6 +5,8 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { PropertiesListPage } from '@/features/properties/pages/PropertiesListPage'
 import { CreatePropertyPage } from '@/features/properties/pages/CreatePropertyPage'
 import { PropertyDetailPage } from '@/features/properties/pages/PropertyDetailPage'
+import { TenantsListPage } from '@/features/tenants/pages/TenantsListPage'
+import { OnboardingWizardPage } from '@/features/onboarding/pages/OnboardingWizardPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -50,13 +52,10 @@ export function AppRoutes() {
               path="/admin/properties/:id"
               element={<PropertyDetailPage />}
             />
-            <Route
-              path="/admin/tenants"
-              element={<PlaceholderPage titleKey="pages.tenantsList" />}
-            />
+            <Route path="/admin/tenants" element={<TenantsListPage />} />
             <Route
               path="/admin/onboarding/:draftId"
-              element={<PlaceholderPage titleKey="pages.onboardingWizard" />}
+              element={<OnboardingWizardPage />}
             />
             <Route
               path="/admin/tenants/:id"

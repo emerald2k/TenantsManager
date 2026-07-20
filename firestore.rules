@@ -21,6 +21,39 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // onboardingDrafts — admin-only access (SRS §6, NFR-SEC-02).
+    //
+    // The draft holds partial KYC data (the step 1-4 fields) before an account
+    // exists; it is strictly admin-only, exactly like `users`. The tenant never
+    // touches a draft — no account is created until KYC completion (FR-TEN-16,
+    // FR-TEN-17). Deleted automatically on completion (FR-TEN-18) or manually
+    // (FR-TEN-20); both are admin writes covered by this same rule.
+    match /onboardingDrafts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+
+    // users — admin-only access (SRS §7.3, NFR-SEC-02): "admin = custom claim
+    // admin==true → full access everywhere". The tenant never reads/writes this
+    // collection directly — they only see denormalized data in `tenancies` and
+    // their own published `monthlyReports` (CLAUDE.md §7). Needed now (Sub-stage C)
+    // for the Step 1 live email/CNP checks (FR-TEN-07, FR-TEN-22), which read
+    // `users` from the browser as the admin; previously only the Cloud Function
+    // (Admin SDK, bypasses rules) had ever touched this collection.
+    match /users/{userId} {
+      allow read, write: if isAdmin();
+    }
+
+    // tenancies — admin full access; the tenant reads ONLY their own tenancy
+    // (SRS §6: "admin full; the tenant reads where userId == auth.uid"). First
+    // client access to this collection (Sub-stage E) — until now only finalizeKyc
+    // (Admin SDK, bypasses rules) ever wrote it. Writes stay admin-only: the
+    // tenant portal (M3) never mutates a tenancy, only reads it.
+    match /tenancies/{tenancyId} {
+      allow read: if isAdmin() ||
+        (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     // The remaining collections are not implemented yet.
     // Per-collection rules are added as the milestones progress, per SRS §7.3.
     match /{document=**} {

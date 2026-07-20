@@ -266,7 +266,7 @@ TenantsManager/
 ├── web/                      # Vite + React frontend (SPA)
 │   ├── src/
 │   │   ├── components/       # ui/ (shadcn) + shared/ (common components)
-│   │   ├── features/         # code by domain: auth/, (properties/, tenants/… at M1+)
+│   │   ├── features/         # code by domain: auth/, onboarding/, properties/ (tenants/ at M3)
 │   │   ├── lib/              # firebase.js, i18n/ (ro.json, en.json), utils
 │   │   ├── routes/           # route definitions + role guards
 │   │   ├── App.jsx           # provider composition
