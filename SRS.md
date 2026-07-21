@@ -418,6 +418,8 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - currentBalance: number (updated automatically by onReportWrite — NFR-PERF-04)
   - status: active | ended
   - attachedDocuments[] (signed contract — visible to the tenant)
+    // attachedDocuments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
+    //   same item shape as costLine.attachments[] (consistency, not duplication)
 
 properties/{propertyId}               [ACCESS: admin only]
   - ownerId, name, address { street, number, city, county, postalCode }
