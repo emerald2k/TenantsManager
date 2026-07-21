@@ -330,13 +330,13 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 
 **`/admin/current-month`** — month/year selector (current by default, navigable backwards); list of occupied properties: name, tenant, status badge (not entered/published/paid/partial/overdue), total; click → the report form. Free properties do not appear.
 
-**`/admin/properties`** — table: name, address, status, outstanding balance (red); search *(deferred past M1 — still required, rescheduled)*, alphabetical sorting, "+ Add property"; archived hidden by default, "Show archived" toggle.
+**`/admin/properties`** — table: name, address, status, outstanding balance (red); search, alphabetical sorting, "+ Add property"; archived hidden by default, "Show archived" toggle.
 
 **`/admin/properties/new`** — property data form; on save → detail (where the services are configured).
 
 **`/admin/properties/:id`** — 4 sections: (1) **Data** — the fields read-only, "Edit" opens the same form as creation; link to the current tenant *(deferred to M2: there are no tenancies before it)*; (2) **Services** — the active list with removal (+confirmation), "+ Add service" → catalog dialog (electricity, gas, internet, TV, water) + custom; (3) **Archiving** — its own section, not inside Data: "Archive" (+confirmation), blocked while the property is occupied, with an explanatory message; (4) **Cost history** — table of months × (rent + maintenance + services + other + total), empty cells where the service did not exist; below the table: tenancy history. *(Phase 2: chart.)* For occupied properties, the due day and the days-remaining countdown are shown next to the status badge (FR-PROP-11).
 
-**`/admin/tenants`** — table: name, phone, email, property, outstanding balance, status badge (active / **in progress** / inactive / disabled); drafts with "Continue"/"Delete draft" inline; search; "+ New tenant onboarding" → creates a draft, opens the wizard.
+**`/admin/tenants`** — table: name, phone, email, property, outstanding balance, status badge (active / **in progress** / inactive / disabled / archived); drafts with "Continue"/"Delete draft" inline; search (name + phone + email); "+ New tenant onboarding" → creates a draft, opens the wizard. Archived tenants are hidden by default, with a "Show archived" toggle (mirrors the properties list). A tenant may legitimately appear on TWO rows at once — an active tenancy on one property AND an onboarding draft in progress on another — distinguished by the "current property" column; this is intentional and NOT deduplicated (consistent with FR-TEN-15 multiple tenancies per account and FR-CON-02 one active tenancy at a time).
 
 **`/admin/onboarding/:draftId`** — tablet wizard: large fields, one step/screen, progress 1-4, "Back"/"Continue", automatic draft saving on navigation + "Save and close".
 - Step 1: the FR-TEN-02 fields (including **preferred language**); existing email on blur → dialog "Existing tenant — new tenancy" → jump to Step 4.
@@ -577,7 +577,7 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 | # | Milestone | Content | "Done" criterion |
 |---|---|---|---|
 | M0 | Foundation | Firebase project, monorepo, emulators, Vite+React+Tailwind+shadcn, i18n skeleton, routing + guards, `setAdminClaim`, **code quality tooling (ESLint + Prettier + Husky + lint-staged + commitlint + .editorconfig), `.env` management**, **README.md (local setup: emulators, `.env`, `setAdminClaim`; recovering admin access through the Firebase Console — see §2.8)** | The application starts locally; login redirects correctly by role; the commit automatically runs lint+format |
-| M1 | Properties & services | Property CRUD, catalog + custom, archiving, list *(search deferred past M1 — still required, rescheduled)*, **testing foundation (Vitest + React Testing Library + jsdom + config + `test` script); the first tests written together with the property CRUD** | Create/edit/archive properties with services; the test suite runs green |
+| M1 | Properties & services | Property CRUD, catalog + custom, archiving, list, **testing foundation (Vitest + React Testing Library + jsdom + config + `test` script); the first tests written together with the property CRUD** | Create/edit/archive properties with services; the test suite runs green |
 | M2 | KYC Onboarding | Drafts, 4-step wizard, photo capture + compression, `finalizeKyc`, credentials email, CNP check | End-to-end onboarding functional, credentials received |
 | M3 | Tenant management | Detail (4 tabs), profile editing, password reset, contract extension/termination | Complete tenant lifecycle |
 | M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard | The complete monthly cycle, with emails |
