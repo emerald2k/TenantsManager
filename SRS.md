@@ -515,7 +515,7 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 
 | Function | Type | Role |
 |---|---|---|
-| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft, and **returns the credentials (email + password) to the admin** in the response. Atomic. |
+| `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft, and **returns the credentials (email + password) to the admin** in the response. Atomic. Also migrates the draft's ID document photos physically from Storage `/drafts/{draftId}/` to `/users/{userId}/documents\|guarantor/` (§6). |
 | `resetTenantPassword` | callable (admin) | Generates a new password, sets it on the account, returns it to the admin. |
 | `setTenantAccountStatus` | callable (admin) | Disables / re-enables a tenant's account. Sets `disabled: true/false` on the Firebase Auth account (requires the Admin SDK — the client cannot) and synchronizes `users.status` in Firestore. On **disabling** it also revokes the active tokens (`revokeRefreshTokens`), so that an open session dies immediately, not at the next login. Backs the "Disable/Re-enable" button in §5.3 (**Account** tab) and the states in FR-TEN-24. |
 | `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy; writes the new/updated report email into `mail`. |
