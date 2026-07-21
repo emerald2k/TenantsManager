@@ -188,8 +188,12 @@ export const step4Schema = z.object({
  * tenant HAS pets, the type is required; if they HAVE a vehicle, the make and plate
  * are required (FR-TEN-02). Applied only to the full schema — a draft mid-entry is
  * allowed to have `has: true` without the follow-up yet.
+ *
+ * Exported (M3-B): the tenant Profile tab's per-section edit reuses this on its
+ * "personal data" section schema (`step1Schema` composed with `.superRefine`),
+ * instead of re-declaring the same rule — same conditional, same message keys.
  */
-function refineConditionals(data, ctx) {
+export function refineConditionals(data, ctx) {
   if (data.pets?.has && !data.pets.type?.trim()) {
     ctx.addIssue({
       code: 'custom',

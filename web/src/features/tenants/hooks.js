@@ -1,21 +1,34 @@
-import { useQuery } from '@tanstack/react-query'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 
 /**
- * The data access layer for the tenant list (FR-TEN-13, SRS §6).
+ * The data access layer for the tenant list (FR-TEN-13, SRS §6) and the tenant
+ * detail Profile tab (FR-TEN-11, M3-B).
  *
  * Same conventions as the properties/onboarding hooks: single reads with
  * `getDocs` (NOT `onSnapshot`); components never touch `firebase/firestore`
  * directly — that boundary lives here and is exactly what the tests mock.
  *
- * `users` and `tenancies` are both admin-only reads already granted by
+ * `users` and `tenancies` are both admin-only reads/writes already granted by
  * firestore.rules (added in M2 sub-stages C and E) — no rules change is needed
- * for this list.
+ * for anything here.
  */
 
 const USERS = 'users'
 const TENANCIES = 'tenancies'
+
+function userRef(id) {
+  return doc(db, USERS, id)
+}
 
 export const userKeys = {
   all: ['users'],
@@ -42,6 +55,44 @@ export function useUsers() {
     queryFn: async () => {
       const snap = await getDocs(collection(db, USERS))
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+// ─────────────────────────── useUpdateUser ───────────────────────
+/**
+ * Writes to `users/{id}` from the Profile tab's per-section edit (FR-TEN-11).
+ * A DUMB pass-through, deliberately: `values` reaches `updateDoc` exactly as
+ * given, after `stripUndefinedDeep` (CLAUDE.md §7 — mandatory for any Firestore
+ * form write; same hazard as the onboarding autosave, same fix, reused rather
+ * than re-implemented).
+ *
+ * The hook does NOT flatten nested objects. Firestore's own `updateDoc`
+ * already treats a top-level key containing a literal dot (e.g.
+ * `'guarantor.name'`) as a field path, touching only that leaf. That matters
+ * because `guarantor` is ONE Firestore map holding both the text fields
+ * (name/cnp/phone, this hook's concern) AND `idDocumentPhotos[]` (the photo
+ * gallery's concern) — a section-edit form only has the text fields in scope,
+ * so it MUST save them as `{'guarantor.name': ..., 'guarantor.cnp': ..., ...}`,
+ * not `{guarantor: {name, cnp, phone}}`, or it would silently wipe the photos
+ * the gallery already saved. The Profile tab's guarantor section is the one
+ * caller that needs this; every other section owns every field of whatever
+ * nested object it edits, so a plain nested write is safe there.
+ *
+ * Invalidates BOTH the tenant list (`useUsers`, so an edited name/status shows
+ * up back on /admin/tenants) and this user's detail read (`useUserById`,
+ * onboarding/hooks.js — same `['users','detail',id]` key, reused there for the
+ * existing-tenant onboarding banner and here for the Profile tab).
+ */
+export function useUpdateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, values }) =>
+      updateDoc(userRef(id), stripUndefinedDeep(values)),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['users', 'detail', id] })
     },
   })
 }

@@ -250,6 +250,34 @@
       "disabled": "Disabled",
       "archived": "Archived",
       "inProgress": "In progress"
+    },
+    "detail": {
+      "notFound": "This tenant does not exist.",
+      "tabs": {
+        "profile": "Profile",
+        "tenancy": "Tenancy & contract",
+        "financial": "Financial history",
+        "account": "Account"
+      },
+      "edit": "Edit",
+      "save": "Save",
+      "saveError": "The changes could not be saved. Please try again.",
+      "sections": {
+        "personal": "Personal data",
+        "idPhotos": "ID document photos",
+        "financial": "Financial / professional data",
+        "guarantor": "Guarantor",
+        "previousReference": "Previous reference",
+        "language": "Preferred language"
+      },
+      "placeholderTenancy": "Tenancy & contract will be available in a later sub-stage.",
+      "placeholderFinancial": "Financial history will be available once monthly reports exist.",
+      "placeholderAccount": "Account actions will be available in a later sub-stage.",
+      "photos": {
+        "upload": "Add photo",
+        "delete": "Delete",
+        "deleteBlockedTenant": "At least one ID photo is required and cannot be deleted."
+      }
     }
   },
   "notFound": {

@@ -28,8 +28,11 @@ import {
 
 /** `users.status` (the SRS §6 enum) → the badge key. `inactive-readonly`
  * collapses to a plain "inactive" label; the read-only nuance is an app concern,
- * not something the list column needs to spell out. */
-function mapUserStatus(status) {
+ * not something the list column needs to spell out.
+ *
+ * Exported (M3-B): the tenant detail page's header badge reuses this mapping —
+ * a single source keeps the list and the detail page from drifting apart. */
+export function mapUserStatus(status) {
   switch (status) {
     case 'active':
       return 'active'
@@ -51,7 +54,9 @@ const STATUS_TONE = {
   inProgress: 'bg-accent text-accent-foreground',
 }
 
-function StatusBadge({ statusKey }) {
+/** Exported alongside `mapUserStatus` for the same reason — the detail page's
+ * header badge renders identically to a list row's badge. */
+export function StatusBadge({ statusKey }) {
   const { t } = useTranslation()
   return (
     <span

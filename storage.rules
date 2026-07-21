@@ -16,6 +16,21 @@ service firebase.storage {
       allow read, write: if isAdmin();
     }
 
+    // /users/{userId}/documents/* and /users/{userId}/guarantor/* — admin only
+    // (SRS §6, M3-B). Backs the Profile tab's ID-photo re-upload/delete for a
+    // FINALIZED tenant. A photo captured during onboarding still lives under
+    // /drafts/{draftId}/ (finalizeKyc copies the reference, not the Storage
+    // object — an existing M2 divergence from this SRS path, flagged for the
+    // M3 audit, not fixed here); ONLY a re-upload through the Profile tab lands
+    // under these paths. Both are simultaneously valid — a `users.idDocumentPhotos`
+    // entry can point at either, and each is covered by its own admin-only rule.
+    match /users/{userId}/documents/{fileName} {
+      allow read, write: if isAdmin();
+    }
+    match /users/{userId}/guarantor/{fileName} {
+      allow read, write: if isAdmin();
+    }
+
     // Per-path rules are added as the milestones progress, per SRS §6.
     match /{allPaths=**} {
       allow read, write: if false;

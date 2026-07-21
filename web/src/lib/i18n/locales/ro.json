@@ -250,6 +250,34 @@
       "disabled": "Dezactivat",
       "archived": "Arhivat",
       "inProgress": "În lucru"
+    },
+    "detail": {
+      "notFound": "Acest chiriaș nu există.",
+      "tabs": {
+        "profile": "Profil",
+        "tenancy": "Tenanță și contract",
+        "financial": "Istoric financiar",
+        "account": "Cont"
+      },
+      "edit": "Editează",
+      "save": "Salvează",
+      "saveError": "Modificările nu au putut fi salvate. Încearcă din nou.",
+      "sections": {
+        "personal": "Date personale",
+        "idPhotos": "Poze act de identitate",
+        "financial": "Date financiare / profesionale",
+        "guarantor": "Garant",
+        "previousReference": "Referință anterioară",
+        "language": "Limba preferată"
+      },
+      "placeholderTenancy": "Tenanța și contractul vor fi disponibile într-un sub-stage viitor.",
+      "placeholderFinancial": "Istoricul financiar va fi disponibil odată ce vor exista rapoarte lunare.",
+      "placeholderAccount": "Acțiunile de cont vor fi disponibile într-un sub-stage viitor.",
+      "photos": {
+        "upload": "Adaugă poză",
+        "delete": "Șterge",
+        "deleteBlockedTenant": "Este necesară cel puțin o poză de act și nu poate fi ștearsă."
+      }
     }
   },
   "notFound": {
