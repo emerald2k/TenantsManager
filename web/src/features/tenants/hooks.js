@@ -7,8 +7,10 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from '@/lib/firebase'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
+import { propertyKeys } from '@/features/properties/hooks'
 
 /**
  * The data access layer for the tenant list (FR-TEN-13, SRS §6) and the tenant
@@ -28,6 +30,10 @@ const TENANCIES = 'tenancies'
 
 function userRef(id) {
   return doc(db, USERS, id)
+}
+
+function tenancyRef(id) {
+  return doc(db, TENANCIES, id)
 }
 
 export const userKeys = {
@@ -115,6 +121,98 @@ export function useActiveTenancies() {
         query(collection(db, TENANCIES), where('status', '==', 'active')),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+// ─────────────────────────── useUserTenancies ────────────────────
+/**
+ * The full tenancy HISTORY of one account (FR-TEN-15): active AND ended alike
+ * — deliberately NO `where('status', ...)`, unlike `useActiveTenancies` above.
+ * Backs the Tenancy & contract tab (M3-C): the active/last contract plus the
+ * history of ended ones underneath it. A `userId` of `undefined` (page still
+ * loading the user) holds the query back via `enabled`, same convention as
+ * `useUserById` (onboarding/hooks.js).
+ */
+export function useUserTenancies(userId) {
+  return useQuery({
+    queryKey: ['tenancies', 'byUser', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(collection(db, TENANCIES), where('userId', '==', userId)),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+// ─────────────────────────── useUpdateTenancy ────────────────────
+/**
+ * Writes to `tenancies/{id}` — today only used by the Tenancy tab's "Extend"
+ * (FR-CON-06, editing `endDate` alone), but a dumb pass-through like
+ * `useUpdateUser`, for the same reason: `stripUndefinedDeep` (CLAUDE.md §7)
+ * before the write, `values` untouched otherwise.
+ *
+ * `userId` is NOT written anywhere — it is only mutate-time context, so the
+ * `onSuccess` handler knows which user's tenancy-history cache to invalidate
+ * without a second read.
+ */
+export function useUpdateTenancy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, values }) =>
+      updateDoc(tenancyRef(id), stripUndefinedDeep(values)),
+    onSuccess: (_result, { userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'active', 'list'],
+      })
+    },
+  })
+}
+
+// ─────────────────────────── useEndTenancy ───────────────────────
+/**
+ * Terminates a tenancy (FR-CON-03/04/05) via the `endTenancy` callable
+ * (functions/src/endTenancy.js) — NOT a direct Firestore write: ending a
+ * tenancy touches THREE documents (tenancy/property/user) atomically plus the
+ * arrears guard, which only the Cloud Function (Admin SDK transaction) can do
+ * safely. Same calling convention as `finalizeKyc`
+ * (onboarding/components/StepContract.jsx): `httpsCallable`, the raw error
+ * (with `.code`/`.details`) propagates to the caller UNCAUGHT here — the
+ * Tenancy tab classifies it (arrears vs. generic) the same way StepContract
+ * classifies `finalizeKyc` errors.
+ *
+ * `userId`/`propertyId` are mutate-time context (like `useUpdateTenancy`
+ * above) — the callable only takes `tenancyId`; the other two ids just tell
+ * `onSuccess` which caches to invalidate, since the property and the user's
+ * account status both change as a side effect of this call.
+ */
+export function useEndTenancy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ tenancyId }) => {
+      const endTenancy = httpsCallable(functions, 'endTenancy')
+      return endTenancy({ tenancyId })
+    },
+    onSuccess: (_result, { userId, propertyId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'active', 'list'],
+      })
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId] })
+      queryClient.invalidateQueries({ queryKey: propertyKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: propertyKeys.detail(propertyId),
+      })
     },
   })
 }

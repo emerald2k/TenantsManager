@@ -270,13 +270,33 @@
         "previousReference": "Previous reference",
         "language": "Preferred language"
       },
-      "placeholderTenancy": "Tenancy & contract will be available in a later sub-stage.",
       "placeholderFinancial": "Financial history will be available once monthly reports exist.",
       "placeholderAccount": "Account actions will be available in a later sub-stage.",
       "photos": {
         "upload": "Add photo",
         "delete": "Delete",
         "deleteBlockedTenant": "At least one ID photo is required and cannot be deleted."
+      },
+      "tenancy": {
+        "title": "Contract",
+        "property": "Property",
+        "documentsTitle": "Documents",
+        "historyTitle": "Tenancy history",
+        "none": "This tenant has no tenancy yet.",
+        "endTitle": "End contract",
+        "endButton": "End contract",
+        "endConfirmTitle": "End this contract?",
+        "endConfirmBody": "The property will become free and the account will move to inactive-readonly. This cannot be undone.",
+        "endConfirmButton": "End contract",
+        "endGenericError": "The contract could not be ended. Please try again.",
+        "endArrearsError": "This tenancy has unpaid arrears ({{balance}}) and cannot be ended until the balance is settled.",
+        "notActiveNotice": "This tenancy has already ended.",
+        "historyItem": "{{property}} — {{startDate}} to {{endDate}}",
+        "contract": {
+          "upload": "Upload document",
+          "delete": "Delete",
+          "tooLarge": "The file exceeds 10 MB."
+        }
       }
     }
   },

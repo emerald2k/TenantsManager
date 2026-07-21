@@ -30,6 +30,20 @@ service firebase.storage {
       allow read, write: if isAdmin();
     }
 
+    // /tenancies/{tenancyId}/contract/* — admin write; the tenant that tenancy
+    // belongs to may also READ (FR-CON-07: the signed contract is
+    // visible/downloadable by the tenant). Mirrors firestore.rules' tenancies
+    // rule (`resource.data.userId == request.auth.uid`), but Storage Rules
+    // have no Firestore `resource` to read from directly — `firestore.get()`
+    // (Storage Rules v2 cross-service read) fetches the tenancy document so
+    // the same ownership check can be made here.
+    match /tenancies/{tenancyId}/contract/{fileName} {
+      allow read: if isAdmin() ||
+        (request.auth != null &&
+          firestore.get(/databases/(default)/documents/tenancies/$(tenancyId)).data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     // Per-path rules are added as the milestones progress, per SRS §6.
     match /{allPaths=**} {
       allow read, write: if false;

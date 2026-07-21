@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { waitFor } from '@testing-library/react'
 import { doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   useActiveTenancies,
+  useEndTenancy,
+  useUpdateTenancy,
   useUpdateUser,
+  useUserTenancies,
   useUsers,
 } from '@/features/tenants/hooks'
 
@@ -16,6 +20,7 @@ import {
 
 vi.mock('@/lib/firebase', () => ({
   db: { __fake: 'db' },
+  functions: { __fake: 'functions' },
 }))
 
 vi.mock('firebase/firestore', () => ({
@@ -26,6 +31,8 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn((...args) => ({ __query: args })),
   where: vi.fn((field, op, value) => ({ __where: [field, op, value] })),
 }))
+
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }))
 
 function listSnapshot(docs) {
   return { docs: docs.map(({ id, ...data }) => ({ id, data: () => data })) }
@@ -142,5 +149,153 @@ describe('useUpdateUser (FR-TEN-11 — Profile tab per-section edit)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['users', 'detail', 'u1'],
     })
+  })
+})
+
+describe('useUserTenancies (FR-TEN-15 — full history for one user)', () => {
+  it('reads every tenancy for the user, active and ended alike (no status filter)', async () => {
+    const TENANCIES = [
+      { id: 't1', userId: 'u1', status: 'active' },
+      { id: 't2', userId: 'u1', status: 'ended' },
+    ]
+    getDocs.mockResolvedValue(listSnapshot(TENANCIES))
+
+    const { result } = await renderHookWithProviders(() =>
+      useUserTenancies('u1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual(TENANCIES)
+    expect(where).toHaveBeenCalledWith('userId', '==', 'u1')
+    expect(query).toHaveBeenCalledWith(
+      { __collection: 'tenancies' },
+      { __where: ['userId', '==', 'u1'] },
+    )
+  })
+
+  it('does not query until a userId is provided', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useUserTenancies(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
+  })
+})
+
+describe('useUpdateTenancy (FR-CON-06 — Extend)', () => {
+  beforeEach(() => {
+    updateDoc.mockResolvedValue(undefined)
+  })
+
+  it('writes the values to tenancies/{id}, stripped of undefined keys', async () => {
+    const { result } = await renderHookWithProviders(() => useUpdateTenancy())
+
+    await result.current.mutateAsync({
+      id: 't1',
+      userId: 'u1',
+      values: { endDate: '2028-01-01', securityDeposit: undefined },
+    })
+
+    expect(doc).toHaveBeenCalledWith({ __fake: 'db' }, 'tenancies', 't1')
+    expect(updateDoc).toHaveBeenCalledWith(
+      { __doc: 'tenancies/t1' },
+      { endDate: '2028-01-01' },
+    )
+  })
+
+  it('invalidates the user’s tenancy history and the active-tenancies list', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useUpdateTenancy(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 't1',
+      userId: 'u1',
+      values: { endDate: '2028-01-01' },
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'byUser', 'u1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'active', 'list'],
+    })
+  })
+})
+
+describe('useEndTenancy (FR-CON-03/04/05 — End contract)', () => {
+  const endTenancyMock = vi.fn()
+
+  beforeEach(() => {
+    httpsCallable.mockReturnValue(endTenancyMock)
+    endTenancyMock.mockResolvedValue({ data: { tenancyId: 't1' } })
+  })
+
+  it('calls the endTenancy callable with the tenancyId', async () => {
+    const { result } = await renderHookWithProviders(() => useEndTenancy())
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      propertyId: 'p1',
+    })
+
+    expect(httpsCallable).toHaveBeenCalledWith(
+      { __fake: 'functions' },
+      'endTenancy',
+    )
+    expect(endTenancyMock).toHaveBeenCalledWith({ tenancyId: 't1' })
+  })
+
+  it('invalidates tenancy, user, and property caches on success', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useEndTenancy(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      propertyId: 'p1',
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'byUser', 'u1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'active', 'list'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users', 'list'] })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['users', 'detail', 'u1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['properties', 'list'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['properties', 'detail', 'p1'],
+    })
+  })
+
+  // Anti-vacuity: without a try/catch swallowing it, this proves the caller
+  // (the End-contract dialog) can classify the arrears error and show the
+  // right message instead of a generic failure.
+  it('propagates a failed-precondition (arrears) error without swallowing it', async () => {
+    const arrearsError = Object.assign(new Error('failed'), {
+      code: 'functions/failed-precondition',
+      details: { reason: 'arrears', currentBalance: 150 },
+    })
+    endTenancyMock.mockRejectedValue(arrearsError)
+    const { result } = await renderHookWithProviders(() => useEndTenancy())
+
+    await expect(
+      result.current.mutateAsync({
+        tenancyId: 't1',
+        userId: 'u1',
+        propertyId: 'p1',
+      }),
+    ).rejects.toMatchObject({ details: { reason: 'arrears' } })
   })
 })

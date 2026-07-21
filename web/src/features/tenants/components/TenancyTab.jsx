@@ -1,0 +1,253 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  EditableSection,
+  Field,
+  FieldError,
+  Section,
+} from '@/features/tenants/components/ProfileTab'
+import { ContractUpload } from '@/features/tenants/components/ContractUpload'
+import {
+  useEndTenancy,
+  useUpdateTenancy,
+  useUserTenancies,
+} from '@/features/tenants/hooks'
+import { step4Schema } from '@/features/onboarding/schema'
+
+/**
+ * The Tenancy & contract tab (M3-C, SRS §5.3, FR-CON-01…09): the tenant's
+ * active (or last) contract, its documents, "Extend", "End contract", and the
+ * history of past tenancies (FR-TEN-15).
+ *
+ * `endDate` alone — presence-only, same discipline as the rest of the KYC/
+ * contract fields (NFR-VAL-01). Reused from `step4Schema` (onboarding/schema.js)
+ * via `.pick()`, the same composition pattern `tenants/profileSchema.js`
+ * already uses for the Profile tab — no new validation rule declared here.
+ */
+const extendTenancySchema = step4Schema.pick({ endDate: true })
+
+/** Which tenancy to show as "the contract": the active one if there is one,
+ * otherwise the MOST RECENTLY ended one (SRS §5.3: "active/last contract") —
+ * comparing `endDate` lexicographically works because it is always an ISO
+ * `YYYY-MM-DD` string (same convention as every other date field here). */
+function selectDisplayedTenancy(tenancies) {
+  const active = tenancies.find((t) => t.status === 'active')
+  if (active) return active
+
+  const ended = tenancies.filter((t) => t.status === 'ended')
+  if (ended.length === 0) return null
+  return [...ended].sort((a, b) =>
+    (b.endDate ?? '').localeCompare(a.endDate ?? ''),
+  )[0]
+}
+
+function ContractSummary({ tenancy, userId, isActive }) {
+  const { t } = useTranslation()
+  const updateTenancy = useUpdateTenancy()
+  const endTenancy = useEndTenancy()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [endError, setEndError] = useState(null)
+
+  async function handleEnd() {
+    setEndError(null)
+    try {
+      await endTenancy.mutateAsync({
+        tenancyId: tenancy.id,
+        userId,
+        propertyId: tenancy.propertyId,
+      })
+      setConfirmOpen(false)
+    } catch (error) {
+      setEndError(error)
+    }
+  }
+
+  const arrears = endError?.details?.reason === 'arrears'
+
+  return (
+    <>
+      <EditableSection
+        titleKey="tenants.detail.tenancy.title"
+        schema={extendTenancySchema}
+        defaultValues={{ endDate: tenancy.endDate ?? '' }}
+        onSave={(values) =>
+          updateTenancy.mutateAsync({ id: tenancy.id, userId, values })
+        }
+        renderView={() => (
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+              label={t('tenants.detail.tenancy.property')}
+              value={tenancy.property?.name}
+            />
+            <Field
+              label={t('onboarding.fields.startDate')}
+              value={tenancy.startDate}
+            />
+            <Field
+              label={t('onboarding.fields.endDate')}
+              value={tenancy.endDate}
+            />
+            <Field
+              label={t('onboarding.fields.monthlyRent')}
+              value={tenancy.monthlyRent}
+            />
+            <Field
+              label={t('onboarding.fields.securityDeposit')}
+              value={tenancy.securityDeposit}
+            />
+            <Field
+              label={t('onboarding.fields.dueDay')}
+              value={tenancy.dueDay}
+            />
+          </div>
+        )}
+        renderFields={({ register, errors, t: tt }) => (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
+            <Input id="endDate" type="date" {...register('endDate')} />
+            <FieldError error={errors.endDate} t={tt} />
+          </div>
+        )}
+      />
+
+      {isActive ? (
+        <Section title={t('tenants.detail.tenancy.endTitle')}>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => setConfirmOpen(true)}
+          >
+            {t('tenants.detail.tenancy.endButton')}
+          </Button>
+        </Section>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {t('tenants.detail.tenancy.notActiveNotice')}
+        </p>
+      )}
+
+      <Section title={t('tenants.detail.tenancy.documentsTitle')}>
+        <ContractUpload
+          tenancyId={tenancy.id}
+          userId={userId}
+          documents={tenancy.attachedDocuments ?? []}
+        />
+      </Section>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open)
+          if (open) setEndError(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t('tenants.detail.tenancy.endConfirmTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('tenants.detail.tenancy.endConfirmBody')}
+            </DialogDescription>
+          </DialogHeader>
+          {endError && (
+            <p role="alert" className="text-sm text-destructive">
+              {arrears
+                ? t('tenants.detail.tenancy.endArrearsError', {
+                    balance: endError.details.currentBalance,
+                  })
+                : t('tenants.detail.tenancy.endGenericError')}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleEnd}
+              disabled={endTenancy.isPending}
+            >
+              {endTenancy.isPending
+                ? t('common.loading')
+                : t('tenants.detail.tenancy.endConfirmButton')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+export function TenancyTab({ userId }) {
+  const { t } = useTranslation()
+  const { data: tenancies, isPending, isError } = useUserTenancies(userId)
+
+  if (isPending) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    )
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t('tenants.detail.saveError')}
+      </p>
+    )
+  }
+
+  const displayed = selectDisplayedTenancy(tenancies)
+  const history = tenancies.filter(
+    (item) => item.status === 'ended' && item.id !== displayed?.id,
+  )
+
+  return (
+    <div className="flex flex-col gap-6">
+      {!displayed && (
+        <p className="text-sm text-muted-foreground">
+          {t('tenants.detail.tenancy.none')}
+        </p>
+      )}
+
+      {displayed && (
+        <ContractSummary
+          tenancy={displayed}
+          userId={userId}
+          isActive={displayed.status === 'active'}
+        />
+      )}
+
+      {history.length > 0 && (
+        <Section title={t('tenants.detail.tenancy.historyTitle')}>
+          <ul className="flex flex-col gap-2">
+            {history.map((item) => (
+              <li key={item.id} className="text-sm text-muted-foreground">
+                {t('tenants.detail.tenancy.historyItem', {
+                  property: item.property?.name,
+                  startDate: item.startDate,
+                  endDate: item.endDate,
+                })}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+    </div>
+  )
+}

@@ -37,12 +37,17 @@ function yesNoLabel(value, t) {
   return '—'
 }
 
-function FieldError({ error, t }) {
+/** Exported (M3-C): the Tenancy tab reuses this for its own read-only fields
+ * (contract summary) and validation errors (Extend), rather than
+ * re-implementing the same two one-line components. */
+export function FieldError({ error, t }) {
   if (!error) return null
   return <p className="text-sm text-destructive">{t(error.message)}</p>
 }
 
-function Section({ title, action, children }) {
+/** Exported (M3-C): the Tenancy tab reuses this chrome for its contract-info
+ * and documents sections — same bordered-card shell as every Profile section. */
+export function Section({ title, action, children }) {
   return (
     <section className="rounded-lg border border-border p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -54,7 +59,10 @@ function Section({ title, action, children }) {
   )
 }
 
-function Field({ label, value }) {
+/** Exported (M3-C): the Tenancy tab's contract-summary view reuses this for
+ * its read-only fields (property, dates, rent…), same label/value shape as
+ * every Profile section's `renderView`. */
+export function Field({ label, value }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -77,8 +85,12 @@ function Field({ label, value }) {
  * Cancel discards in-progress edits by simply dropping edit mode — the form is
  * reset from `defaultValues` again on the next Edit click, nothing is persisted
  * until Save succeeds.
+ *
+ * Exported (M3-C): the Tenancy tab's contract-summary/Extend section reuses
+ * this whole state machine (edit mode, Zod validation, Save/Cancel) instead
+ * of re-implementing it for a single field.
  */
-function EditableSection({
+export function EditableSection({
   titleKey,
   schema,
   defaultValues,

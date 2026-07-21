@@ -15,6 +15,9 @@ vi.mock('@/features/onboarding/hooks', () => ({
 vi.mock('@/features/tenants/components/ProfileTab', () => ({
   ProfileTab: ({ userId }) => <div data-testid="profile-tab">{userId}</div>,
 }))
+vi.mock('@/features/tenants/components/TenancyTab', () => ({
+  TenancyTab: ({ userId }) => <div data-testid="tenancy-tab">{userId}</div>,
+}))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
   useParams: () => ({ id: 'u1' }),
@@ -62,11 +65,7 @@ describe('TenantDetailPage — shell', () => {
     await user.click(screen.getByRole('tab', { name: 'Tenanță și contract' }))
 
     expect(screen.queryByTestId('profile-tab')).toBeNull()
-    expect(
-      screen.getByText(
-        'Tenanța și contractul vor fi disponibile într-un sub-stage viitor.',
-      ),
-    ).toBeVisible()
+    expect(screen.getByTestId('tenancy-tab')).toBeVisible()
 
     await user.click(screen.getByRole('tab', { name: 'Cont' }))
     expect(

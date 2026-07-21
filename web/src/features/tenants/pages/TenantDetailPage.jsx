@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useUserById } from '@/features/onboarding/hooks'
 import { ProfileTab } from '@/features/tenants/components/ProfileTab'
+import { TenancyTab } from '@/features/tenants/components/TenancyTab'
 import {
   mapUserStatus,
   StatusBadge,
@@ -10,9 +11,9 @@ import {
 import { cn } from '@/lib/utils'
 
 /**
- * The tenant detail page (M3-B, SRS §5.3, "/admin/tenants/:id"): header + 4
- * tabs. Only the Profile tab is built this sub-stage — Tenancy & contract,
- * Financial history, and Account are literal placeholders (Sub-stages C/D/E).
+ * The tenant detail page (M3-B/C, SRS §5.3, "/admin/tenants/:id"): header + 4
+ * tabs. Profile (M3-B) and Tenancy & contract (M3-C) are built; Financial
+ * history and Account remain literal placeholders (Sub-stages D/E).
  *
  * Reads `users/{userId}` via `useUserById` (onboarding/hooks.js) — the same
  * hook already used for the existing-tenant onboarding banner; reused here
@@ -81,11 +82,7 @@ export function TenantDetailPage() {
 
       <div role="tabpanel">
         {activeTab === 'profile' && <ProfileTab user={user} userId={id} />}
-        {activeTab === 'tenancy' && (
-          <p className="text-sm text-muted-foreground">
-            {t('tenants.detail.placeholderTenancy')}
-          </p>
-        )}
+        {activeTab === 'tenancy' && <TenancyTab userId={id} />}
         {activeTab === 'financial' && (
           <p className="text-sm text-muted-foreground">
             {t('tenants.detail.placeholderFinancial')}
