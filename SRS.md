@@ -345,7 +345,7 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 - Step 4: property dropdown (occupied ones disabled + note), contract, due day.
 - Completion: full validation; duplicate CNP → blocking dialog with link; success → "Account created, credentials sent by email" + profile link.
 
-**`/admin/tenants/:id`** — tabs: (1) **Profile** — KYC data by section, editing per section, photo gallery (lightbox), editable preferred language; (2) **Tenancy & contract** — active/last contract, documents, "Extend", "End contract" (blocked on arrears, with a message); (3) **Financial history** — all reports, status + link; (4) **Account** — status; "Reset password" (dialog with the generated password + copy), "Disable/Re-enable", "Archive".
+**`/admin/tenants/:id`** — tabs: (1) **Profile** — KYC data by section, editing per section, photo gallery (lightbox, re-upload, and deletion of ID photos — at least one tenant ID photo is always required, so deleting the last one is blocked; guarantor photos are optional and may be deleted down to zero), editable preferred language; (2) **Tenancy & contract** — active/last contract, documents, "Extend", "End contract" (blocked on arrears, with a message); (3) **Financial history** — all reports, status + link; (4) **Account** — status; "Reset password" (dialog with the generated password + copy), "Disable/Re-enable", "Archive".
 
 **`/admin/reports/:propertyId?month=&year=`** — header: property + tenant + month + badge.
 
