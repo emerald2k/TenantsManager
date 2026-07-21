@@ -216,3 +216,74 @@ export function useEndTenancy() {
     },
   })
 }
+
+// ───────────────────────── useResetTenantPassword ────────────────
+/**
+ * Generates a new password on the tenant's Auth account (FR-AUTH-06/07) via
+ * the `resetTenantPassword` callable (functions/src/resetTenantPassword.js).
+ * NOT a Firestore write of any kind — no cache to invalidate. The response's
+ * `data.password` is shown once in the Account tab's dialog (face-to-face
+ * handoff, same convention as `finalizeKyc`'s credentials — no email).
+ */
+export function useResetTenantPassword() {
+  return useMutation({
+    mutationFn: ({ userId }) => {
+      const resetTenantPassword = httpsCallable(
+        functions,
+        'resetTenantPassword',
+      )
+      return resetTenantPassword({ userId })
+    },
+  })
+}
+
+// ──────────────────────── useSetTenantAccountStatus ──────────────
+/**
+ * Disables / re-enables a tenant's account (FR-TEN-24) via the
+ * `setTenantAccountStatus` callable (functions/src/setTenantAccountStatus.js)
+ * — NOT a direct Firestore write: it also flips the Auth `disabled` flag and
+ * revokes refresh tokens on disable, which only the Admin SDK can do.
+ * `action` is `'disable'|'enable'` — re-enable RECALCULATES `users.status`
+ * server-side (active tenancy → 'active', else 'inactive-readonly'), so the
+ * client only needs to invalidate, never compute, the resulting status.
+ */
+export function useSetTenantAccountStatus() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, action }) => {
+      const setTenantAccountStatus = httpsCallable(
+        functions,
+        'setTenantAccountStatus',
+      )
+      return setTenantAccountStatus({ userId, action })
+    },
+    onSuccess: (_result, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId] })
+    },
+  })
+}
+
+// ─────────────────────────── useArchiveTenant ────────────────────
+/**
+ * Archives a tenant account (FR-TEN-24) — a plain client-side Firestore
+ * write, mirroring `useArchiveProperty` (properties/hooks.js) EXACTLY: no
+ * Cloud Function, because archiving touches only `users.status`, nothing on
+ * the Auth side. The "blocked while there's an active tenancy or the account
+ * is disabled" guard (Bogdan's state-machine decision, M3-D) is enforced by
+ * the Account tab's UI (disabled button + message), same ACCESS-boundary-
+ * vs-business-logic split as `useArchiveProperty`'s occupied-property guard
+ * (CLAUDE.md §7) — not re-litigated here.
+ */
+export function useArchiveTenant() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id) => updateDoc(userRef(id), { status: 'archived' }),
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['users', 'detail', id] })
+    },
+  })
+}

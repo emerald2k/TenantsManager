@@ -18,6 +18,16 @@ vi.mock('@/features/tenants/components/ProfileTab', () => ({
 vi.mock('@/features/tenants/components/TenancyTab', () => ({
   TenancyTab: ({ userId }) => <div data-testid="tenancy-tab">{userId}</div>,
 }))
+vi.mock('@/features/tenants/components/AccountTab', () => ({
+  AccountTab: ({ userId, status }) => (
+    <div data-testid="account-tab">
+      {userId}:{status}
+    </div>
+  ),
+}))
+vi.mock('@/features/tenants/components/FinancialTab', () => ({
+  FinancialTab: () => <div data-testid="financial-tab" />,
+}))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
   useParams: () => ({ id: 'u1' }),
@@ -57,7 +67,7 @@ describe('TenantDetailPage — shell', () => {
     expect(screen.getByTestId('profile-tab')).toBeVisible()
   })
 
-  it('switches to a placeholder tab and back', async () => {
+  it('switches between tabs, rendering each one’s content', async () => {
     const user = userEvent.setup()
     mockUser()
     await renderWithProviders(<TenantDetailPage />)
@@ -68,18 +78,10 @@ describe('TenantDetailPage — shell', () => {
     expect(screen.getByTestId('tenancy-tab')).toBeVisible()
 
     await user.click(screen.getByRole('tab', { name: 'Cont' }))
-    expect(
-      screen.getByText(
-        'Acțiunile de cont vor fi disponibile într-un sub-stage viitor.',
-      ),
-    ).toBeVisible()
+    expect(screen.getByTestId('account-tab')).toHaveTextContent('u1:active')
 
     await user.click(screen.getByRole('tab', { name: 'Istoric financiar' }))
-    expect(
-      screen.getByText(
-        'Istoricul financiar va fi disponibil odată ce vor exista rapoarte lunare.',
-      ),
-    ).toBeVisible()
+    expect(screen.getByTestId('financial-tab')).toBeVisible()
 
     await user.click(screen.getByRole('tab', { name: 'Profil' }))
     expect(screen.getByTestId('profile-tab')).toBeVisible()

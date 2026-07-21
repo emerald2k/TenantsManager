@@ -270,8 +270,6 @@
         "previousReference": "Referință anterioară",
         "language": "Limba preferată"
       },
-      "placeholderFinancial": "Istoricul financiar va fi disponibil odată ce vor exista rapoarte lunare.",
-      "placeholderAccount": "Acțiunile de cont vor fi disponibile într-un sub-stage viitor.",
       "photos": {
         "upload": "Adaugă poză",
         "delete": "Șterge",
@@ -297,6 +295,33 @@
           "delete": "Șterge",
           "tooLarge": "Fișierul depășește 10 MB."
         }
+      },
+      "account": {
+        "title": "Stare cont",
+        "resetPasswordTitle": "Resetare parolă",
+        "resetPasswordButton": "Resetează parola",
+        "resetPasswordError": "Parola nu a putut fi resetată. Încearcă din nou.",
+        "resetPasswordDialogTitle": "Parolă nouă generată",
+        "statusActionTitle": "Acces cont",
+        "disableButton": "Dezactivează",
+        "enableButton": "Re-activează",
+        "disableConfirmTitle": "Dezactivezi acest cont?",
+        "disableConfirmBody": "Sesiunea deschisă a chiriașului se închide imediat — nu se va mai putea loga până la re-activare.",
+        "enableConfirmTitle": "Re-activezi acest cont?",
+        "enableConfirmBody": "Chiriașul se va putea loga din nou.",
+        "statusActionError": "Acțiunea nu a putut fi efectuată. Încearcă din nou.",
+        "archiveTitle": "Arhivare",
+        "archiveButton": "Arhivează",
+        "archiveConfirmTitle": "Arhivezi acest cont?",
+        "archiveConfirmBody": "Contul devine ascuns din lista implicită. Acțiunea nu poate fi anulată din această pagină.",
+        "archiveBlocked": {
+          "activeTenancy": "Termină contractul întâi.",
+          "disabled": "Re-activează contul întâi."
+        },
+        "archivedNotice": "Acest cont este arhivat."
+      },
+      "financial": {
+        "empty": "Niciun raport încă."
       }
     }
   },
