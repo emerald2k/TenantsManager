@@ -29,3 +29,6 @@ Thumbs.db
 
 # Claude Code (local, per-machine)
 .claude/settings.local.json
+
+# Local context checkpoint (regenerated per sub-stage gate, never committed)
+CURRENT_SPRINT.md
