@@ -114,8 +114,10 @@
     "list": {
       "title": "Properties",
       "add": "Add property",
+      "search": "Search properties",
       "showArchived": "Show archived",
       "empty": "No properties yet.",
+      "noMatches": "No properties match your search.",
       "error": "The properties could not be loaded. Please try again."
     }
   },
@@ -222,7 +224,32 @@
     "list": {
       "title": "Tenants",
       "add": "New tenant onboarding",
+      "search": "Search tenants",
+      "showArchived": "Show archived",
+      "empty": "No tenants yet.",
+      "noMatches": "No tenants match your search.",
+      "continue": "Continue",
+      "deleteDraft": "Delete draft",
+      "deleteDraftTitle": "Delete draft",
+      "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
+      "deleteDraftConfirm": "Delete draft",
+      "loadError": "The tenants could not be loaded. Please try again.",
       "error": "The draft could not be created. Please try again."
+    },
+    "fields": {
+      "name": "Name",
+      "phone": "Phone",
+      "email": "Email",
+      "property": "Current property",
+      "balance": "Outstanding balance",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "disabled": "Disabled",
+      "archived": "Archived",
+      "inProgress": "In progress"
     }
   },
   "notFound": {

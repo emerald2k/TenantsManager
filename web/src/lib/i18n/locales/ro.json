@@ -114,8 +114,10 @@
     "list": {
       "title": "Proprietăți",
       "add": "Adaugă proprietate",
+      "search": "Caută proprietăți",
       "showArchived": "Arată arhivate",
       "empty": "Nicio proprietate deocamdată.",
+      "noMatches": "Nicio proprietate nu corespunde căutării.",
       "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
     }
   },
@@ -222,7 +224,32 @@
     "list": {
       "title": "Chiriași",
       "add": "Onboarding chiriaș nou",
+      "search": "Caută chiriași",
+      "showArchived": "Arată arhivați",
+      "empty": "Niciun chiriaș deocamdată.",
+      "noMatches": "Niciun chiriaș nu corespunde căutării.",
+      "continue": "Continuă",
+      "deleteDraft": "Șterge draftul",
+      "deleteDraftTitle": "Șterge draftul",
+      "deleteDraftDescription": "Acest draft de onboarding va fi șters. Acțiunea nu poate fi anulată.",
+      "deleteDraftConfirm": "Șterge draftul",
+      "loadError": "Chiriașii nu au putut fi încărcați. Încearcă din nou.",
       "error": "Draftul nu a putut fi creat. Încearcă din nou."
+    },
+    "fields": {
+      "name": "Nume",
+      "phone": "Telefon",
+      "email": "Email",
+      "property": "Proprietate curentă",
+      "balance": "Sold restant",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Activ",
+      "inactive": "Inactiv",
+      "disabled": "Dezactivat",
+      "archived": "Arhivat",
+      "inProgress": "În lucru"
     }
   },
   "notFound": {

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { filterByText } from '@/lib/filterByText'
 import { useProperties } from '@/features/properties/hooks'
 
 /**
@@ -13,9 +15,9 @@ import { useProperties } from '@/features/properties/hooks'
  *    Firestore index is worth its cost);
  *  - "Show archived" flips B's `includeArchived`, which decides the WHERE clause of
  *    that fetch — the filtering lives in the hook, not duplicated here.
- *
- * Search (SRS §5.3) is deliberately NOT here: deferred by the administrator's
- * decision for M1. No search input is rendered.
+ *  - the search (FR-PROP-07) is client-side too, over the already-fetched list, via
+ *    the shared `filterByText` (the same util the tenant list uses). It was deferred
+ *    past M1 and landed in M3 alongside the tenant list.
  */
 
 /** Address as one line: "street number, city" (SRS §6 address shape). The optional
@@ -52,6 +54,7 @@ export function PropertiesListPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)
+  const [search, setSearch] = useState('')
 
   // The boolean is passed unconditionally, so the query key changes with the
   // toggle and B refetches with the right WHERE clause.
@@ -71,6 +74,17 @@ export function PropertiesListPage() {
     [properties],
   )
 
+  // The search runs over the sorted list, matching name + the one-line address
+  // (FR-PROP-07). Same shared util as the tenant list.
+  const filtered = useMemo(
+    () =>
+      filterByText(sorted, search, (property) => [
+        property.name,
+        formatAddress(property.address),
+      ]),
+    [sorted, search],
+  )
+
   function goToProperty(id) {
     navigate(`/admin/properties/${id}`)
   }
@@ -81,7 +95,15 @@ export function PropertiesListPage() {
         <h1 className="text-xl font-semibold text-foreground">
           {t('properties.list.title')}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <Input
+            type="search"
+            aria-label={t('properties.list.search')}
+            placeholder={t('properties.list.search')}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-56"
+          />
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
@@ -115,6 +137,10 @@ export function PropertiesListPage() {
             {t('properties.list.add')}
           </Button>
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {t('properties.list.noMatches')}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-left text-sm">
@@ -135,7 +161,7 @@ export function PropertiesListPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((property) => (
+              {filtered.map((property) => (
                 <tr
                   key={property.id}
                   onClick={() => goToProperty(property.id)}
