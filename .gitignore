@@ -32,3 +32,6 @@ Thumbs.db
 
 # Local context checkpoint (regenerated per sub-stage gate, never committed)
 CURRENT_SPRINT.md
+
+# local milestone-audit tooling (not versioned)
+.claude/skills/milestone-audit/
