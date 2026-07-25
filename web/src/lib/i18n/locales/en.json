@@ -325,6 +325,34 @@
       }
     }
   },
+  "reports": {
+    "notFound": "This property does not exist.",
+    "noActiveTenancy": "This property has no active tenancy — a report cannot be created.",
+    "sections": {
+      "rent": "Rent",
+      "maintenance": "Maintenance",
+      "otherExpenses": "Other expenses"
+    },
+    "fields": {
+      "amount": "Amount",
+      "notes": "Notes",
+      "description": "Description",
+      "dueDate": "Due date",
+      "previousArrears": "Previous month's arrears",
+      "previousCredit": "Previous month's credit",
+      "calculatedTotal": "Calculated total"
+    },
+    "otherExpenses": {
+      "add": "Add expense",
+      "remove": "Remove",
+      "empty": "No other expenses yet."
+    },
+    "errors": {
+      "required": "Required field",
+      "saveError": "The report could not be saved. Please try again."
+    },
+    "save": "Save draft"
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"

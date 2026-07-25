@@ -325,6 +325,34 @@
       }
     }
   },
+  "reports": {
+    "notFound": "Această proprietate nu există.",
+    "noActiveTenancy": "Această proprietate nu are o tenanță activă — nu se poate crea un raport.",
+    "sections": {
+      "rent": "Chirie",
+      "maintenance": "Mentenanță",
+      "otherExpenses": "Alte cheltuieli"
+    },
+    "fields": {
+      "amount": "Sumă",
+      "notes": "Note",
+      "description": "Descriere",
+      "dueDate": "Data scadentă",
+      "previousArrears": "Restanțe luna anterioară",
+      "previousCredit": "Credit luna anterioară",
+      "calculatedTotal": "Total calculat"
+    },
+    "otherExpenses": {
+      "add": "Adaugă cheltuială",
+      "remove": "Șterge",
+      "empty": "Nicio altă cheltuială deocamdată."
+    },
+    "errors": {
+      "required": "Câmp obligatoriu",
+      "saveError": "Raportul nu a putut fi salvat. Încearcă din nou."
+    },
+    "save": "Salvează draftul"
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"

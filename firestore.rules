@@ -54,6 +54,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // monthlyReports: admin-only for now (M4 sub-stage 1). Tenant read-where-status=='signed'
+    // AND the rules-band tests (admin allow / tenant-signed allow / tenant-unsigned+other-tenant+anon deny,
+    // anti-vacuity) land together in M4 sub-stage 4. Rules band does NOT cover this collection yet.
+    match /monthlyReports/{reportId} {
+      allow read, write: if isAdmin();
+    }
+
     // The remaining collections are not implemented yet.
     // Per-collection rules are added as the milestones progress, per SRS §7.3.
     match /{document=**} {
