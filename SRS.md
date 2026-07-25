@@ -155,7 +155,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-CON-04 | Termination blocked if there are unpaid arrears. |
 | FR-CON-05 | On termination: the property becomes "free", the account moves to "inactive-readonly". |
 | FR-CON-06 | Extension = editing the end date on the same tenancy. |
-| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. |
+| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. *(Partially built at M3: the admin-side upload and the Storage access rule — admin write, owning tenant read — are done. The tenant-facing consumption at `/app/contract` is M5, still a placeholder.)* |
 | FR-CON-08 | Passing the end date does not trigger anything automatically — the contract remains "active" until manual termination. |
 | FR-CON-09 | Email reminders to the admin **90, 60 and 30 days** before expiry (sent at 09:00, Europe/Bucharest). |
 
@@ -347,6 +347,8 @@ Route guards: unauthenticated → `/login`; tenant on `/admin/*` → `/app`; adm
 
 **`/admin/tenants/:id`** — tabs: (1) **Profile** — KYC data by section, editing per section, photo gallery (lightbox, re-upload, and deletion of ID photos — at least one tenant ID photo is always required, so deleting the last one is blocked; guarantor photos are optional and may be deleted down to zero), editable preferred language; (2) **Tenancy & contract** — active/last contract, documents, "Extend", "End contract" (blocked on arrears, with a message); (3) **Financial history** — all reports, status + link; (4) **Account** — status; "Reset password" (dialog with the generated password + copy), "Disable/Re-enable", "Archive".
 
+**Account tab — the state machine (FR-TEN-24):** `active → (End Contract) → inactive-readonly → (Archive) → archived`; `active`/`inactive-readonly` ⇄ `disabled`. Re-enable RECALCULATES the status rather than restoring a remembered prior value. Archive is blocked while the account has an active tenancy (end it first) and reaches Auth exactly like Disable (so a native login is actually blocked, not just hidden from the admin UI); `archived` is terminal — no further action from it.
+
 **`/admin/reports/:propertyId?month=&year=`** — header: property + tenant + month + badge.
 
 The body is a **table of cost lines**, each line having the same structure (inspired by the table used in practice): **name | amount | notes + attachments**.
@@ -417,6 +419,7 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
     later — same step as dueDay)
   - currentBalance: number (updated automatically by onReportWrite — NFR-PERF-04)
   - status: active | ended
+  - endedAt: server timestamp, set by endTenancy on termination (absent while active)
   - attachedDocuments[] (signed contract — visible to the tenant)
     // attachedDocuments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
     //   same item shape as costLine.attachments[] (consistency, not duplication)
@@ -519,7 +522,7 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 |---|---|---|
 | `finalizeKyc` | callable (admin) | Validates the complete draft, checks for duplicate CNP + free property, creates the Auth account + `users` + `tenancies` (with denormalizations), generates the password (12+ chars), writes the credentials email into `mail`, deletes the draft, and **returns the credentials (email + password) to the admin** in the response. Atomic. Also migrates the draft's ID document photos physically from Storage `/drafts/{draftId}/` to `/users/{userId}/documents\|guarantor/` (§6). |
 | `resetTenantPassword` | callable (admin) | Generates a new password, sets it on the account, returns it to the admin. |
-| `setTenantAccountStatus` | callable (admin) | Disables / re-enables a tenant's account. Sets `disabled: true/false` on the Firebase Auth account (requires the Admin SDK — the client cannot) and synchronizes `users.status` in Firestore. On **disabling** it also revokes the active tokens (`revokeRefreshTokens`), so that an open session dies immediately, not at the next login. Backs the "Disable/Re-enable" button in §5.3 (**Account** tab) and the states in FR-TEN-24. |
+| `setTenantAccountStatus` | callable (admin) | Disables / re-enables / archives a tenant's account (`action: 'disable'\|'enable'\|'archive'`). **Disable** and **archive** both set `disabled: true` on the Firebase Auth account (requires the Admin SDK — the client cannot) and revoke the active tokens (`revokeRefreshTokens`), so an open session dies immediately; archive additionally sets `users.status = 'archived'` and is blocked while the account has an active tenancy. **Re-enable** sets `disabled: false` and RECALCULATES `users.status` from a fresh active-tenancy query — `'active'` if one exists, otherwise `'inactive-readonly'` — rather than restoring a remembered prior value. `'archived'` is a TERMINAL state (M3 post-audit fix): before dispatching any action, the function reads the account's current `users.status` and rejects with `failed-precondition` if it is already `'archived'` — no enable, disable, or re-archive from it. Enforced server-side, not just hidden in the admin UI, so a direct API call cannot un-archive an account either. Backs the "Disable/Re-enable"/"Archive" buttons in §5.3 (**Account** tab) and the states in FR-TEN-24. |
 | `endTenancy` | callable (admin) | Manually terminates an active tenancy (FR-CON-03), including early. Blocked while the tenancy has unpaid arrears (FR-CON-04). Atomic: a single Firestore transaction sets tenancy.status → 'ended', property.status → 'free' (symmetric with finalizeKyc, which sets 'occupied'), and users.status → 'inactive-readonly' (FR-CON-05). |
 | `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy; writes the new/updated report email into `mail`. |
 | `onPropertyUpdate` | Firestore trigger | Synchronizes `property { name, address }` in the active tenancy. |
