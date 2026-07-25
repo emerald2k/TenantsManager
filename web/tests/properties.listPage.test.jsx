@@ -100,6 +100,45 @@ describe('PropertiesListPage', () => {
     })
   })
 
+  describe('search (FR-PROP-07 — name + address)', () => {
+    beforeEach(() => {
+      mockList([
+        property({ id: 'a', name: 'Apartament Centru' }),
+        property({
+          id: 'b',
+          name: 'Casa Zorilor',
+          address: {
+            street: 'Str. Zorilor',
+            number: '5',
+            city: 'Cluj-Napoca',
+          },
+        }),
+      ])
+    })
+
+    it('filters to the matching subset', async () => {
+      const user = userEvent.setup()
+      await renderWithProviders(<PropertiesListPage />)
+
+      await user.type(screen.getByRole('searchbox'), 'zorilor')
+
+      expect(renderedNames()).toEqual(['Casa Zorilor'])
+    })
+
+    it('shows ZERO rows and a no-matches message when nothing matches (anti-vacuity)', async () => {
+      // If the filter were removed, both rows would still show and this fails.
+      const user = userEvent.setup()
+      await renderWithProviders(<PropertiesListPage />)
+
+      await user.type(screen.getByRole('searchbox'), 'zzz-nothing')
+
+      expect(screen.queryByRole('row')).toBeNull()
+      expect(
+        screen.getByText('Nicio proprietate nu corespunde căutării.'),
+      ).toBeVisible()
+    })
+  })
+
   describe('empty state', () => {
     it('shows the empty message and an add button that goes to the new form', async () => {
       const user = userEvent.setup()

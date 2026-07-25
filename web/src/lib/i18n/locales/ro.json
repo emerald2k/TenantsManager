@@ -114,8 +114,10 @@
     "list": {
       "title": "Proprietăți",
       "add": "Adaugă proprietate",
+      "search": "Caută proprietăți",
       "showArchived": "Arată arhivate",
       "empty": "Nicio proprietate deocamdată.",
+      "noMatches": "Nicio proprietate nu corespunde căutării.",
       "error": "Proprietățile nu au putut fi încărcate. Încearcă din nou."
     }
   },
@@ -222,7 +224,105 @@
     "list": {
       "title": "Chiriași",
       "add": "Onboarding chiriaș nou",
+      "search": "Caută chiriași",
+      "showArchived": "Arată arhivați",
+      "empty": "Niciun chiriaș deocamdată.",
+      "noMatches": "Niciun chiriaș nu corespunde căutării.",
+      "continue": "Continuă",
+      "deleteDraft": "Șterge draftul",
+      "deleteDraftTitle": "Șterge draftul",
+      "deleteDraftDescription": "Acest draft de onboarding va fi șters. Acțiunea nu poate fi anulată.",
+      "deleteDraftConfirm": "Șterge draftul",
+      "loadError": "Chiriașii nu au putut fi încărcați. Încearcă din nou.",
       "error": "Draftul nu a putut fi creat. Încearcă din nou."
+    },
+    "fields": {
+      "name": "Nume",
+      "phone": "Telefon",
+      "email": "Email",
+      "property": "Proprietate curentă",
+      "balance": "Sold restant",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Activ",
+      "inactive": "Inactiv",
+      "disabled": "Dezactivat",
+      "archived": "Arhivat",
+      "inProgress": "În lucru"
+    },
+    "detail": {
+      "notFound": "Acest chiriaș nu există.",
+      "tabs": {
+        "profile": "Profil",
+        "tenancy": "Tenanță și contract",
+        "financial": "Istoric financiar",
+        "account": "Cont"
+      },
+      "edit": "Editează",
+      "save": "Salvează",
+      "saveError": "Modificările nu au putut fi salvate. Încearcă din nou.",
+      "sections": {
+        "personal": "Date personale",
+        "idPhotos": "Poze act de identitate",
+        "financial": "Date financiare / profesionale",
+        "guarantor": "Garant",
+        "previousReference": "Referință anterioară",
+        "language": "Limba preferată"
+      },
+      "photos": {
+        "upload": "Adaugă poză",
+        "delete": "Șterge",
+        "deleteBlockedTenant": "Este necesară cel puțin o poză de act și nu poate fi ștearsă."
+      },
+      "tenancy": {
+        "title": "Contract",
+        "property": "Proprietate",
+        "documentsTitle": "Documente",
+        "historyTitle": "Istoric tenanțe",
+        "none": "Acest chiriaș nu are încă nicio tenanță.",
+        "endTitle": "Termină contractul",
+        "endButton": "Termină contractul",
+        "endConfirmTitle": "Termini acest contract?",
+        "endConfirmBody": "Proprietatea va deveni liberă, iar contul va trece în stare inactiv-doar-citire. Acțiunea nu poate fi anulată.",
+        "endConfirmButton": "Termină contractul",
+        "endGenericError": "Contractul nu a putut fi terminat. Încearcă din nou.",
+        "endArrearsError": "Această tenanță are restanțe neachitate ({{balance}}) și nu poate fi terminată până la achitarea soldului.",
+        "notActiveNotice": "Această tenanță s-a încheiat deja.",
+        "historyItem": "{{property}} — {{startDate}} până la {{endDate}}",
+        "contract": {
+          "upload": "Încarcă document",
+          "delete": "Șterge",
+          "tooLarge": "Fișierul depășește 10 MB."
+        }
+      },
+      "account": {
+        "title": "Stare cont",
+        "resetPasswordTitle": "Resetare parolă",
+        "resetPasswordButton": "Resetează parola",
+        "resetPasswordError": "Parola nu a putut fi resetată. Încearcă din nou.",
+        "resetPasswordDialogTitle": "Parolă nouă generată",
+        "statusActionTitle": "Acces cont",
+        "disableButton": "Dezactivează",
+        "enableButton": "Re-activează",
+        "disableConfirmTitle": "Dezactivezi acest cont?",
+        "disableConfirmBody": "Sesiunea deschisă a chiriașului se închide imediat — nu se va mai putea loga până la re-activare.",
+        "enableConfirmTitle": "Re-activezi acest cont?",
+        "enableConfirmBody": "Chiriașul se va putea loga din nou.",
+        "statusActionError": "Acțiunea nu a putut fi efectuată. Încearcă din nou.",
+        "archiveTitle": "Arhivare",
+        "archiveButton": "Arhivează",
+        "archiveConfirmTitle": "Arhivezi acest cont?",
+        "archiveConfirmBody": "Contul devine ascuns din lista implicită. Acțiunea nu poate fi anulată din această pagină.",
+        "archiveBlocked": {
+          "activeTenancy": "Termină contractul întâi.",
+          "disabled": "Re-activează contul întâi."
+        },
+        "archivedNotice": "Acest cont este arhivat."
+      },
+      "financial": {
+        "empty": "Niciun raport încă."
+      }
     }
   },
   "notFound": {

@@ -16,6 +16,34 @@ service firebase.storage {
       allow read, write: if isAdmin();
     }
 
+    // /users/{userId}/documents/* and /users/{userId}/guarantor/* — admin only
+    // (SRS §6, M3-B). Backs the Profile tab's ID-photo re-upload/delete for a
+    // FINALIZED tenant. A finalized tenant's ID photos physically live here:
+    // finalizeKyc migrates them from /drafts/{draftId}/ on finalization (copy-
+    // first, delete-after-commit — CLAUDE.md §7), so /drafts/ never holds a
+    // finalized tenant's photos afterward. A Profile-tab re-upload also lands
+    // under these paths, writing/replacing the same array entries.
+    match /users/{userId}/documents/{fileName} {
+      allow read, write: if isAdmin();
+    }
+    match /users/{userId}/guarantor/{fileName} {
+      allow read, write: if isAdmin();
+    }
+
+    // /tenancies/{tenancyId}/contract/* — admin write; the tenant that tenancy
+    // belongs to may also READ (FR-CON-07: the signed contract is
+    // visible/downloadable by the tenant). Mirrors firestore.rules' tenancies
+    // rule (`resource.data.userId == request.auth.uid`), but Storage Rules
+    // have no Firestore `resource` to read from directly — `firestore.get()`
+    // (Storage Rules v2 cross-service read) fetches the tenancy document so
+    // the same ownership check can be made here.
+    match /tenancies/{tenancyId}/contract/{fileName} {
+      allow read: if isAdmin() ||
+        (request.auth != null &&
+          firestore.get(/databases/(default)/documents/tenancies/$(tenancyId)).data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     // Per-path rules are added as the milestones progress, per SRS §6.
     match /{allPaths=**} {
       allow read, write: if false;

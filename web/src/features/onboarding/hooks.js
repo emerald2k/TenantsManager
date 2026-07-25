@@ -75,8 +75,12 @@ function isPlainObject(value) {
  * `null` is untouched deliberately — it is a value the admin (or a default) chose,
  * distinct from a field nothing has touched yet. Arrays keep their structure
  * (`idDocumentPhotos` etc.) — only their object ELEMENTS get recursed into.
+ *
+ * Exported (M3-B): the tenant Profile tab's `useUpdateUser` (features/tenants/
+ * hooks.js) writes to `users/{userId}` from admin-entered form state — the same
+ * hazard applies there, so it reuses this instead of a second copy.
  */
-function stripUndefinedDeep(value) {
+export function stripUndefinedDeep(value) {
   if (Array.isArray(value)) {
     return value.map((item) => stripUndefinedDeep(item))
   }

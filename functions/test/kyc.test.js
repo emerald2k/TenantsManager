@@ -1,16 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
-import { finalizeKycCore, finalizeKycHandler } from '../src/kyc.js'
+import { getStorage } from 'firebase-admin/storage'
+import {
+  finalizeKycCore,
+  finalizeKycHandler,
+  STORAGE_BUCKET,
+} from '../src/kyc.js'
+import { buildDownloadUrl, parseStoragePath } from '../src/photoMigration.js'
 
-// Functions tests — the REAL boundary (Auth + Firestore emulators), no mocks of the
-// data layer. Started via `npm run test:emulator` (firebase emulators:exec), which
-// sets the emulator hosts + project id, so the Admin SDK (initialized on requiring
-// kyc.js) talks to the emulators.
+// Functions tests — the REAL boundary (Auth + Firestore + Storage emulators), no
+// mocks of the data layer. Started via `npm run test:emulator` (firebase
+// emulators:exec), which sets the emulator hosts + project id, so the Admin SDK
+// (initialized on requiring kyc.js) talks to the emulators.
 
 const PROJECT_ID = 'tenants-manager-2026'
 const db = getFirestore()
 const auth = getAuth()
+// EXPLICITLY the same bucket kyc.js itself uses (STORAGE_BUCKET,
+// `{project}.firebasestorage.app` — the project's real bucket, the one the
+// client actually uploads to; see kyc.js:54-76). A bare `getStorage().bucket()`
+// here would resolve whatever the Admin SDK's ambient default happens to be
+// under `emulators:exec` (`{project}.appspot.com`, a DIFFERENT, never-
+// provisioned bucket) — a mismatch that would surface exactly like the live
+// "No such object" bug did before the fix, just against the other bucket
+// name. Pinning to STORAGE_BUCKET here is what makes these tests actually
+// exercise the bucket kyc.js operates on in reality.
+const bucket = getStorage().bucket(STORAGE_BUCKET)
 
 // A complete, valid draft (mirrors the web full schema). `propertyId` points at the
 // property seeded in beforeEach.
@@ -126,6 +142,13 @@ async function clearEmulators() {
     `http://${authHost}/emulator/v1/projects/${PROJECT_ID}/accounts`,
     { method: 'DELETE' },
   )
+  // Storage has no bulk-clear REST endpoint like Firestore/Auth — clear it by
+  // deleting every object under the two prefixes finalizeKyc touches.
+  const [draftFiles] = await bucket.getFiles({ prefix: 'drafts/' })
+  const [userFiles] = await bucket.getFiles({ prefix: 'users/' })
+  await Promise.all(
+    [...draftFiles, ...userFiles].map((f) => f.delete().catch(() => {})),
+  )
 }
 
 async function seedDraft(id, data) {
@@ -136,6 +159,37 @@ async function seedExistingUser(id, data) {
   await db.collection('users').doc(id).set(data)
 }
 
+/**
+ * Seeds a REAL Storage object for a draft's ID photo (M3): `completeDraft()`'s
+ * default fixture used to carry a fake `gs://bucket/1.jpg` URL, harmless back
+ * when finalizeKyc never touched Storage. Now that it copies the underlying
+ * object (photoMigration.js), any test that reaches that step needs a source
+ * that actually exists in the Storage emulator.
+ */
+async function seedDraftPhoto(draftId, filename = 'front.jpg') {
+  const path = `drafts/${draftId}/${filename}`
+  const token = 'test-token'
+  await bucket.file(path).save(Buffer.from('fake-photo-bytes'), {
+    metadata: { firebaseStorageDownloadTokens: token },
+  })
+  return {
+    url: buildDownloadUrl(bucket.name, path, token),
+    name: filename,
+    type: 'image',
+  }
+}
+
+/** `completeDraft()` + a real seeded photo, seeded as a draft under `draftId`.
+ * Returns the photo reference so a test can assert against its filename. */
+async function seedCompleteDraft(draftId, overrides = {}) {
+  const photo = await seedDraftPhoto(draftId)
+  await seedDraft(
+    draftId,
+    completeDraft({ idDocumentPhotos: [photo], ...overrides }),
+  )
+  return photo
+}
+
 beforeEach(async () => {
   vi.restoreAllMocks()
   await clearEmulators()
@@ -144,7 +198,7 @@ beforeEach(async () => {
 
 describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
   it('creates the account, writes users + tenancies + mail, deletes the draft', async () => {
-    await seedDraft('draft-1', completeDraft())
+    await seedCompleteDraft('draft-1')
 
     const result = await finalizeKycCore('draft-1', 'admin-uid')
 
@@ -215,8 +269,97 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
     expect(propertySnap.data().status).toBe('occupied')
   })
 
+  it('migrates the ID photo physically to Storage /users/ and cleans up /drafts/ (M3, SRS §6)', async () => {
+    await seedCompleteDraft('draft-1')
+
+    const result = await finalizeKycCore('draft-1', 'admin-uid')
+
+    const userSnap = await db.collection('users').doc(result.uid).get()
+    const [photo] = userSnap.data().idDocumentPhotos
+    const newPath = parseStoragePath(photo.url)
+    expect(newPath).toBe(`users/${result.uid}/documents/front.jpg`)
+
+    // Physically present at the NEW path, with the original bytes.
+    const [existsAtNewPath] = await bucket.file(newPath).exists()
+    expect(existsAtNewPath).toBe(true)
+    const [bytes] = await bucket.file(newPath).download()
+    expect(bytes.toString()).toBe('fake-photo-bytes')
+
+    // The /drafts/ original is gone (best-effort cleanup after commit).
+    const [existsAtOldPath] = await bucket
+      .file('drafts/draft-1/front.jpg')
+      .exists()
+    expect(existsAtOldPath).toBe(false)
+
+    // The strongest proof, end-to-end: the URL now stored on `users` is
+    // actually fetchable and serves the migrated bytes — what the Profile
+    // tab's <img src> and Bogdan's browser validation both rely on.
+    const response = await fetch(photo.url)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('fake-photo-bytes')
+  })
+
+  // REGRESSION — the exact live bug caught in browser validation (M3).
+  // `getStorage().bucket()` with NO argument resolves the Admin SDK's OWN
+  // ambient default bucket, which is CONTEXT-DEPENDENT (see kyc.js:54-76) —
+  // a DIFFERENT bucket than the one the client is actually configured to
+  // upload to (VITE_FIREBASE_STORAGE_BUCKET = STORAGE_BUCKET in kyc.js =
+  // `{project}.firebasestorage.app`, the project's real bucket). A copy
+  // reading through the wrong default 404s ("No such object"), which
+  // surfaced to the admin as an opaque "INTERNAL" error — the draft-photo's
+  // SOURCE object genuinely does not exist in the bucket the code was
+  // looking in. See kyc.bucketMismatch.test.js for the isolated test that
+  // actually forces the ambient default to diverge and proves this fails
+  // without the explicit reference.
+  //
+  // Also reproduces the real filename shape: `idDocumentPhotos[].name` is the
+  // ORIGINAL upload filename ("11d21da1-....jpg"), while the Storage OBJECT
+  // itself is "{uploadUUID}-{originalName}" (PhotoCapture.jsx's naming
+  // convention, functions/../web/src/features/onboarding/components/
+  // PhotoCapture.jsx:80) — migration must derive the object path from the
+  // URL (parseStoragePath), never from `name`.
+  //
+  // Seeds EXPLICITLY into STORAGE_BUCKET (the real client bucket) regardless
+  // of whatever the Admin SDK's ambient default happens to be — this is what
+  // makes this test exercise the SAME bucket kyc.js actually operates on,
+  // rather than whatever `emulators:exec`'s wrapper process happens to
+  // default to.
+  it('REGRESSION: migrates a photo from the real client Storage bucket, not the Admin SDK default', async () => {
+    const draftId = 's0x7wMK0eYFcJYkAoiKQ'
+    const originalName = '11d21da1-15f7-40df-ac4d-4be53b8eccfb.jpg'
+    const storageObjectName = `ebba8fc2-4ffc-44a0-9763-6c5f090a7a88-${originalName}`
+    const sourcePath = `drafts/${draftId}/${storageObjectName}`
+    const token = '6b2b034d-7a57-4393-ad61-38b5a2f5eb34'
+
+    await bucket.file(sourcePath).save(Buffer.from('real-photo-bytes'), {
+      metadata: { firebaseStorageDownloadTokens: token },
+    })
+    const photo = {
+      url: buildDownloadUrl(STORAGE_BUCKET, sourcePath, token),
+      name: originalName,
+      type: 'image',
+    }
+    await seedDraft(draftId, completeDraft({ idDocumentPhotos: [photo] }))
+
+    const result = await finalizeKycCore(draftId, 'admin-uid')
+
+    const userSnap = await db.collection('users').doc(result.uid).get()
+    const [migratedPhoto] = userSnap.data().idDocumentPhotos
+    const newPath = parseStoragePath(migratedPhoto.url)
+    expect(newPath).toBe(`users/${result.uid}/documents/${storageObjectName}`)
+
+    const [existsAtNewPath] = await bucket.file(newPath).exists()
+    expect(existsAtNewPath).toBe(true)
+    const response = await fetch(migratedPhoto.url)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('real-photo-bytes')
+  })
+
   it('omits securityDeposit from the tenancy doc when absent from the draft (optional, FR-CON-01) — no crash on a numeric field', async () => {
-    const { securityDeposit, ...draftWithoutDeposit } = completeDraft()
+    const photo = await seedDraftPhoto('draft-no-deposit')
+    const { securityDeposit, ...draftWithoutDeposit } = completeDraft({
+      idDocumentPhotos: [photo],
+    })
     void securityDeposit
     await seedDraft('draft-no-deposit', draftWithoutDeposit)
 
@@ -230,7 +373,7 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
   })
 
   it('returns the email and a 12-char password to the admin', async () => {
-    await seedDraft('draft-1', completeDraft())
+    await seedCompleteDraft('draft-1')
 
     const result = await finalizeKycCore('draft-1', 'admin-uid')
 
@@ -242,17 +385,17 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
   })
 
   it('writes the credentials email in the tenant preferred language (NFR-LOC-04)', async () => {
-    await seedDraft('draft-ro', completeDraft({ preferredLanguage: 'ro' }))
+    await seedCompleteDraft('draft-ro', { preferredLanguage: 'ro' })
     await finalizeKycCore('draft-ro', 'admin-uid')
     let mail = (await db.collection('mail').get()).docs[0].data()
     expect(mail.message.subject).toBe('Contul tău de chiriaș a fost creat')
 
     await clearEmulators()
     await db.collection('properties').doc('prop-seed').set(PROPERTY)
-    await seedDraft(
-      'draft-en',
-      completeDraft({ preferredLanguage: 'en', email: 'jane@example.com' }),
-    )
+    await seedCompleteDraft('draft-en', {
+      preferredLanguage: 'en',
+      email: 'jane@example.com',
+    })
     await finalizeKycCore('draft-en', 'admin-uid')
     mail = (await db.collection('mail').get()).docs[0].data()
     expect(mail.message.subject).toBe('Your tenant account has been created')
@@ -448,7 +591,7 @@ describe('finalizeKyc — guards', () => {
       status: 'active',
       userId: 'someone',
     })
-    await seedDraft('draft-occ', completeDraft())
+    await seedCompleteDraft('draft-occ')
 
     await expect(
       finalizeKycCore('draft-occ', 'admin-uid'),
@@ -475,7 +618,7 @@ describe('finalizeKyc — guards', () => {
 
 describe('finalizeKyc — compensation (no orphan Auth account)', () => {
   it('deletes the created account when the Firestore transaction fails', async () => {
-    await seedDraft('draft-1', completeDraft())
+    await seedCompleteDraft('draft-1')
 
     // Force the transaction to fail AFTER the account is created.
     vi.spyOn(db, 'runTransaction').mockRejectedValueOnce(
@@ -496,5 +639,37 @@ describe('finalizeKyc — compensation (no orphan Auth account)', () => {
       .doc('draft-1')
       .get()
     expect(draftSnap.exists).toBe(true)
+  })
+
+  // M3: the transaction fails AFTER the photo was already copied to /users/.
+  // Anti-vacuity — remove the Storage cleanup from kyc.js's catch block and
+  // this test fails on the first assertion (the /users/ copy survives).
+  it('cleans up the copied /users/ photo and leaves the /drafts/ original intact when the transaction fails', async () => {
+    await seedCompleteDraft('draft-1')
+
+    vi.spyOn(db, 'runTransaction').mockRejectedValueOnce(
+      new Error('simulated Firestore failure'),
+    )
+
+    await expect(finalizeKycCore('draft-1', 'admin-uid')).rejects.toThrow(
+      'simulated Firestore failure',
+    )
+
+    // No orphan Auth account (existing guarantee, re-confirmed here).
+    const users = await auth.listUsers()
+    expect(users.users.length).toBe(0)
+
+    // The /drafts/ original SURVIVES — nothing was deleted before commit, so
+    // the draft (still present, per the test above) stays fully resumable.
+    const [originalExists] = await bucket
+      .file('drafts/draft-1/front.jpg')
+      .exists()
+    expect(originalExists).toBe(true)
+
+    // No /users/{anyUid}/documents/ leftover from the aborted attempt — the
+    // uid is unknown here (the created account was deleted), so check the
+    // whole users/ prefix is empty rather than a specific path.
+    const [userFiles] = await bucket.getFiles({ prefix: 'users/' })
+    expect(userFiles.length).toBe(0)
   })
 })

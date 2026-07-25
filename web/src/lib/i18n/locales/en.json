@@ -114,8 +114,10 @@
     "list": {
       "title": "Properties",
       "add": "Add property",
+      "search": "Search properties",
       "showArchived": "Show archived",
       "empty": "No properties yet.",
+      "noMatches": "No properties match your search.",
       "error": "The properties could not be loaded. Please try again."
     }
   },
@@ -222,7 +224,105 @@
     "list": {
       "title": "Tenants",
       "add": "New tenant onboarding",
+      "search": "Search tenants",
+      "showArchived": "Show archived",
+      "empty": "No tenants yet.",
+      "noMatches": "No tenants match your search.",
+      "continue": "Continue",
+      "deleteDraft": "Delete draft",
+      "deleteDraftTitle": "Delete draft",
+      "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
+      "deleteDraftConfirm": "Delete draft",
+      "loadError": "The tenants could not be loaded. Please try again.",
       "error": "The draft could not be created. Please try again."
+    },
+    "fields": {
+      "name": "Name",
+      "phone": "Phone",
+      "email": "Email",
+      "property": "Current property",
+      "balance": "Outstanding balance",
+      "status": "Status"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "disabled": "Disabled",
+      "archived": "Archived",
+      "inProgress": "In progress"
+    },
+    "detail": {
+      "notFound": "This tenant does not exist.",
+      "tabs": {
+        "profile": "Profile",
+        "tenancy": "Tenancy & contract",
+        "financial": "Financial history",
+        "account": "Account"
+      },
+      "edit": "Edit",
+      "save": "Save",
+      "saveError": "The changes could not be saved. Please try again.",
+      "sections": {
+        "personal": "Personal data",
+        "idPhotos": "ID document photos",
+        "financial": "Financial / professional data",
+        "guarantor": "Guarantor",
+        "previousReference": "Previous reference",
+        "language": "Preferred language"
+      },
+      "photos": {
+        "upload": "Add photo",
+        "delete": "Delete",
+        "deleteBlockedTenant": "At least one ID photo is required and cannot be deleted."
+      },
+      "tenancy": {
+        "title": "Contract",
+        "property": "Property",
+        "documentsTitle": "Documents",
+        "historyTitle": "Tenancy history",
+        "none": "This tenant has no tenancy yet.",
+        "endTitle": "End contract",
+        "endButton": "End contract",
+        "endConfirmTitle": "End this contract?",
+        "endConfirmBody": "The property will become free and the account will move to inactive-readonly. This cannot be undone.",
+        "endConfirmButton": "End contract",
+        "endGenericError": "The contract could not be ended. Please try again.",
+        "endArrearsError": "This tenancy has unpaid arrears ({{balance}}) and cannot be ended until the balance is settled.",
+        "notActiveNotice": "This tenancy has already ended.",
+        "historyItem": "{{property}} — {{startDate}} to {{endDate}}",
+        "contract": {
+          "upload": "Upload document",
+          "delete": "Delete",
+          "tooLarge": "The file exceeds 10 MB."
+        }
+      },
+      "account": {
+        "title": "Account status",
+        "resetPasswordTitle": "Password reset",
+        "resetPasswordButton": "Reset password",
+        "resetPasswordError": "The password could not be reset. Please try again.",
+        "resetPasswordDialogTitle": "New password generated",
+        "statusActionTitle": "Account access",
+        "disableButton": "Disable",
+        "enableButton": "Re-enable",
+        "disableConfirmTitle": "Disable this account?",
+        "disableConfirmBody": "Any open session ends immediately — the tenant will not be able to log in until re-enabled.",
+        "enableConfirmTitle": "Re-enable this account?",
+        "enableConfirmBody": "The tenant will be able to log in again.",
+        "statusActionError": "The action could not be completed. Please try again.",
+        "archiveTitle": "Archiving",
+        "archiveButton": "Archive",
+        "archiveConfirmTitle": "Archive this account?",
+        "archiveConfirmBody": "The account is hidden from the default tenant list. This cannot be undone from this page.",
+        "archiveBlocked": {
+          "activeTenancy": "End the contract first.",
+          "disabled": "Re-enable the account first."
+        },
+        "archivedNotice": "This account is archived."
+      },
+      "financial": {
+        "empty": "No reports yet."
+      }
     }
   },
   "notFound": {

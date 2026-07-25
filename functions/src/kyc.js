@@ -2,10 +2,12 @@ const crypto = require('node:crypto')
 const { getApps, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
+const { getStorage } = require('firebase-admin/storage')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { validateFullDraft } = require('./draftValidation')
 const { buildCredentialsEmail } = require('./mail-templates/credentials')
 const { buildAssignmentEmail } = require('./mail-templates/assignment')
+const { copyPhotosToUser, deleteObjects } = require('./photoMigration')
 
 /**
  * finalizeKyc (SRS §7.2, FR-TEN-07/16/18/22/23, FR-AUTH-06/07, FR-CON-02).
@@ -29,6 +31,15 @@ const { buildAssignmentEmail } = require('./mail-templates/assignment')
  * trigger exists (SRS §7.2 lists none). This is a DISPLAY signal only — the
  * authoritative occupancy gate for both branches stays the `status=='active'`
  * tenancy query inside the transaction, unaffected by this field's timeliness.
+ *
+ * PHOTO MIGRATION (M3, new-tenant branch only — see `photoMigration.js`): the
+ * draft's ID photos physically live under Storage's /drafts/{draftId}/ folder.
+ * On finalization they are COPIED to /users/{uid}/documents|guarantor/ — the
+ * SRS §6 path — BEFORE the Firestore transaction (so the `users` doc is
+ * written with the FINAL references, never the /drafts/ ones), and the
+ * /drafts/ originals are deleted only AFTER the transaction commits. The
+ * existing-user branch never touches Storage: that draft never collects
+ * Steps 1-3, so it has no photos of its own to migrate.
  */
 
 if (!getApps().length) {
@@ -39,6 +50,30 @@ if (!getApps().length) {
 // so the same code serves the emulator and production; defaults to the local dev
 // server.
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
+
+// The Storage bucket the CLIENT actually uploads to (web/.env's
+// VITE_FIREBASE_STORAGE_BUCKET) — MUST be passed explicitly to
+// `getStorage().bucket(...)`, and MUST be kept identical to that env var by
+// hand (same discipline as the KYC validation schema's intentional
+// duplication between web/ and functions/ — see CLAUDE.md §7). NEVER infer
+// this value from `getStorage().bucket()` with no argument: that call
+// resolves the Admin SDK's own ambient default, which is CONTEXT-DEPENDENT —
+// `{project}.firebasestorage.app` inside the real Cloud Functions Framework
+// runtime (`firebase emulators:start`, and production), but
+// `{project}.appspot.com` inside the `firebase emulators:exec` wrapper
+// process this test suite runs under. That silent split is exactly what
+// masked the M3 photo-migration bug: every automated test happened to run in
+// the second context, where the no-arg default coincidentally matched, while
+// Bogdan's real browser session hit the first. `tenants-manager-2026.appspot.com`
+// was a hand-written value that was never actually provisioned — Storage
+// hasn't been created yet on the Spark plan; it will be provisioned at M7
+// under the project's real bucket name, `.firebasestorage.app`, which is what
+// this constant (and VITE_FIREBASE_STORAGE_BUCKET) must say from day one.
+// kyc.bucketMismatch.test.js guards the must-match: it fakes the OTHER
+// ambient default and proves migration only succeeds because this reference
+// is explicit, never inferred. Env-configurable for the same reason as APP_URL.
+const STORAGE_BUCKET =
+  process.env.STORAGE_BUCKET || 'tenants-manager-2026.firebasestorage.app'
 
 // A clean charset — no 0/O/1/l/I — so the admin can read the password aloud without
 // ambiguity at the desk. 12 characters: the FR-AUTH-06 / NFR-SEC-03 minimum ("12+"),
@@ -58,8 +93,12 @@ function generatePassword() {
 /** The `users` document (SRS §6) — the KYC/profile fields from the draft, plus the
  * initial status. The contract fields and the draft's own system fields are left
  * out: contract data belongs to `tenancies`. Only ever used on the new-tenant
- * branch — the existing-user branch never touches `users`. */
-function toUserDocument(draft) {
+ * branch — the existing-user branch never touches `users`.
+ *
+ * `migratedPhotos` supplies the FINAL `/users/...` references (M3,
+ * photoMigration.js) — NEVER `draft.idDocumentPhotos`/`draft.guarantor.
+ * idDocumentPhotos` directly, which still point at `/drafts/{draftId}/`. */
+function toUserDocument(draft, migratedPhotos) {
   const user = {
     name: draft.name,
     dateOfBirth: draft.dateOfBirth,
@@ -67,7 +106,7 @@ function toUserDocument(draft) {
     phone: draft.phone,
     preferredLanguage: draft.preferredLanguage,
     cnp: draft.cnp,
-    idDocumentPhotos: draft.idDocumentPhotos ?? [],
+    idDocumentPhotos: migratedPhotos.tenant,
     previousAddress: draft.previousAddress,
     emergencyContact: draft.emergencyContact,
     occupantCount: draft.occupantCount,
@@ -78,7 +117,10 @@ function toUserDocument(draft) {
     occupation: draft.occupation,
     employmentDuration: draft.employmentDuration,
     monthlyIncome: draft.monthlyIncome,
-    guarantor: draft.guarantor,
+    guarantor: {
+      ...draft.guarantor,
+      idDocumentPhotos: migratedPhotos.guarantor,
+    },
     previousReference: draft.previousReference,
     status: 'active',
   }
@@ -259,6 +301,40 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
     throw error
   }
 
+  // 3.5. MIGRATE PHOTOS /drafts/{draftId}/ → /users/{createdUid}/... ────────────
+  // COPY only — the /drafts/ originals are deleted later, only after the
+  // transaction below commits (see the file header docstring). If either
+  // batch fails partway, both are rolled back (copyPhotosToUser cleans up its
+  // own partial batch; tenantPhotos.destPaths cleans up a batch that had
+  // already fully succeeded before the OTHER one failed) and the Auth account
+  // is removed — the existing compensation path, just extended to cover the
+  // new Storage state.
+  const bucket = getStorage().bucket(STORAGE_BUCKET)
+  let tenantPhotos = { references: [], sourcePaths: [], destPaths: [] }
+  let guarantorPhotos = { references: [], sourcePaths: [], destPaths: [] }
+  try {
+    if (draft.idDocumentPhotos?.length) {
+      tenantPhotos = await copyPhotosToUser(
+        bucket,
+        draft.idDocumentPhotos,
+        createdUid,
+        'documents',
+      )
+    }
+    if (draft.guarantor?.idDocumentPhotos?.length) {
+      guarantorPhotos = await copyPhotosToUser(
+        bucket,
+        draft.guarantor.idDocumentPhotos,
+        createdUid,
+        'guarantor',
+      )
+    }
+  } catch (error) {
+    await deleteObjects(bucket, tenantPhotos.destPaths)
+    await auth.deleteUser(createdUid)
+    throw error
+  }
+
   // 4. FIRESTORE TRANSACTION (verify + write, atomic) ───────────────────────────
   try {
     const tenancyRef = db.collection('tenancies').doc()
@@ -308,7 +384,13 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
 
       // 4b. Write users + tenancies + mail, flip the property, delete the draft —
       // all or nothing.
-      tx.set(userRef, toUserDocument(draft))
+      tx.set(
+        userRef,
+        toUserDocument(draft, {
+          tenant: tenantPhotos.references,
+          guarantor: guarantorPhotos.references,
+        }),
+      )
       tx.set(
         tenancyRef,
         toTenancyDocument(draft, {
@@ -332,6 +414,16 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
       tx.delete(draftRef)
     })
 
+    // 5. CLEAN UP THE /drafts/ ORIGINALS — only now, after the transaction
+    // committed the /users/ references. Best-effort (deleteObjects already
+    // swallows per-file failures): a leftover /drafts/ object is orphaned
+    // clutter, not a correctness problem — the `users` doc already points at
+    // the /users/ copies, which is what the app actually reads.
+    await deleteObjects(bucket, [
+      ...tenantPhotos.sourcePaths,
+      ...guarantorPhotos.sourcePaths,
+    ])
+
     // 6. RESPONSE — the credentials to the admin (SRS §7.2 note) + success signal.
     return {
       uid: createdUid,
@@ -341,8 +433,15 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
       accountCreated: true,
     }
   } catch (error) {
-    // 5. COMPENSATION — the transaction failed after the account was created; remove
-    // the account so no orphan survives, then surface the ORIGINAL failure.
+    // 5b. COMPENSATION — the transaction failed after the account was created
+    // and the photos were already copied: remove the /users/ copies (the
+    // /drafts/ originals were never touched, so the draft stays resumable),
+    // then the Auth account, so no orphan of either kind survives — then
+    // surface the ORIGINAL failure.
+    await deleteObjects(bucket, [
+      ...tenantPhotos.destPaths,
+      ...guarantorPhotos.destPaths,
+    ])
     if (createdUid) {
       await auth.deleteUser(createdUid)
     }
@@ -408,4 +507,5 @@ module.exports = {
   finalizeKycHandler,
   finalizeKycCore,
   generatePassword,
+  STORAGE_BUCKET,
 }
