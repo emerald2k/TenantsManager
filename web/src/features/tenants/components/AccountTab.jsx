@@ -15,7 +15,6 @@ import {
   StatusBadge,
 } from '@/features/tenants/pages/TenantsListPage'
 import {
-  useArchiveTenant,
   useResetTenantPassword,
   useSetTenantAccountStatus,
   useUserTenancies,
@@ -24,33 +23,41 @@ import {
 /**
  * The Account tab (M3-D, SRS §5.3, FR-TEN-24): status badge, "Reset
  * password", "Disable/Re-enable", "Archive". Implements Bogdan's state
- * machine (M3-D):
+ * machine (M3-D, revised post-M3-audit D#3):
  *
  *   active → (End Contract) → inactive-readonly → (Archive) → archived
  *   active / inactive-readonly ⇄ disabled  (re-enable RECALCULATES the
  *     status server-side — setTenantAccountStatus, not this component)
  *   archived is terminal — no actions.
  *
- * Archive is CLIENT-SIDE (useArchiveTenant, a plain Firestore write, mirrors
- * useArchiveProperty) — the "blocked while there's an active tenancy or the
- * account is disabled" guard lives HERE, in the UI (disabled button +
- * message), the same ACCESS-boundary-vs-business-logic split
- * useArchiveProperty already uses for "blocked while occupied" (CLAUDE.md §7).
- * Reset password and Disable/Re-enable go through Cloud Functions (Auth-side
- * effects only the Admin SDK can perform).
+ * Archive goes through `setTenantAccountStatus` with `action:'archive'` — the
+ * SAME callable as Disable/Re-enable, NOT a plain client-side Firestore write
+ * (the original M3-D design). A post-merge audit found that a purely
+ * Firestore-side archive left a native Firebase Auth login fully working for
+ * an "archived" account, contradicting SRS §5.3's login spec ("disabled/
+ * archived account → blocked"). Archiving now also disables the Auth account
+ * server-side (see setTenantAccountStatus.js) — the same fix Disable already
+ * had. The "blocked while there's an active tenancy or the account is
+ * disabled" guard still lives HERE too (disabled button + message) as a UI
+ * convenience; the ACTIVE-TENANCY half is re-enforced server-side
+ * (setTenantAccountStatus.js's `archive()`). The DISABLED half is NOT
+ * re-enforced server-side — archiving now implies disabled anyway, so
+ * blocking archive on an already-disabled account has no server-side
+ * safety rationale left; this is a judgment call flagged to Bogdan, not a
+ * silently-made decision.
  */
 export function AccountTab({ userId, status }) {
   const { t } = useTranslation()
   const { data: tenancies } = useUserTenancies(userId)
   const resetPassword = useResetTenantPassword()
   const setAccountStatus = useSetTenantAccountStatus()
-  const archiveTenant = useArchiveTenant()
 
   const [generatedPassword, setGeneratedPassword] = useState(null)
   const [resetError, setResetError] = useState(false)
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [statusError, setStatusError] = useState(false)
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [archiveError, setArchiveError] = useState(false)
 
   const isArchived = status === 'archived'
   const isDisabled = status === 'disabled'
@@ -86,9 +93,14 @@ export function AccountTab({ userId, status }) {
     }
   }
 
-  function handleArchive() {
-    archiveTenant.mutate(userId)
-    setArchiveConfirmOpen(false)
+  async function handleArchive() {
+    setArchiveError(false)
+    try {
+      await setAccountStatus.mutateAsync({ userId, action: 'archive' })
+      setArchiveConfirmOpen(false)
+    } catch {
+      setArchiveError(true)
+    }
   }
 
   return (
@@ -223,7 +235,13 @@ export function AccountTab({ userId, status }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+      <Dialog
+        open={archiveConfirmOpen}
+        onOpenChange={(open) => {
+          setArchiveConfirmOpen(open)
+          if (open) setArchiveError(false)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -233,6 +251,11 @@ export function AccountTab({ userId, status }) {
               {t('tenants.detail.account.archiveConfirmBody')}
             </DialogDescription>
           </DialogHeader>
+          {archiveError && (
+            <p role="alert" className="text-sm text-destructive">
+              {t('tenants.detail.account.statusActionError')}
+            </p>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -241,8 +264,15 @@ export function AccountTab({ userId, status }) {
             >
               {t('common.cancel')}
             </Button>
-            <Button type="button" variant="destructive" onClick={handleArchive}>
-              {t('tenants.detail.account.archiveButton')}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleArchive}
+              disabled={setAccountStatus.isPending}
+            >
+              {setAccountStatus.isPending
+                ? t('common.loading')
+                : t('tenants.detail.account.archiveButton')}
             </Button>
           </DialogFooter>
         </DialogContent>

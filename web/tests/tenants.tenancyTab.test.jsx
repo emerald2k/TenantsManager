@@ -42,6 +42,7 @@ function activeTenancy(overrides) {
     monthlyRent: 2000,
     securityDeposit: 2500,
     dueDay: 5,
+    reportReminderDaysBefore: 3,
     status: 'active',
     attachedDocuments: [],
     ...overrides,
@@ -116,6 +117,12 @@ describe('TenancyTab — rendering (SRS §5.3)', () => {
     expect(screen.getByText('2027-01-01')).toBeVisible()
     expect(screen.getByText('2000')).toBeVisible()
     expect(screen.getByText('2500')).toBeVisible()
+    // FR-CON-01 (audit fix, D#1): reportReminderDaysBefore is part of the
+    // contract fields but was missing from this summary.
+    expect(
+      screen.getByText('Reminder raport (zile înainte de scadență)'),
+    ).toBeVisible()
+    expect(screen.getByText('3')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Termină contractul' }),
     ).toBeVisible()

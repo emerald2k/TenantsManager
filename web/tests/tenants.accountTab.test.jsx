@@ -10,11 +10,9 @@ vi.mock('@/features/tenants/hooks', () => ({
   useUserTenancies: vi.fn(),
   useResetTenantPassword: vi.fn(),
   useSetTenantAccountStatus: vi.fn(),
-  useArchiveTenant: vi.fn(),
 }))
 
 import {
-  useArchiveTenant,
   useResetTenantPassword,
   useSetTenantAccountStatus,
   useUserTenancies,
@@ -22,7 +20,6 @@ import {
 
 const resetMutateAsync = vi.fn()
 const statusMutateAsync = vi.fn()
-const archiveMutate = vi.fn()
 
 function activeTenancy(overrides) {
   return { id: 't1', userId: 'u1', status: 'active', ...overrides }
@@ -39,7 +36,6 @@ beforeEach(() => {
     mutateAsync: statusMutateAsync,
     isPending: false,
   })
-  useArchiveTenant.mockReturnValue({ mutate: archiveMutate, isPending: false })
   resetMutateAsync.mockResolvedValue({ data: { password: 'AbCdEfGh2345' } })
   statusMutateAsync.mockResolvedValue({ data: { status: 'disabled' } })
 })
@@ -134,7 +130,7 @@ describe('AccountTab — Archive guard (Bogdan’s state machine, M3-D)', () => 
     expect(screen.getByText('Re-activează contul întâi.')).toBeVisible()
   })
 
-  it('permits archiving an inactive-readonly account with no active tenancy', async () => {
+  it('permits archiving an inactive-readonly account with no active tenancy — calls the CF with action=archive', async () => {
     const user = userEvent.setup()
     await renderWithProviders(
       <AccountTab userId="u1" status="inactive-readonly" />,
@@ -146,7 +142,34 @@ describe('AccountTab — Archive guard (Bogdan’s state machine, M3-D)', () => 
     const dialogButtons = screen.getAllByRole('button', { name: 'Arhivează' })
     await user.click(dialogButtons[dialogButtons.length - 1])
 
-    expect(archiveMutate).toHaveBeenCalledWith('u1')
+    // D#3 audit fix: archive is no longer a direct Firestore write — it goes
+    // through the SAME callable as disable/enable, so archiving also reaches
+    // Auth (disabled:true + revokeRefreshTokens, server-side) instead of
+    // leaving a native Firebase login fully working for an "archived" account.
+    await waitFor(() =>
+      expect(statusMutateAsync).toHaveBeenCalledWith({
+        userId: 'u1',
+        action: 'archive',
+      }),
+    )
+  })
+
+  it('shows an error message instead of crashing when the archive callable fails', async () => {
+    statusMutateAsync.mockRejectedValue(new Error('boom'))
+    const user = userEvent.setup()
+    await renderWithProviders(
+      <AccountTab userId="u1" status="inactive-readonly" />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Arhivează' }))
+    const dialogButtons = screen.getAllByRole('button', { name: 'Arhivează' })
+    await user.click(dialogButtons[dialogButtons.length - 1])
+
+    expect(
+      await screen.findByText(
+        'Acțiunea nu a putut fi efectuată. Încearcă din nou.',
+      ),
+    ).toBeVisible()
   })
 })
 

@@ -264,26 +264,3 @@ export function useSetTenantAccountStatus() {
     },
   })
 }
-
-// ─────────────────────────── useArchiveTenant ────────────────────
-/**
- * Archives a tenant account (FR-TEN-24) — a plain client-side Firestore
- * write, mirroring `useArchiveProperty` (properties/hooks.js) EXACTLY: no
- * Cloud Function, because archiving touches only `users.status`, nothing on
- * the Auth side. The "blocked while there's an active tenancy or the account
- * is disabled" guard (Bogdan's state-machine decision, M3-D) is enforced by
- * the Account tab's UI (disabled button + message), same ACCESS-boundary-
- * vs-business-logic split as `useArchiveProperty`'s occupied-property guard
- * (CLAUDE.md §7) — not re-litigated here.
- */
-export function useArchiveTenant() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (id) => updateDoc(userRef(id), { status: 'archived' }),
-    onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: ['users', 'detail', id] })
-    },
-  })
-}

@@ -4,13 +4,13 @@ const { getFirestore } = require('firebase-admin/firestore')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 
 /**
- * setTenantAccountStatus (SRS §7.2, FR-TEN-24): disables / re-enables a
- * tenant's account. Argument shape is `{ userId, action: 'disable'|'enable' }`
- * — an explicit verb, not a raw `{ disabled: boolean }` flag, because RE-
- * ENABLE is not a simple flip: it RECALCULATES `users.status` (Bogdan's state-
- * machine decision, M3-D) rather than restoring a remembered prior value —
- * an `action` reads as "do this transition" where a boolean would misleadingly
- * suggest "set this field".
+ * setTenantAccountStatus (SRS §7.2, FR-TEN-24): disables / re-enables /
+ * archives a tenant's account. Argument shape is
+ * `{ userId, action: 'disable'|'enable'|'archive' }` — an explicit verb, not
+ * a raw `{ disabled: boolean }` flag, because RE-ENABLE is not a simple flip:
+ * it RECALCULATES `users.status` (Bogdan's state-machine decision, M3-D)
+ * rather than restoring a remembered prior value — an `action` reads as "do
+ * this transition" where a boolean would misleadingly suggest "set this field".
  *
  * Auth-FIRST ordering with compensation on the Firestore side (mirrors
  * finalizeKyc's Auth-then-Firestore-with-compensation shape, kyc.js):
@@ -23,6 +23,22 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
  *    active tenancy on this account decides `users.status`: `'active'` if one
  *    exists, otherwise `'inactive-readonly'`. Same Firestore-failure
  *    compensation, reverting Auth back to `disabled:true`.
+ *  - ARCHIVE (M3 post-audit fix, D#3): a GUARD first (blocked if the account
+ *    has an active tenancy — end it first), THEN the exact same Auth-first
+ *    shape as DISABLE (`disabled:true` + `revokeRefreshTokens`) followed by
+ *    `users.status='archived'`. Archiving MUST reach Auth: a purely
+ *    Firestore-side archive (the original M3-D design) left a native Firebase
+ *    Auth login fully working for an "archived" account — SRS §5.3's login
+ *    spec ("disabled/archived account → blocked") was never actually
+ *    enforced for archived until this fix. Same Firestore-failure
+ *    compensation, reverting Auth back to `disabled:false`.
+ *
+ * TERMINAL GUARD (M3 remediation, PAS 5): `'archived'` has no way out —
+ * before dispatching to any of the three actions above, the current
+ * `users.status` is read and a `failed-precondition` is thrown if it is
+ * already `'archived'`. This runs server-side, ahead of Auth or Firestore
+ * writes, so a direct API call cannot re-enable, re-disable, or re-archive an
+ * archived account any more than the admin UI can.
  *
  * The status write itself goes through `db.runTransaction` (a single
  * document, no real contention risk) purely for consistency with
@@ -49,6 +65,38 @@ async function disable(auth, db, userId) {
   }
 
   return { status: 'disabled' }
+}
+
+async function archive(auth, db, userId) {
+  // GUARD — blocked while the account has an active tenancy (end it first).
+  // Checked BEFORE touching Auth: a rejected archive must leave nothing changed.
+  const activeSnap = await db
+    .collection('tenancies')
+    .where('userId', '==', userId)
+    .where('status', '==', 'active')
+    .limit(1)
+    .get()
+  if (!activeSnap.empty) {
+    throw new HttpsError(
+      'failed-precondition',
+      'This account has an active tenancy; end it first.',
+      { reason: 'active-tenancy' },
+    )
+  }
+
+  await auth.updateUser(userId, { disabled: true })
+  await auth.revokeRefreshTokens(userId)
+
+  try {
+    await db.runTransaction(async (tx) => {
+      tx.update(db.collection('users').doc(userId), { status: 'archived' })
+    })
+  } catch (error) {
+    await auth.updateUser(userId, { disabled: false })
+    throw error
+  }
+
+  return { status: 'archived' }
 }
 
 async function enable(auth, db, userId) {
@@ -95,7 +143,20 @@ async function setTenantAccountStatusCore(userId, action, adminUid) {
     )
   }
 
+  // GUARD (M3 remediation, PAS 5) — 'archived' is a terminal state: no
+  // enable, disable, or re-archive from it. Checked before Auth or Firestore
+  // are touched, and before dispatch, so it applies to every action alike —
+  // a direct API call must not be able to un-archive any more than the UI can.
+  if (userSnap.data().status === 'archived') {
+    throw new HttpsError(
+      'failed-precondition',
+      'This account is archived; no further status change is possible.',
+      { reason: 'archived' },
+    )
+  }
+
   if (action === 'disable') return disable(auth, db, userId)
+  if (action === 'archive') return archive(auth, db, userId)
   return enable(auth, db, userId)
 }
 
@@ -112,10 +173,10 @@ async function setTenantAccountStatusHandler(request) {
     throw new HttpsError('invalid-argument', 'userId is required.')
   }
   const action = request.data?.action
-  if (action !== 'disable' && action !== 'enable') {
+  if (action !== 'disable' && action !== 'enable' && action !== 'archive') {
     throw new HttpsError(
       'invalid-argument',
-      "action must be 'disable' or 'enable'.",
+      "action must be 'disable', 'enable', or 'archive'.",
     )
   }
   return setTenantAccountStatusCore(userId, action, request.auth.uid)

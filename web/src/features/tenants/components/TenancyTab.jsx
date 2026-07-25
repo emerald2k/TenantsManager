@@ -110,6 +110,10 @@ function ContractSummary({ tenancy, userId, isActive }) {
               label={t('onboarding.fields.dueDay')}
               value={tenancy.dueDay}
             />
+            <Field
+              label={t('onboarding.fields.reportReminderDaysBefore')}
+              value={tenancy.reportReminderDaysBefore}
+            />
           </div>
         )}
         renderFields={({ register, errors, t: tt }) => (

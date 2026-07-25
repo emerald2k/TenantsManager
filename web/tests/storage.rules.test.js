@@ -123,6 +123,13 @@ describe('storage.rules — /drafts/{draftId}/**: admin only', () => {
 // finalized tenant. Same rule shape as /drafts/ above — parameterized over both
 // paths so the two admin-only zones stay demonstrably identical, not just
 // independently plausible.
+//
+// Anti-vacuity (CLAUDE.md §7), re-confirmed at the M3 post-audit gate: both
+// `match` blocks below were temporarily made permissive (`allow read, write:
+// if true`) and re-run — exactly the 14 deny tests across both paths failed
+// (the 16 /drafts/ tests above were unaffected), then the rule was restored.
+// The full run failed/passed exactly as expected; this comment documents that
+// it actually happened, not just that these tests are green today.
 describe.each([
   ['documents (tenant ID photos)', 'users/user-1/documents/photo.jpg'],
   ['guarantor (guarantor ID photos)', 'users/user-1/guarantor/photo.jpg'],

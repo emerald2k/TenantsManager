@@ -179,6 +179,105 @@ describe('setTenantAccountStatus — compensation (Auth/Firestore consistency)',
   })
 })
 
+describe('setTenantAccountStatus — archive (D#3 audit fix: archive must reach Auth, SRS §5.3)', () => {
+  it('disables the Auth account, revokes tokens, and sets users.status to archived', async () => {
+    const userId = await seedTenant('inactive-readonly')
+    const revokeSpy = vi.spyOn(auth, 'revokeRefreshTokens')
+
+    const result = await setTenantAccountStatusCore(
+      userId,
+      'archive',
+      'admin-uid',
+    )
+
+    expect(result.status).toBe('archived')
+    const authUser = await auth.getUser(userId)
+    expect(authUser.disabled).toBe(true)
+    expect(revokeSpy).toHaveBeenCalledWith(userId)
+    const userSnap = await db.collection('users').doc(userId).get()
+    expect(userSnap.data().status).toBe('archived')
+  })
+
+  // Anti-vacuity: remove the guard from archive() and this fails — the
+  // account would be archived (and locked out) while still actively rented.
+  it('blocks archiving when the account has an active tenancy — nothing changes', async () => {
+    const userId = await seedTenant('active')
+    await seedActiveTenancy(userId)
+
+    await expect(
+      setTenantAccountStatusCore(userId, 'archive', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'active-tenancy' },
+    })
+
+    const authUser = await auth.getUser(userId)
+    expect(authUser.disabled).toBe(false)
+    const userSnap = await db.collection('users').doc(userId).get()
+    expect(userSnap.data().status).toBe('active')
+  })
+
+  it('reverts Auth (disabled:false) when the Firestore write fails during archive', async () => {
+    const userId = await seedTenant('inactive-readonly')
+    vi.spyOn(db, 'runTransaction').mockRejectedValueOnce(
+      new Error('simulated Firestore failure'),
+    )
+
+    await expect(
+      setTenantAccountStatusCore(userId, 'archive', 'admin-uid'),
+    ).rejects.toThrow('simulated Firestore failure')
+
+    const authUser = await auth.getUser(userId)
+    expect(authUser.disabled).toBe(false)
+    const userSnap = await db.collection('users').doc(userId).get()
+    expect(userSnap.data().status).toBe('inactive-readonly')
+  })
+})
+
+describe('setTenantAccountStatus — archived is terminal (M3 remediation, PAS 5)', () => {
+  // Anti-vacuity: remove the terminal guard from setTenantAccountStatusCore
+  // and this fails — an archived account could be silently re-enabled by a
+  // direct API call, bypassing the state machine (FR-TEN-24, SRS §5.3: "archived
+  // is terminal — no further action from it").
+  it('rejects enable on an archived account — nothing changes', async () => {
+    const userId = await seedTenant('archived')
+
+    await expect(
+      setTenantAccountStatusCore(userId, 'enable', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'archived' },
+    })
+
+    const authUser = await auth.getUser(userId)
+    expect(authUser.disabled).toBe(false)
+    const userSnap = await db.collection('users').doc(userId).get()
+    expect(userSnap.data().status).toBe('archived')
+  })
+
+  it('rejects disable on an archived account', async () => {
+    const userId = await seedTenant('archived')
+
+    await expect(
+      setTenantAccountStatusCore(userId, 'disable', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'archived' },
+    })
+  })
+
+  it('rejects archiving an account that is already archived', async () => {
+    const userId = await seedTenant('archived')
+
+    await expect(
+      setTenantAccountStatusCore(userId, 'archive', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'archived' },
+    })
+  })
+})
+
 describe('setTenantAccountStatus — invalid states', () => {
   it('rejects a user that does not exist', async () => {
     await expect(
@@ -220,5 +319,16 @@ describe('setTenantAccountStatus — callable guard', () => {
         data: { userId, action: 'not-a-real-action' },
       }),
     ).rejects.toMatchObject({ code: 'invalid-argument' })
+  })
+
+  it('accepts action:archive as a valid argument (not rejected as invalid-argument)', async () => {
+    const userId = await seedTenant('inactive-readonly')
+
+    const result = await setTenantAccountStatusHandler({
+      auth: { token: { admin: true }, uid: 'admin-uid' },
+      data: { userId, action: 'archive' },
+    })
+
+    expect(result.status).toBe('archived')
   })
 })

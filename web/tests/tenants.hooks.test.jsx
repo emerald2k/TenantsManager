@@ -5,7 +5,6 @@ import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   useActiveTenancies,
-  useArchiveTenant,
   useEndTenancy,
   useResetTenantPassword,
   useSetTenantAccountStatus,
@@ -359,39 +358,6 @@ describe('useSetTenantAccountStatus (Account tab — Disable/Re-enable)', () => 
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
     await result.current.mutateAsync({ userId: 'u1', action: 'enable' })
-
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users', 'list'] })
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ['users', 'detail', 'u1'],
-    })
-  })
-})
-
-describe('useArchiveTenant (Account tab — Archive, client-side like useArchiveProperty)', () => {
-  beforeEach(() => {
-    updateDoc.mockResolvedValue(undefined)
-  })
-
-  it('writes users.status = archived directly — NOT a callable', async () => {
-    const { result } = await renderHookWithProviders(() => useArchiveTenant())
-
-    await result.current.mutateAsync('u1')
-
-    expect(doc).toHaveBeenCalledWith({ __fake: 'db' }, 'users', 'u1')
-    expect(updateDoc).toHaveBeenCalledWith(
-      { __doc: 'users/u1' },
-      { status: 'archived' },
-    )
-    expect(httpsCallable).not.toHaveBeenCalled()
-  })
-
-  it('invalidates the tenant list and the user detail on success', async () => {
-    const { result, queryClient } = await renderHookWithProviders(() =>
-      useArchiveTenant(),
-    )
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-
-    await result.current.mutateAsync('u1')
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users', 'list'] })
     expect(invalidate).toHaveBeenCalledWith({

@@ -15,6 +15,12 @@ import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage'
 // request.auth.uid` for the same collection). Needs BOTH firestore.rules and
 // storage.rules loaded in the same test environment: the tenancy doc is real
 // Firestore data the Storage rule reads via `firestore.get()`.
+//
+// Anti-vacuity (CLAUDE.md §7), re-confirmed at the M3 post-audit gate: the
+// `read` clause was temporarily made permissive (`allow read: if true`) and
+// re-run — exactly the 2 deny-read tests (unauthenticated visitor, a
+// DIFFERENT tenant) failed, the other 7 (including both write-deny tests,
+// untouched by the change) stayed green, then the rule was restored.
 
 let testEnv
 
