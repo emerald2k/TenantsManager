@@ -6,7 +6,7 @@
 ***v4.3 corrections, resulting from confronting the specification with a real monthly report used in practice:***
 - *FR-REP-03 — inverted: all active services appear in the report, regardless of amount (including 0/negative). Previously they were hidden — wrong.*
 - *FR-REP-03a (new) — notes + attachments **per cost line** (the supporting invoice next to the amount it justifies), visible to the tenant.*
-- *FR-REP-04a/04b/04c (new) — the total can be adjusted manually at publication (commercial rounding for cash payment); the system suggests rounding down to a multiple of 5 RON, editable. `finalTotal` is the only amount owed — arrears and credits are computed against it, not against the exact total; the rounding difference never reappears.*
+- *FR-REP-04a/04b/04c (new) — the total can be adjusted manually at publication (commercial rounding for cash payment); the final total field pre-fills with the exact calculated total, fully editable, with no automatic rounding suggestion. `finalTotal` is the only amount owed — arrears and credits are computed against it, not against the exact total; the rounding difference never reappears.*
 - *FR-DOC-03a (new) — global report-level attachment was removed; documents are attached exclusively per line.*
 - *FR-REP-07/07a (revised) — "publishing" becomes **signing**: the list locks on signing; corrections require explicit unlocking + re-signing (notification "list updated").*
 - *FR-REP-07b/07c (new) — export to **PDF**, **PNG image** (for WhatsApp) and **shareable link without login**. The link uses a random token, does not expire, is manually revocable, and exposes **only the month's report** — not the portal, the history, or personal data. Served through a Cloud Function (`getSharedReport`), not through anonymous Firestore access.*
@@ -186,7 +186,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-REP-03a | Each cost line (rent, maintenance, each service, other expenses) can have: an **optional notes field** (free text, filled in by the admin when entering the cost) and **optional attachments** (image/PDF/document — e.g. the supplier's invoice for that service). Both are **visible to the tenant** (full transparency). |
 | FR-REP-04 | Total computed automatically: **rent + maintenance + service costs + other expenses + previous month's arrears − previous month's credit**; arrears and credit appear as separate lines. |
 | FR-REP-04a | When publishing the report, the administrator can **manually adjust the final total** (e.g. commercial rounding: 2382.17 → 2380). The adjusted amount becomes the **final total owed** — the difference is not carried forward, does not generate arrears and is not kept as a balance. The automatically computed total remains visible as a reference. |
-| FR-REP-04b | The system **automatically suggests** rounding down to the nearest multiple of 5 RON (e.g. 2518.71 → suggestion 2515), based on the administrator's current practice — to facilitate cash payment. The suggestion is displayed as a pre-filled value in the final total field, but remains **fully editable** — the administrator can accept it, change it to another value, or return to the exact computed total. The suggestion is never applied without confirming publication. |
+| FR-REP-04b | The **final total field** is pre-filled with the exact calculated total (`calculatedTotal`) and remains **fully editable** — the administrator can adjust it manually (e.g. commercial rounding for cash payment, per FR-REP-04a). The system does **not** suggest any rounded value automatically. |
 | FR-REP-04c | **`finalTotal` is the only amount owed** and the basis for all subsequent payment calculations. Arrears and credit are computed exclusively against `finalTotal` (the rounded amount), NOT against `calculatedTotal`. Example: calculatedTotal 2518.71 → finalTotal rounded 2515.00 → the tenant pays 2000 → the arrears are 515.00 (not 518.71). The rounding difference never reappears, in any form. |
 | FR-REP-05 | Due date taken from the contract (due day), manual override per month possible. |
 | FR-REP-06 | On **signing** (finalizing the list), the report becomes visible to the tenant in their portal immediately. Sending the email notification is a **separate, optional action** — the administrator triggers it via a "Send by email" button whenever they choose; it is never automatic. |
@@ -360,7 +360,7 @@ The body is a **table of cost lines**, each line having the same structure (insp
 - (5) **Previous arrears/credit** — readonly (red/green)
 - (6) **Due date** — pre-filled, editable
 
-Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **suggestion of rounding down to a multiple of 5** — FR-REP-04b; the admin accepts it, changes it, or returns to the exact total) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), **copy shareable link** (with a **revoke** button), and "Send by email" (optional, triggers the A2/A3 notification on demand).
+Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **exact calculated total** — FR-REP-04a) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), **copy shareable link** (with a **revoke** button), and "Send by email" (optional, triggers the A2/A3 notification on demand).
 
 After publication — **payment** section: amount, method, date, "Mark payment", "Cancel payment", credit indicator on overpayment.
 
@@ -461,7 +461,7 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
 
   - previousMonthArrears, previousMonthCredit
   - calculatedTotal: number  // the automatic sum (reference, stays visible)
-  - finalTotal:      number  // calculatedTotal or the value adjusted manually by the admin (FR-REP-04a/04b)
+  - finalTotal:      number  // calculatedTotal or the value adjusted manually by the admin (FR-REP-04a)
                              // THE ONLY amount owed — arrears/credits are computed against
                              // finalTotal, NOT against calculatedTotal (FR-REP-04c)
                              // the rounding difference is never carried forward
