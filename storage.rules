@@ -44,6 +44,15 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // /reports/{reportId}/invoices/* — admin-only for now (M4 sub-stage 3). Tenant read
+    // where report.userId==auth.uid && status=='signed' (mirrors the tenancies/contract
+    // rule above's firestore.get() pattern) AND the rules-band tests for it land together
+    // at sub-stage 4 — consistent with monthlyReports' firestore.rules deferral from M4
+    // sub-stage 1. Rules band does NOT cover this path yet.
+    match /reports/{reportId}/invoices/{fileName} {
+      allow read, write: if isAdmin();
+    }
+
     // Per-path rules are added as the milestones progress, per SRS §6.
     match /{allPaths=**} {
       allow read, write: if false;

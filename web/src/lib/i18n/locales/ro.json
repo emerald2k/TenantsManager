@@ -348,6 +348,12 @@
       "remove": "Șterge",
       "empty": "Nicio altă cheltuială deocamdată."
     },
+    "attachments": {
+      "add": "Adaugă fișier(e)",
+      "remove": "Șterge",
+      "tooLarge": "\"{{name}}\" depășește 10 MB și nu a fost adăugat.",
+      "pending": "în așteptare"
+    },
     "errors": {
       "required": "Câmp obligatoriu",
       "saveError": "Raportul nu a putut fi salvat. Încearcă din nou."

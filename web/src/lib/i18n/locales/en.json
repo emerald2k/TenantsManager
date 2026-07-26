@@ -348,6 +348,12 @@
       "remove": "Remove",
       "empty": "No other expenses yet."
     },
+    "attachments": {
+      "add": "Add file(s)",
+      "remove": "Remove",
+      "tooLarge": "\"{{name}}\" exceeds 10 MB and was not added.",
+      "pending": "pending"
+    },
     "errors": {
       "required": "Required field",
       "saveError": "The report could not be saved. Please try again."

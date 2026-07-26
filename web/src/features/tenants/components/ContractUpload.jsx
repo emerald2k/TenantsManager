@@ -1,44 +1,23 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
-import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { useUpdateTenancy } from '@/features/tenants/hooks'
-
-const MAX_SIZE_BYTES = 10 * 1024 * 1024 // FR-DOC-05
-
-const COMPRESSION_OPTIONS = {
-  maxWidthOrHeight: 2000,
-  initialQuality: 0.8,
-  useWebWorker: true,
-}
-
-/** FR-DOC-01/03: a contract attachment is image, PDF, or "document" (doc/docx
- * and anything else not covered by the first two). Matches the `type` enum
- * already used for report cost-line attachments (SRS §6). */
-function classifyFileType(file) {
-  if (file.type.startsWith('image/')) return 'image'
-  if (file.type === 'application/pdf') return 'pdf'
-  return 'doc'
-}
+import {
+  MAX_UPLOAD_SIZE_BYTES,
+  deleteAttachmentBestEffort,
+  uploadAttachment,
+} from '@/lib/fileUpload'
 
 /**
  * The signed-contract uploader for the Tenancy tab (FR-CON-07, M3-C).
  *
  * Deliberately NOT `PhotoGallery`/`PhotoCapture` reused directly: both of
  * those unconditionally run every upload through `imageCompression`, which
- * would corrupt a PDF or .doc/.docx file. Here compression is CONDITIONAL —
- * only when the file classifies as `'image'` (FR-DOC-05: "images compressed
- * automatically on the client"); a PDF/doc uploads byte-for-byte as-is. Same
- * upload mechanics otherwise (uploadBytes/getDownloadURL, `crypto.randomUUID()-
- * {file.name}` naming, best-effort delete) — only the compression step and the
- * accepted file types differ.
+ * would corrupt a PDF or .doc/.docx file. Here compression is CONDITIONAL,
+ * via `uploadAttachment` (`@/lib/fileUpload`, extracted at M4 sub-stage 3,
+ * shared with the report cost-line attachments) — only when the file
+ * classifies as `'image'` (FR-DOC-05: "images compressed automatically on the
+ * client"); a PDF/doc uploads byte-for-byte as-is.
  *
  * Writes to `tenancies/{tenancyId}.attachedDocuments[]` via `useUpdateTenancy`
  * (a plain array replace, like PhotoGallery's `persist` — `mutate`, not
@@ -69,34 +48,20 @@ export function ContractUpload({ tenancyId, userId, documents }) {
 
     setError(null)
 
-    if (file.size > MAX_SIZE_BYTES) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       setError(t('tenants.detail.tenancy.contract.tooLarge'))
       return
     }
 
-    const type = classifyFileType(file)
-    const payload =
-      type === 'image'
-        ? await imageCompression(file, COMPRESSION_OPTIONS)
-        : file
-
     const path = `tenancies/${tenancyId}/contract/${crypto.randomUUID()}-${file.name}`
-    const objectRef = ref(storage, path)
-    await uploadBytes(objectRef, payload)
-    const url = await getDownloadURL(objectRef)
+    const attachment = await uploadAttachment(path, file)
 
-    persist([...documents, { url, name: file.name, type }])
+    persist([...documents, attachment])
   }
 
   async function handleDelete(index) {
     const target = documents[index]
-    try {
-      await deleteObject(ref(storage, target.url))
-    } catch {
-      // Best-effort, same convention as PhotoGallery/PhotoCapture: the
-      // reference must be removable regardless of whether the Storage object
-      // could be deleted.
-    }
+    await deleteAttachmentBestEffort(target.url)
     persist(documents.filter((_, i) => i !== index))
   }
 

@@ -12,6 +12,7 @@ import {
   useProperty,
 } from '@/features/properties/hooks'
 import { useMonthlyReport, useSaveReportDraft } from '@/features/reports/hooks'
+import { collectAttachmentUrls } from '@/features/reports/attachments'
 import {
   buildInitialValues,
   calculateTotal,
@@ -24,9 +25,9 @@ import { OtherExpensesList } from '@/features/reports/components/OtherExpensesLi
 
 /**
  * The monthly report form (SRS §5.3, `/admin/reports/:propertyId?month=&year=`).
- * Sub-stage 1+2 of M4 — DRAFT only: no attachments (3), no signing/lock (4).
- * The "Current month" list page (§5.1) still links nowhere here yet
- * (sub-stage 7) — this route is reached directly by URL.
+ * Sub-stage 1+2+3 of M4 — DRAFT only: no signing/lock (4). The "Current
+ * month" list page (§5.1) still links nowhere here yet (sub-stage 7) — this
+ * route is reached directly by URL.
  *
  * Requires an ACTIVE tenancy on the property: a report always needs a
  * tenancyId/userId to save (SRS §6). A free property (or one whose tenancy has
@@ -39,6 +40,11 @@ import { OtherExpensesList } from '@/features/reports/components/OtherExpensesLi
  * admin edits it manually — then it FREEZES (`isFinalTotalDirty`). There is
  * no rounding suggestion or "reset to exact" button (dropped from the SRS at
  * 5abb5bd) — the field simply starts at the exact total and stays editable.
+ *
+ * Attachments (FR-DOC-01…05): the actual Storage upload/delete happens
+ * INSIDE `useSaveReportDraft`, not here — this page only supplies
+ * `previousAttachmentUrls` (the snapshot the report was loaded WITH), so the
+ * hook can diff it against what's left after saving to know what was removed.
  */
 export function MonthlyReportPage() {
   const { t } = useTranslation()
@@ -154,6 +160,7 @@ export function MonthlyReportPage() {
           calculatedTotal,
           finalTotal,
         },
+        previousAttachmentUrls: collectAttachmentUrls(existingReport),
       })
     } catch {
       // Same pattern as PropertyForm: keep the form open with the entered
@@ -205,6 +212,7 @@ export function MonthlyReportPage() {
             label={t('reports.sections.rent')}
             prefix="rent"
             register={register}
+            control={control}
             error={errors.rent?.amount}
             t={t}
           />
@@ -212,6 +220,7 @@ export function MonthlyReportPage() {
             label={t('reports.sections.maintenance')}
             prefix="maintenance"
             register={register}
+            control={control}
             error={errors.maintenance?.amount}
             t={t}
           />
@@ -221,6 +230,7 @@ export function MonthlyReportPage() {
               label={field.name}
               prefix={`serviceCosts.${index}`}
               register={register}
+              control={control}
               error={errors.serviceCosts?.[index]?.amount}
               t={t}
             />
@@ -230,9 +240,15 @@ export function MonthlyReportPage() {
         <OtherExpensesList
           fields={otherExpenseFields}
           register={register}
+          control={control}
           errors={errors.otherExpenses}
           onAdd={() =>
-            appendOtherExpense({ description: '', amount: 0, notes: '' })
+            appendOtherExpense({
+              description: '',
+              amount: 0,
+              notes: '',
+              attachments: [],
+            })
           }
           onRemove={removeOtherExpense}
           t={t}

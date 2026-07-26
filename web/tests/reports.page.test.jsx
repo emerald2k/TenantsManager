@@ -29,6 +29,21 @@ vi.mock('react-router-dom', async (importOriginal) => ({
     vi.fn(),
   ],
 }))
+// `LineAttachments` (via `CostLineRow`/`OtherExpensesList`) and
+// `@/features/reports/attachments` both import `@/lib/fileUpload`, which
+// imports the REAL `@/lib/firebase` — mocked here with the real (pure)
+// classification logic so this file never touches Firebase, same as every
+// other page test.
+vi.mock('@/lib/fileUpload', () => ({
+  MAX_UPLOAD_SIZE_BYTES: 10 * 1024 * 1024,
+  classifyFileType: (file) => {
+    if (file.type.startsWith('image/')) return 'image'
+    if (file.type === 'application/pdf') return 'pdf'
+    return 'doc'
+  },
+  uploadAttachment: vi.fn(),
+  deleteAttachmentBestEffort: vi.fn(),
+}))
 
 const PROPERTY = {
   id: 'p1',
@@ -343,5 +358,104 @@ describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', ()
     const saved = mutateAsync.mock.calls[0][0].values
     expect(saved.finalTotal).toBe(1450)
     expect(saved.calculatedTotal).toBe(1500)
+  })
+})
+
+function makeFile({
+  name = 'invoice.pdf',
+  size = 1024,
+  type = 'application/pdf',
+} = {}) {
+  return new File(['x'.repeat(size)], name, { type })
+}
+
+const REPORT_WITH_RENT_ATTACHMENT = {
+  id: 'p1_2026-07',
+  rent: {
+    amount: 1500,
+    notes: '',
+    attachments: [
+      {
+        url: 'https://storage.example/lease.pdf',
+        name: 'lease.pdf',
+        type: 'pdf',
+      },
+    ],
+  },
+  maintenance: { amount: 0, notes: '', attachments: [] },
+  serviceCosts: [
+    { serviceId: 'gas', name: 'Gas', amount: 0, notes: '', attachments: [] },
+    {
+      serviceId: 'electricity',
+      name: 'Electricity',
+      amount: 0,
+      notes: '',
+      attachments: [],
+    },
+  ],
+  otherExpenses: [],
+  previousMonthArrears: 0,
+  previousMonthCredit: 0,
+  calculatedTotal: 1500,
+  finalTotal: 1500,
+  dueDate: '2026-07-05',
+}
+
+describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01…05)', () => {
+  it('reopen shows the existing attachment, and adding a new one does not lose it', async () => {
+    const user = userEvent.setup()
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByRole('link', { name: 'lease.pdf' })).toBeVisible()
+
+    const rentFileInput = document.querySelectorAll('input[type="file"]')[0]
+    await user.upload(rentFileInput, makeFile({ name: 'extra.pdf' }))
+
+    // The existing one is still there...
+    expect(screen.getByRole('link', { name: 'lease.pdf' })).toBeVisible()
+    // ...and the new pending one shows up alongside it, not instead of it.
+    expect(screen.getByText(/extra\.pdf/)).toBeVisible()
+  })
+
+  it('rejects a file over 10MB — not added, clear error shown', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    const rentFileInput = document.querySelectorAll('input[type="file"]')[0]
+    await user.upload(rentFileInput, makeFile({ size: 11 * 1024 * 1024 }))
+
+    expect(await screen.findByText(/10 MB/)).toBeVisible()
+    // The oversized file was rejected, not appended as a pending attachment —
+    // its name appears ONLY inside the error message, never as a list item.
+    expect(screen.queryByText(/în așteptare/)).toBeNull()
+  })
+
+  it('submits previousAttachmentUrls collected from the existing report', async () => {
+    const user = userEvent.setup()
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByRole('link', { name: 'lease.pdf' })
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([
+      'https://storage.example/lease.pdf',
+    ])
+  })
+
+  it('a brand new report submits an empty previousAttachmentUrls (anti-vacuity: not just "truthy")', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([])
   })
 })

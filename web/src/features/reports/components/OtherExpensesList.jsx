@@ -1,12 +1,15 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LineAttachments } from '@/features/reports/components/LineAttachments'
 
 /** The "Other expenses" dynamic list (FR-REP-01a: description + amount, free
- * list, add/remove). Backed by the parent's `useFieldArray` — this component
+ * list, add/remove) — each row also has its own attachments zone
+ * (FR-DOC-01…05). Backed by the parent's `useFieldArray` — this component
  * only renders the rows and forwards add/remove. */
 export function OtherExpensesList({
   fields,
   register,
+  control,
   errors,
   onAdd,
   onRemove,
@@ -30,41 +33,45 @@ export function OtherExpensesList({
       ) : (
         <div className="flex flex-col gap-3">
           {fields.map((field, index) => (
-            <div
-              key={field.id}
-              className="grid grid-cols-[1fr_140px_1fr_auto] items-start gap-3"
-            >
-              <div className="flex flex-col gap-1">
+            <div key={field.id} className="flex flex-col gap-2">
+              <div className="grid grid-cols-[1fr_140px_1fr_auto] items-start gap-3">
+                <div className="flex flex-col gap-1">
+                  <Input
+                    placeholder={t('reports.fields.description')}
+                    {...register(`otherExpenses.${index}.description`)}
+                  />
+                  {errors?.[index]?.description && (
+                    <p className="text-xs text-destructive">
+                      {t(errors[index].description.message)}
+                    </p>
+                  )}
+                </div>
                 <Input
-                  placeholder={t('reports.fields.description')}
-                  {...register(`otherExpenses.${index}.description`)}
+                  type="number"
+                  step="any"
+                  aria-label={t('reports.fields.amount')}
+                  {...register(`otherExpenses.${index}.amount`, {
+                    valueAsNumber: true,
+                  })}
                 />
-                {errors?.[index]?.description && (
-                  <p className="text-xs text-destructive">
-                    {t(errors[index].description.message)}
-                  </p>
-                )}
+                <Input
+                  placeholder={t('reports.fields.notes')}
+                  {...register(`otherExpenses.${index}.notes`)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRemove(index)}
+                >
+                  {t('reports.otherExpenses.remove')}
+                </Button>
               </div>
-              <Input
-                type="number"
-                step="any"
-                aria-label={t('reports.fields.amount')}
-                {...register(`otherExpenses.${index}.amount`, {
-                  valueAsNumber: true,
-                })}
+              <LineAttachments
+                control={control}
+                prefix={`otherExpenses.${index}`}
+                t={t}
               />
-              <Input
-                placeholder={t('reports.fields.notes')}
-                {...register(`otherExpenses.${index}.notes`)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onRemove(index)}
-              >
-                {t('reports.otherExpenses.remove')}
-              </Button>
             </div>
           ))}
         </div>

@@ -156,8 +156,14 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
     expect(values.rent.amount).toBe(1500)
     expect(values.dueDate).toBe('2026-07-05')
     expect(values.serviceCosts).toEqual([
-      { serviceId: 'gas', name: 'Gas', amount: 0, notes: '' },
-      { serviceId: 'electricity', name: 'Electricity', amount: 0, notes: '' },
+      { serviceId: 'gas', name: 'Gas', amount: 0, notes: '', attachments: [] },
+      {
+        serviceId: 'electricity',
+        name: 'Electricity',
+        amount: 0,
+        notes: '',
+        attachments: [],
+      },
     ])
     expect(values.previousMonthArrears).toBe(0)
     expect(values.previousMonthCredit).toBe(0)
@@ -184,12 +190,47 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
       existingReport,
     })
 
-    expect(values.rent).toEqual({ amount: 1600, notes: 'raised' })
-    expect(values.maintenance).toEqual({ amount: 50, notes: '' })
+    expect(values.rent).toEqual({
+      amount: 1600,
+      notes: 'raised',
+      attachments: [],
+    })
+    expect(values.maintenance).toEqual({
+      amount: 50,
+      notes: '',
+      attachments: [],
+    })
     expect(values.otherExpenses).toEqual([
-      { description: 'Repair', amount: 200, notes: '' },
+      { description: 'Repair', amount: 200, notes: '', attachments: [] },
     ])
     expect(values.dueDate).toBe('2026-07-10')
+  })
+
+  it('editing an existing draft: carries over saved attachment refs untouched', () => {
+    const savedAttachment = {
+      url: 'https://storage.example/reports/r1/invoices/lease.pdf',
+      name: 'lease.pdf',
+      type: 'pdf',
+    }
+    const existingReport = {
+      rent: { amount: 1600, notes: '', attachments: [savedAttachment] },
+      maintenance: { amount: 0, notes: '' },
+      serviceCosts: [],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      dueDate: '2026-07-10',
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property: { services: [] },
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    expect(values.rent.attachments).toEqual([savedAttachment])
   })
 
   it('reopening a report: finalTotal is the SAVED value, even when different from the recomputed total', () => {
@@ -259,9 +300,51 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
     })
 
     expect(values.serviceCosts).toEqual([
-      { serviceId: 'gas', name: 'Gas', amount: 80, notes: '' },
-      { serviceId: 'electricity', name: 'Electricity', amount: 0, notes: '' },
+      { serviceId: 'gas', name: 'Gas', amount: 80, notes: '', attachments: [] },
+      {
+        serviceId: 'electricity',
+        name: 'Electricity',
+        amount: 0,
+        notes: '',
+        attachments: [],
+      },
     ])
+  })
+
+  it("resyncs serviceCosts and carries over each service line's saved attachments", () => {
+    const savedAttachment = {
+      url: 'https://storage.example/reports/r1/invoices/gas-bill.jpg',
+      name: 'gas-bill.jpg',
+      type: 'image',
+    }
+    const existingReport = {
+      rent: { amount: 1500, notes: '' },
+      serviceCosts: [
+        {
+          serviceId: 'gas',
+          name: 'Gas',
+          amount: 80,
+          notes: '',
+          attachments: [savedAttachment],
+        },
+      ],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      dueDate: '2026-07-05',
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property,
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    expect(values.serviceCosts[0].attachments).toEqual([savedAttachment])
+    // The newly-active "electricity" line has no saved attachments to carry.
+    expect(values.serviceCosts[1].attachments).toEqual([])
   })
 
   it('drops a service no longer active from the resynced list', () => {
@@ -294,7 +377,7 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
     })
 
     expect(values.serviceCosts).toEqual([
-      { serviceId: 'gas', name: 'Gas', amount: 80, notes: '' },
+      { serviceId: 'gas', name: 'Gas', amount: 80, notes: '', attachments: [] },
     ])
   })
 })

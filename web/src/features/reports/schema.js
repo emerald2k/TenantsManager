@@ -2,13 +2,18 @@ import { z } from 'zod'
 
 /**
  * Validation + initial-values logic for the monthly report DRAFT form
- * (FR-REP-01…05/11/14/04a/04b/04c, SRS §6). Sub-stage 1+2 of M4 — draft only,
- * no attachments (sub-stage 3), no signing/lock (sub-stage 4). No rounding
+ * (FR-REP-01…05/11/14/04a/04b/04c, FR-DOC-01…05, SRS §6). Sub-stage 1+2+3 of
+ * M4 — draft only, no signing/lock (sub-stage 4). No rounding
  * suggestion/button exists (dropped from the SRS at 5abb5bd) — `finalTotal`
  * only mirrors the exact `calculatedTotal` until the admin edits it manually
  * (MonthlyReportPage owns that dirty-flag orchestration; this file only
  * decides the STARTING values and whether a reopened report counts as
  * "already diverged").
+ *
+ * Cost-line `attachments[]` (sub-stage 3): this file only decides the
+ * STARTING values (existing refs carried over, resynced onto still-active
+ * services) — the actual Storage upload/delete choreography lives in
+ * `./attachments.js` and `./hooks.js`.
  *
  * Amount fields use a DIFFERENT coercion than onboarding's `numberField`
  * (blank -> undefined -> fails `required()`): here blank/NaN coerces to 0 and
@@ -28,9 +33,26 @@ const blankToZero = (value) =>
   value === '' || (typeof value === 'number' && Number.isNaN(value)) ? 0 : value
 const amountField = () => z.preprocess(blankToZero, z.number())
 
+/**
+ * One cost-line attachment, in FORM state (M4 sub-stage 3, FR-DOC-01…05).
+ * Exactly one of `url` (already persisted — SRS §6's `{url,name,type}`) or
+ * `file` (a raw `File`, picked but not yet uploaded) is populated at any
+ * time; `uploadPendingAttachments` (`../attachments.js`) is what turns a
+ * `file` entry into a `url` one at save time. Deliberately permissive (no
+ * `.refine()` enforcing the "exactly one" invariant) — this is a transient
+ * client shape, not the persisted document; NFR-VAL-01's spirit.
+ */
+const attachmentSchema = z.object({
+  name: required(),
+  type: z.enum(['image', 'pdf', 'doc'], { error: REQUIRED }),
+  url: z.string().optional(),
+  file: z.instanceof(File).optional(),
+})
+
 const costLineSchema = z.object({
   amount: amountField(),
   notes: optionalText(),
+  attachments: z.array(attachmentSchema).optional(),
 })
 
 const serviceCostSchema = costLineSchema.extend({
@@ -57,8 +79,8 @@ export const reportSchema = z.object({
  * has loaded — every field controlled from the start, replaced by `reset()`
  * once `buildInitialValues` has something real to populate. */
 export const reportFormDefaults = {
-  rent: { amount: 0, notes: '' },
-  maintenance: { amount: 0, notes: '' },
+  rent: { amount: 0, notes: '', attachments: [] },
+  maintenance: { amount: 0, notes: '', attachments: [] },
   serviceCosts: [],
   otherExpenses: [],
   previousMonthArrears: 0,
@@ -132,6 +154,9 @@ export function buildInitialValues({
       name: service.name,
       amount: saved?.amount ?? 0,
       notes: saved?.notes ?? '',
+      // Attachments carry over with the amount/notes for a service that's
+      // still active — same "live snapshot until signing" reasoning as those.
+      attachments: saved?.attachments ?? [],
     }
   })
 
@@ -140,16 +165,19 @@ export function buildInitialValues({
         rent: {
           amount: existingReport.rent?.amount ?? 0,
           notes: existingReport.rent?.notes ?? '',
+          attachments: existingReport.rent?.attachments ?? [],
         },
         maintenance: {
           amount: existingReport.maintenance?.amount ?? 0,
           notes: existingReport.maintenance?.notes ?? '',
+          attachments: existingReport.maintenance?.attachments ?? [],
         },
         serviceCosts,
         otherExpenses: (existingReport.otherExpenses ?? []).map((line) => ({
           description: line.description ?? '',
           amount: line.amount ?? 0,
           notes: line.notes ?? '',
+          attachments: line.attachments ?? [],
         })),
         previousMonthArrears: existingReport.previousMonthArrears ?? 0,
         previousMonthCredit: existingReport.previousMonthCredit ?? 0,
@@ -158,8 +186,8 @@ export function buildInitialValues({
           buildDueDate(year, month, tenancy?.dueDay ?? 1),
       }
     : {
-        rent: { amount: tenancy?.monthlyRent ?? 0, notes: '' },
-        maintenance: { amount: 0, notes: '' },
+        rent: { amount: tenancy?.monthlyRent ?? 0, notes: '', attachments: [] },
+        maintenance: { amount: 0, notes: '', attachments: [] },
         serviceCosts,
         otherExpenses: [],
         previousMonthArrears: 0,

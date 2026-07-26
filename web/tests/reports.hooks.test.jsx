@@ -9,7 +9,11 @@ import {
 } from '@/features/reports/hooks'
 
 // Hook tests with the BOUNDARY MOCKED — no emulator, same convention as
-// properties.hooks.test.jsx / tenants.hooks.test.jsx.
+// properties.hooks.test.jsx / tenants.hooks.test.jsx. The Storage
+// choreography itself (upload/delete ordering) is mocked at the module level
+// here — `reports.attachments.test.js` and `fileUpload.test.js` cover what
+// those modules actually DO; this file only checks that the HOOK calls them
+// in the right order and with the right arguments.
 
 vi.mock('@/lib/firebase', () => ({
   db: { __fake: 'db' },
@@ -23,9 +27,32 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
 }))
 
+vi.mock('@/lib/fileUpload', () => ({
+  deleteAttachmentBestEffort: vi.fn(),
+}))
+
+vi.mock('@/features/reports/attachments', () => ({
+  uploadPendingAttachments: vi.fn(),
+  collectAttachmentUrls: vi.fn(),
+}))
+
+import { deleteAttachmentBestEffort } from '@/lib/fileUpload'
+import {
+  collectAttachmentUrls,
+  uploadPendingAttachments,
+} from '@/features/reports/attachments'
+
 beforeEach(() => {
   vi.clearAllMocks()
   setDoc.mockResolvedValue(undefined)
+  deleteAttachmentBestEffort.mockResolvedValue(undefined)
+  // Default: no attachments in play — `values` passes through untouched,
+  // nothing new uploaded. Individual tests override this.
+  uploadPendingAttachments.mockImplementation(async (values) => ({
+    values,
+    newUrls: [],
+  }))
+  collectAttachmentUrls.mockReturnValue([])
 })
 
 describe('buildReportId (FR-REP-14 — composite/unique id)', () => {
@@ -164,5 +191,136 @@ describe('useSaveReportDraft', () => {
       result.current.mutateAsync({ id: 'p1_2026-07', values: VALUES }),
     ).rejects.toThrow()
     expect(invalidate).not.toHaveBeenCalled()
+  })
+})
+
+describe('useSaveReportDraft — attachment orchestration (M4 sub-stage 3, FR-DOC-01…05)', () => {
+  const VALUES = {
+    ownerId: 'admin-uid',
+    propertyId: 'p1',
+    tenancyId: 't1',
+    userId: 'u1',
+    month: 7,
+    year: 2026,
+    rent: { amount: 1500, attachments: [] },
+    calculatedTotal: 1500,
+  }
+  const UPLOADED_VALUES = {
+    ...VALUES,
+    rent: {
+      amount: 1500,
+      attachments: [
+        {
+          url: 'https://storage.example/new.pdf',
+          name: 'new.pdf',
+          type: 'pdf',
+        },
+      ],
+    },
+  }
+
+  it('uploads pending attachments to reports/{id}/invoices BEFORE calling setDoc', async () => {
+    const callOrder = []
+    uploadPendingAttachments.mockImplementation(async () => {
+      callOrder.push('upload')
+      return {
+        values: UPLOADED_VALUES,
+        newUrls: ['https://storage.example/new.pdf'],
+      }
+    })
+    setDoc.mockImplementation(async () => {
+      callOrder.push('setDoc')
+    })
+
+    const { result } = await renderHookWithProviders(() => useSaveReportDraft())
+    await result.current.mutateAsync({ id: 'p1_2026-07', values: VALUES })
+
+    expect(uploadPendingAttachments).toHaveBeenCalledWith(
+      VALUES,
+      'reports/p1_2026-07/invoices',
+    )
+    expect(callOrder).toEqual(['upload', 'setDoc'])
+    // The document written is the UPLOADED (clean-refs) values, not the raw input.
+    expect(setDoc.mock.calls[0][1].rent.attachments).toEqual([
+      { url: 'https://storage.example/new.pdf', name: 'new.pdf', type: 'pdf' },
+    ])
+  })
+
+  it('deletes REMOVED attachments AFTER setDoc succeeds, never before', async () => {
+    const callOrder = []
+    uploadPendingAttachments.mockResolvedValue({
+      values: UPLOADED_VALUES,
+      newUrls: [],
+    })
+    // The just-saved document's surviving urls — only 'kept.pdf' is still
+    // there, so 'removed.pdf' (below, in previousAttachmentUrls) is what the
+    // admin dropped from the form before saving.
+    collectAttachmentUrls.mockReturnValue(['https://storage.example/kept.pdf'])
+    setDoc.mockImplementation(async () => {
+      callOrder.push('setDoc')
+    })
+    deleteAttachmentBestEffort.mockImplementation(async () => {
+      callOrder.push('delete')
+    })
+
+    const { result } = await renderHookWithProviders(() => useSaveReportDraft())
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: VALUES,
+      previousAttachmentUrls: [
+        'https://storage.example/kept.pdf',
+        'https://storage.example/removed.pdf',
+      ],
+    })
+
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledTimes(1)
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledWith(
+      'https://storage.example/removed.pdf',
+    )
+    expect(deleteAttachmentBestEffort).not.toHaveBeenCalledWith(
+      'https://storage.example/kept.pdf',
+    )
+    expect(callOrder).toEqual(['setDoc', 'delete'])
+  })
+
+  it('on setDoc failure: deletes ONLY the just-uploaded new objects, leaves removed/previous ones untouched', async () => {
+    uploadPendingAttachments.mockResolvedValue({
+      values: UPLOADED_VALUES,
+      newUrls: ['https://storage.example/new.pdf'],
+    })
+    setDoc.mockRejectedValue(new Error('permission-denied'))
+
+    const { result } = await renderHookWithProviders(() => useSaveReportDraft())
+
+    await expect(
+      result.current.mutateAsync({
+        id: 'p1_2026-07',
+        values: VALUES,
+        previousAttachmentUrls: [
+          'https://storage.example/old-still-referenced.pdf',
+        ],
+      }),
+    ).rejects.toThrow()
+
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledTimes(1)
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledWith(
+      'https://storage.example/new.pdf',
+    )
+    expect(deleteAttachmentBestEffort).not.toHaveBeenCalledWith(
+      'https://storage.example/old-still-referenced.pdf',
+    )
+  })
+
+  it('with no previousAttachmentUrls given (brand new report), deletes nothing on success', async () => {
+    uploadPendingAttachments.mockResolvedValue({
+      values: UPLOADED_VALUES,
+      newUrls: [],
+    })
+    collectAttachmentUrls.mockReturnValue([])
+
+    const { result } = await renderHookWithProviders(() => useSaveReportDraft())
+    await result.current.mutateAsync({ id: 'p1_2026-07', values: VALUES })
+
+    expect(deleteAttachmentBestEffort).not.toHaveBeenCalled()
   })
 })
