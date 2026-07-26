@@ -54,11 +54,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // monthlyReports: admin-only for now (M4 sub-stage 1). Tenant read-where-status=='signed'
-    // AND the rules-band tests (admin allow / tenant-signed allow / tenant-unsigned+other-tenant+anon deny,
-    // anti-vacuity) land together in M4 sub-stage 4. Rules band does NOT cover this collection yet.
+    // monthlyReports — admin full access; the tenant reads ONLY their own
+    // SIGNED report (SRS §6/§7.3: "admin full; the tenant reads where userId
+    // == auth.uid and status == 'signed'"). A draft is invisible to the
+    // tenant by design (FR-REP-06/08) — this is the exact enforcement point.
+    // Public (no-auth) access via shareToken does NOT go through this rule —
+    // it is served by the getSharedReport Cloud Function (sub-stage 8), which
+    // is why there is no "shareToken" branch here.
     match /monthlyReports/{reportId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() ||
+        (request.auth != null &&
+          resource.data.userId == request.auth.uid &&
+          resource.data.status == 'signed');
+      allow write: if isAdmin();
     }
 
     // The remaining collections are not implemented yet.
