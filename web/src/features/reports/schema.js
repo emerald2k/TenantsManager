@@ -2,9 +2,13 @@ import { z } from 'zod'
 
 /**
  * Validation + initial-values logic for the monthly report DRAFT form
- * (FR-REP-01…05/11/14, SRS §6). Sub-stage 1 of M4 — draft only, no
- * finalTotal/rounding (sub-stage 2), no attachments (sub-stage 3), no
- * signing/lock (sub-stage 4).
+ * (FR-REP-01…05/11/14/04a/04b/04c, SRS §6). Sub-stage 1+2 of M4 — draft only,
+ * no attachments (sub-stage 3), no signing/lock (sub-stage 4). No rounding
+ * suggestion/button exists (dropped from the SRS at 5abb5bd) — `finalTotal`
+ * only mirrors the exact `calculatedTotal` until the admin edits it manually
+ * (MonthlyReportPage owns that dirty-flag orchestration; this file only
+ * decides the STARTING values and whether a reopened report counts as
+ * "already diverged").
  *
  * Amount fields use a DIFFERENT coercion than onboarding's `numberField`
  * (blank -> undefined -> fails `required()`): here blank/NaN coerces to 0 and
@@ -45,6 +49,7 @@ export const reportSchema = z.object({
   otherExpenses: z.array(otherExpenseSchema),
   previousMonthArrears: amountField(),
   previousMonthCredit: amountField(),
+  finalTotal: amountField(),
   dueDate: required(),
 })
 
@@ -58,6 +63,7 @@ export const reportFormDefaults = {
   otherExpenses: [],
   previousMonthArrears: 0,
   previousMonthCredit: 0,
+  finalTotal: 0,
   dueDate: '',
 }
 
@@ -129,37 +135,64 @@ export function buildInitialValues({
     }
   })
 
-  if (existingReport) {
-    return {
-      rent: {
-        amount: existingReport.rent?.amount ?? 0,
-        notes: existingReport.rent?.notes ?? '',
-      },
-      maintenance: {
-        amount: existingReport.maintenance?.amount ?? 0,
-        notes: existingReport.maintenance?.notes ?? '',
-      },
-      serviceCosts,
-      otherExpenses: (existingReport.otherExpenses ?? []).map((line) => ({
-        description: line.description ?? '',
-        amount: line.amount ?? 0,
-        notes: line.notes ?? '',
-      })),
-      previousMonthArrears: existingReport.previousMonthArrears ?? 0,
-      previousMonthCredit: existingReport.previousMonthCredit ?? 0,
-      dueDate:
-        existingReport.dueDate ??
-        buildDueDate(year, month, tenancy?.dueDay ?? 1),
-    }
-  }
+  const base = existingReport
+    ? {
+        rent: {
+          amount: existingReport.rent?.amount ?? 0,
+          notes: existingReport.rent?.notes ?? '',
+        },
+        maintenance: {
+          amount: existingReport.maintenance?.amount ?? 0,
+          notes: existingReport.maintenance?.notes ?? '',
+        },
+        serviceCosts,
+        otherExpenses: (existingReport.otherExpenses ?? []).map((line) => ({
+          description: line.description ?? '',
+          amount: line.amount ?? 0,
+          notes: line.notes ?? '',
+        })),
+        previousMonthArrears: existingReport.previousMonthArrears ?? 0,
+        previousMonthCredit: existingReport.previousMonthCredit ?? 0,
+        dueDate:
+          existingReport.dueDate ??
+          buildDueDate(year, month, tenancy?.dueDay ?? 1),
+      }
+    : {
+        rent: { amount: tenancy?.monthlyRent ?? 0, notes: '' },
+        maintenance: { amount: 0, notes: '' },
+        serviceCosts,
+        otherExpenses: [],
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        dueDate: buildDueDate(year, month, tenancy?.dueDay ?? 1),
+      }
 
-  return {
-    rent: { amount: tenancy?.monthlyRent ?? 0, notes: '' },
-    maintenance: { amount: 0, notes: '' },
-    serviceCosts,
-    otherExpenses: [],
-    previousMonthArrears: 0,
-    previousMonthCredit: 0,
-    dueDate: buildDueDate(year, month, tenancy?.dueDay ?? 1),
-  }
+  // Fresh report: mirrors the total just built. Reopened report: the SAVED
+  // finalTotal — except an M4 sub-stage 1 draft (saved before finalTotal
+  // existed) falls back to the same computation, from these exact `base`
+  // values, so it mirrors going forward instead of freezing at `undefined`.
+  const finalTotal = existingReport?.finalTotal ?? calculateTotal(base)
+
+  return { ...base, finalTotal }
+}
+
+/** Epsilon for the finalTotal/calculatedTotal comparison below — floating-point
+ * money math, not an exact-equality domain. */
+const FINAL_TOTAL_EPSILON = 0.005
+
+/**
+ * Decides whether a REOPENED report's `finalTotal` was manually diverged from
+ * its `calculatedTotal` at save time (sub-stage 2 plan: "freeze only if YOU
+ * edited finalTotal"). `false` (not diverged, i.e. still mirroring) covers
+ * THREE cases on purpose:
+ *  - a brand new report (no `existingReport` yet)
+ *  - a reopened report whose `finalTotal` equals its `calculatedTotal` —
+ *    it was mirroring when saved, so it keeps mirroring now
+ *  - an M4 sub-stage 1 draft with no `finalTotal` saved at all
+ * Only a REAL divergence (admin typed a different value) freezes the field.
+ */
+export function isFinalTotalDiverged(existingReport) {
+  if (!existingReport || existingReport.finalTotal == null) return false
+  const calculated = existingReport.calculatedTotal ?? 0
+  return Math.abs(existingReport.finalTotal - calculated) >= FINAL_TOTAL_EPSILON
 }

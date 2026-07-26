@@ -340,7 +340,8 @@
       "dueDate": "Due date",
       "previousArrears": "Previous month's arrears",
       "previousCredit": "Previous month's credit",
-      "calculatedTotal": "Calculated total"
+      "calculatedTotal": "Calculated total",
+      "finalTotal": "Final total"
     },
     "otherExpenses": {
       "add": "Add expense",

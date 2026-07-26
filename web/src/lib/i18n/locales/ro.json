@@ -340,7 +340,8 @@
       "dueDate": "Data scadentă",
       "previousArrears": "Restanțe luna anterioară",
       "previousCredit": "Credit luna anterioară",
-      "calculatedTotal": "Total calculat"
+      "calculatedTotal": "Total calculat",
+      "finalTotal": "Total final"
     },
     "otherExpenses": {
       "add": "Adaugă cheltuială",

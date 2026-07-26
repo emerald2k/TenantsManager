@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +15,7 @@ import { useMonthlyReport, useSaveReportDraft } from '@/features/reports/hooks'
 import {
   buildInitialValues,
   calculateTotal,
+  isFinalTotalDiverged,
   reportFormDefaults,
   reportSchema,
 } from '@/features/reports/schema'
@@ -23,9 +24,9 @@ import { OtherExpensesList } from '@/features/reports/components/OtherExpensesLi
 
 /**
  * The monthly report form (SRS §5.3, `/admin/reports/:propertyId?month=&year=`).
- * Sub-stage 1 of M4 — DRAFT only: no finalTotal/rounding (2), no attachments
- * (3), no signing/lock (4). The "Current month" list page (§5.1) still links
- * nowhere here yet (sub-stage 7) — this route is reached directly by URL.
+ * Sub-stage 1+2 of M4 — DRAFT only: no attachments (3), no signing/lock (4).
+ * The "Current month" list page (§5.1) still links nowhere here yet
+ * (sub-stage 7) — this route is reached directly by URL.
  *
  * Requires an ACTIVE tenancy on the property: a report always needs a
  * tenancyId/userId to save (SRS §6). A free property (or one whose tenancy has
@@ -33,6 +34,11 @@ import { OtherExpensesList } from '@/features/reports/components/OtherExpensesLi
  * support for editing an already-created draft after its tenancy ended is
  * left for a later sub-stage, since nothing can reach that state yet (no
  * signed reports exist to leave behind once endTenancy runs).
+ *
+ * `finalTotal` (FR-REP-04a/04b): mirrors `calculatedTotal` live until the
+ * admin edits it manually — then it FREEZES (`isFinalTotalDirty`). There is
+ * no rounding suggestion or "reset to exact" button (dropped from the SRS at
+ * 5abb5bd) — the field simply starts at the exact total and stays editable.
  */
 export function MonthlyReportPage() {
   const { t } = useTranslation()
@@ -55,12 +61,26 @@ export function MonthlyReportPage() {
   )
   const saveDraft = useSaveReportDraft()
   const [saveError, setSaveError] = useState(null)
+  // FR-REP-04a/04b: mirrors calculatedTotal while false; frozen once true —
+  // either the admin just typed into finalTotal, or a reopened report was
+  // already manually diverged when it was last saved (isFinalTotalDiverged).
+  const [isFinalTotalDirty, setIsFinalTotalDirty] = useState(false)
+  // Guards against a real race: `reset()` writes RHF's internal state, but
+  // `useWatch` (and therefore `total`, below) only catches up on the NEXT
+  // render — it does not update synchronously within the same commit. If the
+  // mirror effect ran in that SAME commit, it would read the stale pre-reset
+  // `total` (and the stale pre-reset `isFinalTotalDirty`) and overwrite the
+  // value `reset()` just set — e.g. clobbering a reopened, frozen finalTotal
+  // with 0. This ref makes the mirror effect skip exactly once right after a
+  // reset, waiting for the following render where both have caught up.
+  const skipNextMirrorRef = useRef(false)
 
   const {
     register,
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(reportSchema),
@@ -80,20 +100,46 @@ export function MonthlyReportPage() {
   const isPending = isPropertyPending || isTenancyPending || isReportPending
 
   // Rebuilds the form once property/tenancy/existingReport have loaded (or
-  // when the admin navigates to a different month via the URL).
+  // when the admin navigates to a different month via the URL). Piggybacks
+  // the finalTotal dirty-flag reset on the SAME trigger: a fresh report (or
+  // one that was still mirroring when last saved) starts NOT dirty, so it
+  // resumes mirroring; only a genuinely diverged reopened report freezes.
   useEffect(() => {
     if (isPending || !property) return
+    skipNextMirrorRef.current = true
     reset(
       buildInitialValues({ tenancy, property, month, year, existingReport }),
     )
+    setIsFinalTotalDirty(isFinalTotalDiverged(existingReport))
   }, [isPending, property, tenancy, existingReport, month, year, reset])
 
   const watchedValues = useWatch({ control })
   const total = calculateTotal(watchedValues)
 
+  // Mirrors the live total into finalTotal while untouched. `setValue` does
+  // NOT fire the `onChange` registered below (RHF doesn't simulate a DOM
+  // event for it), so this can't itself flip `isFinalTotalDirty` — no loop.
+  // `finalTotal` is deliberately NOT in the deps: this effect exists to WRITE
+  // it, watching it too would just re-run on its own write.
+  useEffect(() => {
+    if (skipNextMirrorRef.current) {
+      skipNextMirrorRef.current = false
+      return
+    }
+    if (!isFinalTotalDirty) {
+      setValue('finalTotal', total, { shouldValidate: false })
+    }
+  }, [total, isFinalTotalDirty, setValue])
+
   async function handleValid(values) {
     setSaveError(null)
     const id = `${propertyId}_${year}-${String(month).padStart(2, '0')}`
+    // Recomputed fresh here (not read off `values.finalTotal`) so that, while
+    // mirroring, finalTotal and calculatedTotal are written from the EXACT
+    // same calculateTotal() call — no float drift between them that a future
+    // reopen could misread as "manually diverged" (isFinalTotalDiverged).
+    const calculatedTotal = calculateTotal(values)
+    const finalTotal = isFinalTotalDirty ? values.finalTotal : calculatedTotal
     try {
       await saveDraft.mutateAsync({
         id,
@@ -105,7 +151,8 @@ export function MonthlyReportPage() {
           month,
           year,
           ...values,
-          calculatedTotal: calculateTotal(values),
+          calculatedTotal,
+          finalTotal,
         },
       })
     } catch {
@@ -226,13 +273,28 @@ export function MonthlyReportPage() {
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex items-center justify-between rounded-lg border border-border bg-background p-4 shadow-sm">
-          <span className="text-sm font-medium text-foreground">
-            {t('reports.fields.calculatedTotal')}
-          </span>
-          <span className="text-lg font-semibold text-foreground">
-            {formatCurrency(total)}
-          </span>
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">
+              {t('reports.fields.calculatedTotal')}
+            </span>
+            <span className="text-base font-medium text-foreground">
+              {formatCurrency(total)}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="finalTotal">{t('reports.fields.finalTotal')}</Label>
+            <Input
+              id="finalTotal"
+              type="number"
+              step="any"
+              className="w-32 text-right text-lg font-semibold"
+              {...register('finalTotal', {
+                valueAsNumber: true,
+                onChange: () => setIsFinalTotalDirty(true),
+              })}
+            />
+          </div>
         </div>
 
         {saveError && (

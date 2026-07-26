@@ -81,7 +81,9 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
     mockData()
     await renderWithProviders(<MonthlyReportPage />)
 
-    expect(await screen.findByDisplayValue('1500')).toBeVisible()
+    // Scoped by aria-label, not display value: finalTotal ALSO mirrors 1500
+    // (sub-stage 2), so a bare display-value query would now match both.
+    expect(await screen.findByLabelText('Chirie')).toHaveValue(1500)
     expect(screen.getByDisplayValue('2026-07-05')).toBeVisible()
   })
 
@@ -158,5 +160,188 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
 
     await user.click(screen.getByText('Șterge'))
     expect(screen.queryByPlaceholderText('Descriere')).toBeNull()
+  })
+})
+
+describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', () => {
+  it('initializes finalTotal to the exact calculated total on a fresh report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    // rent 1500 + maintenance 0 + gas 0 + electricity 0.
+    expect(screen.getByLabelText('Total final')).toHaveValue(1500)
+  })
+
+  it('mirrors the total live while untouched — editing a line moves finalTotal too', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '100')
+
+    expect(await screen.findByText('1.600,00 lei')).toBeVisible()
+    expect(screen.getByLabelText('Total final')).toHaveValue(1600)
+  })
+
+  it('freezes once the admin edits finalTotal manually — further line edits do not move it', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    const finalTotalInput = screen.getByLabelText('Total final')
+    await user.clear(finalTotalInput)
+    await user.type(finalTotalInput, '1450')
+    expect(finalTotalInput).toHaveValue(1450)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '100')
+
+    // The reference total keeps moving...
+    expect(await screen.findByText('1.600,00 lei')).toBeVisible()
+    // ...but finalTotal, once hand-edited, no longer follows it.
+    expect(finalTotalInput).toHaveValue(1450)
+  })
+
+  it('reopen with finalTotal == calculatedTotal (it was mirroring): editing a line still updates it', async () => {
+    const user = userEvent.setup()
+    mockData({
+      report: {
+        id: 'p1_2026-07',
+        rent: { amount: 1500, notes: '' },
+        maintenance: { amount: 0, notes: '' },
+        serviceCosts: [
+          { serviceId: 'gas', name: 'Gas', amount: 0, notes: '' },
+          {
+            serviceId: 'electricity',
+            name: 'Electricity',
+            amount: 0,
+            notes: '',
+          },
+        ],
+        otherExpenses: [],
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        calculatedTotal: 1500,
+        finalTotal: 1500, // mirroring when it was last saved
+        dueDate: '2026-07-05',
+      },
+    })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByLabelText('Total final')).toHaveValue(1500)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '75')
+
+    expect(await screen.findByLabelText('Total final')).toHaveValue(1575)
+  })
+
+  it('reopen with finalTotal != calculatedTotal (manually diverged): frozen, editing a line does NOT move it', async () => {
+    const user = userEvent.setup()
+    mockData({
+      report: {
+        id: 'p1_2026-07',
+        rent: { amount: 1500, notes: '' },
+        maintenance: { amount: 0, notes: '' },
+        serviceCosts: [
+          { serviceId: 'gas', name: 'Gas', amount: 0, notes: '' },
+          {
+            serviceId: 'electricity',
+            name: 'Electricity',
+            amount: 0,
+            notes: '',
+          },
+        ],
+        otherExpenses: [],
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        calculatedTotal: 1500,
+        finalTotal: 1450, // manually rounded down at an earlier save
+        dueDate: '2026-07-05',
+      },
+    })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByLabelText('Total final')).toHaveValue(1450)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '75')
+
+    expect(await screen.findByText('1.575,00 lei')).toBeVisible()
+    expect(screen.getByLabelText('Total final')).toHaveValue(1450)
+  })
+
+  it('reopen an M4 sub-stage 1 draft with no finalTotal saved: mirrors (not frozen)', async () => {
+    const user = userEvent.setup()
+    mockData({
+      report: {
+        id: 'p1_2026-07',
+        rent: { amount: 1500, notes: '' },
+        maintenance: { amount: 0, notes: '' },
+        serviceCosts: [
+          { serviceId: 'gas', name: 'Gas', amount: 0, notes: '' },
+          {
+            serviceId: 'electricity',
+            name: 'Electricity',
+            amount: 0,
+            notes: '',
+          },
+        ],
+        otherExpenses: [],
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        calculatedTotal: 1500,
+        // no finalTotal key — pre-dates sub-stage 2
+        dueDate: '2026-07-05',
+      },
+    })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByLabelText('Total final')).toHaveValue(1500)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '75')
+
+    expect(await screen.findByLabelText('Total final')).toHaveValue(1575)
+  })
+
+  it('submits finalTotal == calculatedTotal while still mirroring', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    const saved = mutateAsync.mock.calls[0][0].values
+    expect(saved.finalTotal).toBe(1500)
+    expect(saved.calculatedTotal).toBe(1500)
+  })
+
+  it('submits the hand-typed finalTotal once frozen, distinct from calculatedTotal', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    const finalTotalInput = screen.getByLabelText('Total final')
+    await user.clear(finalTotalInput)
+    await user.type(finalTotalInput, '1450')
+
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    const saved = mutateAsync.mock.calls[0][0].values
+    expect(saved.finalTotal).toBe(1450)
+    expect(saved.calculatedTotal).toBe(1500)
   })
 })

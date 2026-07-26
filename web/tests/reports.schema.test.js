@@ -3,6 +3,7 @@ import {
   buildDueDate,
   buildInitialValues,
   calculateTotal,
+  isFinalTotalDiverged,
   reportSchema,
 } from '@/features/reports/schema'
 
@@ -81,6 +82,7 @@ describe('reportSchema — amount coercion (decision: blank -> 0, not required)'
     otherExpenses: [],
     previousMonthArrears: 0,
     previousMonthCredit: 0,
+    finalTotal: 1000,
     dueDate: '2026-07-05',
   }
 
@@ -88,6 +90,12 @@ describe('reportSchema — amount coercion (decision: blank -> 0, not required)'
     const result = reportSchema.safeParse({ ...BASE, rent: { amount: '' } })
     expect(result.success).toBe(true)
     expect(result.data.rent.amount).toBe(0)
+  })
+
+  it('accepts a blank finalTotal and coerces it to 0, same as any other amount (FR-REP-04b)', () => {
+    const result = reportSchema.safeParse({ ...BASE, finalTotal: '' })
+    expect(result.success).toBe(true)
+    expect(result.data.finalTotal).toBe(0)
   })
 
   it('accepts a negative service amount (FR-REP-03 adjustments)', () => {
@@ -153,6 +161,8 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
     ])
     expect(values.previousMonthArrears).toBe(0)
     expect(values.previousMonthCredit).toBe(0)
+    // 1500 rent + 0 maintenance + 0 + 0 services + 0 arrears - 0 credit.
+    expect(values.finalTotal).toBe(calculateTotal(values))
   })
 
   it('editing an existing draft: uses the SAVED values, not blank ones', () => {
@@ -180,6 +190,53 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
       { description: 'Repair', amount: 200, notes: '' },
     ])
     expect(values.dueDate).toBe('2026-07-10')
+  })
+
+  it('reopening a report: finalTotal is the SAVED value, even when different from the recomputed total', () => {
+    const existingReport = {
+      rent: { amount: 1600, notes: '' },
+      maintenance: { amount: 0, notes: '' },
+      serviceCosts: [],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      finalTotal: 1550, // manually rounded down at some earlier save
+      dueDate: '2026-07-10',
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property: { services: [] },
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    expect(values.finalTotal).toBe(1550)
+    expect(calculateTotal(values)).toBe(1600) // the recomputed total differs on purpose
+  })
+
+  it('reopening an M4 sub-stage 1 draft with no finalTotal saved: falls back to the recomputed total', () => {
+    const existingReport = {
+      rent: { amount: 1600, notes: '' },
+      maintenance: { amount: 0, notes: '' },
+      serviceCosts: [],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      // no finalTotal key at all — pre-dates sub-stage 2
+      dueDate: '2026-07-10',
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property: { services: [] },
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    expect(values.finalTotal).toBe(1600)
   })
 
   it('resyncs serviceCosts with the CURRENT active services on a draft (not a frozen snapshot)', () => {
@@ -239,5 +296,43 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
     expect(values.serviceCosts).toEqual([
       { serviceId: 'gas', name: 'Gas', amount: 80, notes: '' },
     ])
+  })
+})
+
+describe('isFinalTotalDiverged (sub-stage 2 dirty-flag derivation)', () => {
+  it('is false for a brand new report (no existingReport yet)', () => {
+    expect(isFinalTotalDiverged(null)).toBe(false)
+    expect(isFinalTotalDiverged(undefined)).toBe(false)
+  })
+
+  it('is false when finalTotal was never saved (an M4 sub-stage 1 draft)', () => {
+    expect(
+      isFinalTotalDiverged({ calculatedTotal: 1500, finalTotal: undefined }),
+    ).toBe(false)
+    expect(isFinalTotalDiverged({ calculatedTotal: 1500 })).toBe(false)
+  })
+
+  it('is false when finalTotal exactly equals calculatedTotal (it was mirroring)', () => {
+    expect(
+      isFinalTotalDiverged({ calculatedTotal: 1500, finalTotal: 1500 }),
+    ).toBe(false)
+  })
+
+  it('is false for a sub-cent difference — floating-point tolerance, not exact equality', () => {
+    expect(
+      isFinalTotalDiverged({ calculatedTotal: 1500, finalTotal: 1500.001 }),
+    ).toBe(false)
+  })
+
+  it('is true once the difference reaches the epsilon (0.005)', () => {
+    expect(
+      isFinalTotalDiverged({ calculatedTotal: 1500, finalTotal: 1500.005 }),
+    ).toBe(true)
+  })
+
+  it('is true for a real manual divergence (e.g. rounded down for cash)', () => {
+    expect(
+      isFinalTotalDiverged({ calculatedTotal: 2518.71, finalTotal: 2515 }),
+    ).toBe(true)
   })
 })
