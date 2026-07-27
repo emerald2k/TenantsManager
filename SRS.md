@@ -152,7 +152,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-CON-01 | Contract: property, start date, end date (mandatory), monthly rent, security deposit (optional), due day, report-preparation reminder lead time (`reportReminderDaysBefore`, default 3 days). |
 | FR-CON-02 | One account — at most one active tenancy at a time. |
 | FR-CON-03 | Manual termination at any time, including early. |
-| FR-CON-04 | Termination blocked if there are unpaid arrears. |
+| FR-CON-04 | Termination blocked if there are unpaid arrears — `currentBalance > 0` on the tenancy (§6). A credit or an exactly-zero balance does NOT block termination. |
 | FR-CON-05 | On termination: the property becomes "free", the account moves to "inactive-readonly". |
 | FR-CON-06 | Extension = editing the end date on the same tenancy. |
 | FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. *(Partially built at M3: the admin-side upload and the Storage access rule — admin write, owning tenant read — are done. The tenant-facing consumption at `/app/contract` is M5, still a placeholder.)* |
@@ -417,7 +417,17 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - startDate, endDate, monthlyRent, securityDeposit (opt), dueDay
   - reportReminderDaysBefore: number (default 3, admin-editable at assignment or
     later — same step as dueDay)
-  - currentBalance: number (updated automatically by onReportWrite — NFR-PERF-04)
+  - currentBalance: number // = (most recent SIGNED report on this tenancy).finalTotal
+                            //   − amountPaid; positive = arrears, negative = credit.
+                            //   Sourced from the SINGLE most recent signed report, NOT
+                            //   summed across all reports — a signed report's
+                            //   previousMonthArrears/previousMonthCredit already rolls
+                            //   the prior balance forward (see monthlyReports below), so
+                            //   summing every report would double-count it. Uses
+                            //   finalTotal, never calculatedTotal (FR-REP-04c). Before any
+                            //   report on the tenancy has ever been signed, it is 0 — there
+                            //   is no mechanism to seed a pre-existing (pre-app) balance.
+                            //   Updated automatically by onReportWrite (NFR-PERF-04).
   - status: active | ended
   - endedAt: server timestamp, set by endTenancy on termination (absent while active)
   - attachedDocuments[] (signed contract — visible to the tenant)
@@ -460,6 +470,13 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
   - otherExpenses:  [ { description, ...costLine } ]
 
   - previousMonthArrears, previousMonthCredit
+                             // on a DRAFT report, these mirror the tenancy's CURRENT
+                             // currentBalance (its positive part → arrears, its negative
+                             // part → credit) and keep updating as long as the report
+                             // stays a draft. They FREEZE at signing — a signed report is
+                             // never rewritten automatically afterward (FR-REP-12), the
+                             // same snapshot-at-signing discipline as serviceCosts
+                             // (FR-PROP-08).
   - calculatedTotal: number  // the automatic sum (reference, stays visible)
   - finalTotal:      number  // calculatedTotal or the value adjusted manually by the admin (FR-REP-04a)
                              // THE ONLY amount owed — arrears/credits are computed against
