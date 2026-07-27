@@ -1,16 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from '@/lib/firebase'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 import { deleteAttachmentBestEffort } from '@/lib/fileUpload'
 import { collectAttachmentUrls, uploadPendingAttachments } from './attachments'
 
 /**
- * The data access layer for monthly report drafts (FR-REP-01…05/11/14,
- * FR-DOC-01…05, SRS §6). Sub-stage 1+2+3 of M4 — DRAFT only. Same conventions
- * as `properties/hooks.js`: single reads (`getDoc`, not `onSnapshot`),
- * freshness via invalidation, components never touch `firebase/firestore`
- * directly.
+ * The data access layer for monthly reports (FR-REP-01…05/11/14/07/07a,
+ * FR-DOC-01…05, SRS §6). Same conventions as `properties/hooks.js`: single
+ * reads (`getDoc`, not `onSnapshot`), freshness via invalidation, components
+ * never touch `firebase/firestore` directly. Signing/unlocking (M4 sub-stage
+ * 4) goes through Cloud Functions (`useSignReport`/`useUnlockReport`), never
+ * a direct Firestore write of `status`.
  */
 
 const COLLECTION = 'monthlyReports'
@@ -77,30 +85,41 @@ export function useMonthlyReport({ propertyId, month, year }) {
  *     delete-before-commit (CLAUDE.md §7's copy-first/delete-after-commit,
  *     adapted here to a plain `setDoc` instead of a transaction).
  *
- * Full setDoc overwrite is safe HERE because the report doc holds only draft form fields.
- * Once signing fields (status:'signed', signedAt — sub-stage 4) and payment fields
- * (amountPaid, paymentStatus, paymentMethod, paymentDate — sub-stage 5) live on this doc,
- * a full-overwrite re-save from the form WOULD CLOBBER them. Editing after unlock must then
- * load-and-preserve those fields (or switch to updateDoc/merge). Do not carry this full setDoc
- * into the edit path of a signed/paid report without that fix.
+ * `isNew` decides setDoc-with-status (creation) vs. updateDoc-without-status
+ * (re-save) — NO default, every call site must decide explicitly. This is the
+ * fix for the hazard the original sub-stage-1/2/3 version of this doc-comment
+ * flagged: once signing fields (status:'signed', signedAt — sub-stage 4) live
+ * on this doc, a full-overwrite `setDoc` re-save from the form would CLOBBER
+ * them — worse, it would do so even off a STALE client cache (right after
+ * `signReport` resolves elsewhere, or a second tab open on the same report),
+ * since the form has no way to know the server-side status changed underneath
+ * it. A re-save NEVER writes `status`/`signedAt` at all — `updateDoc` only
+ * touches the keys present in its payload, so whatever the server currently
+ * holds for those two fields survives untouched, no matter how stale the
+ * client's own idea of the report was when Save was clicked. The
+ * draft<->signed transition happens EXCLUSIVELY through the
+ * signReport/unlockReport callables (SRS §6) — never through this save path.
  */
 export function useSaveReportDraft() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, values, previousAttachmentUrls = [] }) => {
+    mutationFn: async ({ id, values, previousAttachmentUrls = [], isNew }) => {
       const { values: uploadedValues, newUrls } =
         await uploadPendingAttachments(values, `reports/${id}/invoices`)
 
+      const payload = stripUndefinedDeep({
+        ...uploadedValues,
+        updatedAt: serverTimestamp(),
+        ...(isNew ? { status: 'draft' } : {}),
+      })
+
       try {
-        await setDoc(
-          reportRef(id),
-          stripUndefinedDeep({
-            ...uploadedValues,
-            status: 'draft',
-            updatedAt: serverTimestamp(),
-          }),
-        )
+        if (isNew) {
+          await setDoc(reportRef(id), payload)
+        } else {
+          await updateDoc(reportRef(id), payload)
+        }
       } catch (error) {
         // `.map((url) => ...)`, NOT `.map(deleteAttachmentBestEffort)` directly:
         // Array#map also passes (index, array) to its callback, and
@@ -122,6 +141,50 @@ export function useSaveReportDraft() {
       return id
     },
     onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+    },
+  })
+}
+
+// ─────────────────────────── useSignReport ───────────────────────
+/**
+ * Signs the report (FR-REP-07) via the `signReport` callable
+ * (functions/src/reports.js) — NOT a direct Firestore write: the transition
+ * is validated server-side (status must be 'draft') and stamps `signedAt`
+ * with a server timestamp, neither of which the client can do trustworthily.
+ * Invalidates the report detail so the page re-fetches with `status:'signed'`
+ * and switches into its read-only view.
+ */
+export function useSignReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id }) => {
+      const signReport = httpsCallable(functions, 'signReport')
+      return signReport({ reportId: id })
+    },
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+    },
+  })
+}
+
+// ─────────────────────────── useUnlockReport ─────────────────────
+/**
+ * Unlocks a signed report back to draft (FR-REP-07a) via the `unlockReport`
+ * callable — same reasoning as `useSignReport`: the precondition (status must
+ * be 'signed') is enforced server-side, not just hidden behind a disabled UI
+ * button.
+ */
+export function useUnlockReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id }) => {
+      const unlockReport = httpsCallable(functions, 'unlockReport')
+      return unlockReport({ reportId: id })
+    },
+    onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
     },
   })

@@ -7,11 +7,20 @@ import {
   useActiveTenancyForProperty,
   useProperty,
 } from '@/features/properties/hooks'
-import { useMonthlyReport, useSaveReportDraft } from '@/features/reports/hooks'
+import {
+  useMonthlyReport,
+  useSaveReportDraft,
+  useSignReport,
+  useUnlockReport,
+} from '@/features/reports/hooks'
 
 // Fast band — the data hooks are mocked; hooks.js/schema.js's own behavior is
 // covered by reports.hooks.test.jsx / reports.schema.test.js. This file only
-// checks the SHELL: what renders, the live total, and pre-fill vs. reopen.
+// checks the SHELL: what renders, the live total, pre-fill vs. reopen, and
+// (M4 sub-stage 4) the locked-when-signed state. `useSignReport`/
+// `useUnlockReport` are mocked here too because `MonthlyReportPage` renders
+// `SignReportControl`, which calls them directly — their own behavior is
+// covered by `reports.hooks.test.jsx` / `reports.signReportControl.test.jsx`.
 
 vi.mock('@/features/properties/hooks', () => ({
   useProperty: vi.fn(),
@@ -20,6 +29,8 @@ vi.mock('@/features/properties/hooks', () => ({
 vi.mock('@/features/reports/hooks', () => ({
   useMonthlyReport: vi.fn(),
   useSaveReportDraft: vi.fn(),
+  useSignReport: vi.fn(),
+  useUnlockReport: vi.fn(),
 }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -76,11 +87,23 @@ function mockData({ report = null } = {}) {
 }
 
 const mutateAsync = vi.fn()
+const signMutateAsync = vi.fn()
+const unlockMutateAsync = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
   mutateAsync.mockResolvedValue('p1_2026-07')
   useSaveReportDraft.mockReturnValue({ mutateAsync, isPending: false })
+  signMutateAsync.mockResolvedValue({})
+  unlockMutateAsync.mockResolvedValue({})
+  useSignReport.mockReturnValue({
+    mutateAsync: signMutateAsync,
+    isPending: false,
+  })
+  useUnlockReport.mockReturnValue({
+    mutateAsync: unlockMutateAsync,
+    isPending: false,
+  })
 })
 
 describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
@@ -457,5 +480,169 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
     expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([])
+  })
+})
+
+describe('MonthlyReportPage — isNew propagation (M4 sub-stage 4, create/re-save split)', () => {
+  it('a brand new report saves with isNew: true', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync.mock.calls[0][0].isNew).toBe(true)
+  })
+
+  it('reopening an existing draft saves with isNew: false', async () => {
+    const user = userEvent.setup()
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByRole('link', { name: 'lease.pdf' })
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync.mock.calls[0][0].isNew).toBe(false)
+  })
+})
+
+const SIGNED_REPORT = {
+  id: 'p1_2026-07',
+  status: 'signed',
+  signedAt: '2026-07-01T10:00:00Z',
+  rent: { amount: 1500, notes: '', attachments: [] },
+  maintenance: { amount: 0, notes: '', attachments: [] },
+  serviceCosts: [
+    { serviceId: 'gas', name: 'Gas', amount: 0, notes: '', attachments: [] },
+    {
+      serviceId: 'electricity',
+      name: 'Electricity',
+      amount: 0,
+      notes: '',
+      attachments: [],
+    },
+  ],
+  otherExpenses: [],
+  previousMonthArrears: 0,
+  previousMonthCredit: 0,
+  calculatedTotal: 1500,
+  finalTotal: 1500,
+  dueDate: '2026-07-05',
+}
+
+describe('MonthlyReportPage — locked when signed (M4 sub-stage 4, FR-REP-07)', () => {
+  it('disables every editable cost-line input when the report is signed', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    // Rent, maintenance, and each service's amount field — all wired to
+    // `disabled={isLocked}` via CostLineRow.
+    expect(await screen.findByLabelText('Chirie')).toBeDisabled()
+    expect(screen.getByLabelText('Mentenanță')).toBeDisabled()
+    expect(screen.getByLabelText('Gas')).toBeDisabled()
+    expect(screen.getByLabelText('Electricity')).toBeDisabled()
+    expect(screen.getByLabelText('Total final')).toBeDisabled()
+    expect(screen.getByLabelText('Data scadentă')).toBeDisabled()
+    // previousMonthArrears/previousMonthCredit are ALWAYS readOnly — never
+    // wired to `disabled` because they were never editable in the first
+    // place, lock state or not. Confirms they stay in their normal state
+    // rather than asserting something that was never true.
+    const readOnlyFields = document.querySelectorAll('input[readonly]')
+    expect(readOnlyFields.length).toBe(2)
+  })
+
+  it('does NOT disable inputs on a draft report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByLabelText('Chirie')).not.toBeDisabled()
+    expect(screen.getByLabelText('Total final')).not.toBeDisabled()
+  })
+
+  it('hides the Save button when the report is signed', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.queryByText('Salvează draftul')).toBeNull()
+  })
+
+  it('shows the Save button on a draft report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Salvează draftul')).toBeVisible()
+  })
+
+  it('shows the Sign button (not Unlock) on an editable draft that already exists', async () => {
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Semnează lista')).toBeVisible()
+    expect(screen.queryByText('Deblochează pentru corecție')).toBeNull()
+  })
+
+  it('shows the Unlock button (not Sign) on a signed report', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Deblochează pentru corecție')).toBeVisible()
+    expect(screen.queryByText('Semnează lista')).toBeNull()
+  })
+
+  it('renders neither Sign nor Unlock on a brand new (never-saved) report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.queryByText('Semnează lista')).toBeNull()
+    expect(screen.queryByText('Deblochează pentru corecție')).toBeNull()
+  })
+
+  it('signing calls signReport with the report id, via a confirmation dialog', async () => {
+    const user = userEvent.setup()
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await user.click(await screen.findByText('Semnează lista'))
+    expect(
+      screen.getByText('Lista devine finală și blocată pentru editare.'),
+    ).toBeVisible()
+    await user.click(screen.getByText('Semnează'))
+
+    expect(signMutateAsync).toHaveBeenCalledWith({ id: 'p1_2026-07' })
+  })
+
+  it('unlocking calls unlockReport with the report id, via a confirmation dialog', async () => {
+    const user = userEvent.setup()
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await user.click(await screen.findByText('Deblochează pentru corecție'))
+    await user.click(screen.getByText('Deblochează'))
+
+    expect(unlockMutateAsync).toHaveBeenCalledWith({ id: 'p1_2026-07' })
+  })
+
+  it('does not resync serviceCosts against the live property once signed (FR-PROP-08 — page-level integration)', async () => {
+    useProperty.mockReturnValue({
+      data: {
+        ...PROPERTY,
+        services: [{ serviceId: 'water', name: 'Water', source: 'catalog' }],
+      },
+      isPending: false,
+      isError: false,
+    })
+    useActiveTenancyForProperty.mockReturnValue({
+      data: TENANCY,
+      isPending: false,
+    })
+    useMonthlyReport.mockReturnValue({ data: SIGNED_REPORT, isPending: false })
+
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Gas')).toBeVisible()
+    expect(screen.queryByText('Water')).toBeNull()
   })
 })

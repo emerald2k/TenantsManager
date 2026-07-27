@@ -22,12 +22,12 @@ import {
 } from '@/features/reports/schema'
 import { CostLineRow } from '@/features/reports/components/CostLineRow'
 import { OtherExpensesList } from '@/features/reports/components/OtherExpensesList'
+import { SignReportControl } from '@/features/reports/components/SignReportControl'
 
 /**
  * The monthly report form (SRS §5.3, `/admin/reports/:propertyId?month=&year=`).
- * Sub-stage 1+2+3 of M4 — DRAFT only: no signing/lock (4). The "Current
- * month" list page (§5.1) still links nowhere here yet (sub-stage 7) — this
- * route is reached directly by URL.
+ * The "Current month" list page (§5.1) still links nowhere here yet
+ * (sub-stage 7) — this route is reached directly by URL.
  *
  * Requires an ACTIVE tenancy on the property: a report always needs a
  * tenancyId/userId to save (SRS §6). A free property (or one whose tenancy has
@@ -45,6 +45,10 @@ import { OtherExpensesList } from '@/features/reports/components/OtherExpensesLi
  * INSIDE `useSaveReportDraft`, not here — this page only supplies
  * `previousAttachmentUrls` (the snapshot the report was loaded WITH), so the
  * hook can diff it against what's left after saving to know what was removed.
+ *
+ * Signing/locking (M4 sub-stage 4, FR-REP-07/07a): `isLocked` is the SINGLE
+ * source of truth for the read-only state, computed once below and threaded
+ * to every input plus the Save/Sign/Unlock buttons — see its own comment.
  */
 export function MonthlyReportPage() {
   const { t } = useTranslation()
@@ -67,6 +71,12 @@ export function MonthlyReportPage() {
   )
   const saveDraft = useSaveReportDraft()
   const [saveError, setSaveError] = useState(null)
+  // FR-REP-07: once signed, the report is READ-ONLY — every input disabled,
+  // Save hidden, Sign replaced by Unlock. Computed ONCE here; every consumer
+  // below (CostLineRow, OtherExpensesList, the dueDate/finalTotal inputs, the
+  // Save button, handleValid's guard) reads this SAME boolean — no
+  // re-derivation, no drift.
+  const isLocked = existingReport?.status === 'signed'
   // FR-REP-04a/04b: mirrors calculatedTotal while false; frozen once true —
   // either the admin just typed into finalTotal, or a reopened report was
   // already manually diverged when it was last saved (isFinalTotalDiverged).
@@ -138,6 +148,12 @@ export function MonthlyReportPage() {
   }, [total, isFinalTotalDirty, setValue])
 
   async function handleValid(values) {
+    // Belt-and-suspenders (Save is already hidden + every input disabled
+    // when locked): stops a stray submit from ever reaching the mutation.
+    // The mutation itself is the real defense against clobbering a signed
+    // report (useSaveReportDraft's re-save path never writes status/signedAt
+    // at all) — this guard just avoids the pointless network round-trip.
+    if (isLocked) return
     setSaveError(null)
     const id = `${propertyId}_${year}-${String(month).padStart(2, '0')}`
     // Recomputed fresh here (not read off `values.finalTotal`) so that, while
@@ -161,6 +177,7 @@ export function MonthlyReportPage() {
           finalTotal,
         },
         previousAttachmentUrls: collectAttachmentUrls(existingReport),
+        isNew: !existingReport,
       })
     } catch {
       // Same pattern as PropertyForm: keep the form open with the entered
@@ -215,6 +232,7 @@ export function MonthlyReportPage() {
             control={control}
             error={errors.rent?.amount}
             t={t}
+            disabled={isLocked}
           />
           <CostLineRow
             label={t('reports.sections.maintenance')}
@@ -223,6 +241,7 @@ export function MonthlyReportPage() {
             control={control}
             error={errors.maintenance?.amount}
             t={t}
+            disabled={isLocked}
           />
           {serviceFields.map((field, index) => (
             <CostLineRow
@@ -233,6 +252,7 @@ export function MonthlyReportPage() {
               control={control}
               error={errors.serviceCosts?.[index]?.amount}
               t={t}
+              disabled={isLocked}
             />
           ))}
         </div>
@@ -252,6 +272,7 @@ export function MonthlyReportPage() {
           }
           onRemove={removeOtherExpense}
           t={t}
+          disabled={isLocked}
         />
 
         <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
@@ -279,6 +300,7 @@ export function MonthlyReportPage() {
               id="dueDate"
               type="date"
               className="w-40"
+              disabled={isLocked}
               {...register('dueDate')}
             />
             {errors.dueDate && (
@@ -305,6 +327,7 @@ export function MonthlyReportPage() {
               type="number"
               step="any"
               className="w-32 text-right text-lg font-semibold"
+              disabled={isLocked}
               {...register('finalTotal', {
                 valueAsNumber: true,
                 onChange: () => setIsFinalTotalDirty(true),
@@ -322,10 +345,13 @@ export function MonthlyReportPage() {
           </p>
         )}
 
-        <div>
-          <Button type="submit" disabled={saveDraft.isPending}>
-            {saveDraft.isPending ? t('common.loading') : t('reports.save')}
-          </Button>
+        <div className="flex items-center gap-3">
+          {!isLocked && (
+            <Button type="submit" disabled={saveDraft.isPending}>
+              {saveDraft.isPending ? t('common.loading') : t('reports.save')}
+            </Button>
+          )}
+          {existingReport && <SignReportControl report={existingReport} />}
         </div>
       </form>
     </div>

@@ -129,12 +129,17 @@ export function buildDueDate(year, month, dueDay) {
  * Builds the form's initial values, whether creating a fresh draft or
  * reopening an existing one (FR-REP-14: the deterministic id decides which).
  *
- * `serviceCosts` is ALWAYS rebuilt from the property's CURRENT active
- * services, merging in any amount/notes already saved for a service that is
- * still active — new services show up with amount 0, removed ones drop out.
- * This is a LIVE snapshot, not the final one: the DEFINITIVE freeze of
- * name+cost (FR-PROP-08) happens at SIGNING (sub-stage 4), not while the
- * report is still a draft.
+ * `serviceCosts` is rebuilt from the property's CURRENT active services,
+ * merging in any amount/notes already saved for a service that is still
+ * active — new services show up with amount 0, removed ones drop out. This is
+ * a LIVE snapshot while the report is still a draft. Once SIGNED, it FREEZES
+ * (FR-PROP-08): the property's services may keep changing after signing, but
+ * a signed report must keep showing exactly the name+cost snapshot the tenant
+ * already saw, so a signed report's `serviceCosts` is used AS SAVED, with no
+ * resync against `property.services` at all. Rent/maintenance/otherExpenses
+ * never resync from an external live source in the first place, so they need
+ * no equivalent gate — this is the only place a signed report could
+ * otherwise silently drift from what it was signed with.
  */
 export function buildInitialValues({
   tenancy,
@@ -145,20 +150,30 @@ export function buildInitialValues({
 }) {
   const activeServices = property?.services ?? []
   const savedServiceCosts = existingReport?.serviceCosts ?? []
-  const serviceCosts = activeServices.map((service) => {
-    const saved = savedServiceCosts.find(
-      (line) => line.serviceId === service.serviceId,
-    )
-    return {
-      serviceId: service.serviceId,
-      name: service.name,
-      amount: saved?.amount ?? 0,
-      notes: saved?.notes ?? '',
-      // Attachments carry over with the amount/notes for a service that's
-      // still active — same "live snapshot until signing" reasoning as those.
-      attachments: saved?.attachments ?? [],
-    }
-  })
+  const serviceCosts =
+    existingReport?.status === 'signed'
+      ? savedServiceCosts.map((line) => ({
+          serviceId: line.serviceId,
+          name: line.name,
+          amount: line.amount ?? 0,
+          notes: line.notes ?? '',
+          attachments: line.attachments ?? [],
+        }))
+      : activeServices.map((service) => {
+          const saved = savedServiceCosts.find(
+            (line) => line.serviceId === service.serviceId,
+          )
+          return {
+            serviceId: service.serviceId,
+            name: service.name,
+            amount: saved?.amount ?? 0,
+            notes: saved?.notes ?? '',
+            // Attachments carry over with the amount/notes for a service
+            // that's still active — same "live snapshot until signing"
+            // reasoning as those.
+            attachments: saved?.attachments ?? [],
+          }
+        })
 
   const base = existingReport
     ? {

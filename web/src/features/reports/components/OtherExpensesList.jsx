@@ -14,6 +14,7 @@ export function OtherExpensesList({
   onAdd,
   onRemove,
   t,
+  disabled = false,
 }) {
   return (
     <div className="rounded-lg border border-border p-4">
@@ -21,7 +22,7 @@ export function OtherExpensesList({
         <h2 className="text-sm font-semibold text-foreground">
           {t('reports.sections.otherExpenses')}
         </h2>
-        <Button type="button" size="sm" onClick={onAdd}>
+        <Button type="button" size="sm" onClick={onAdd} disabled={disabled}>
           {t('reports.otherExpenses.add')}
         </Button>
       </div>
@@ -38,6 +39,7 @@ export function OtherExpensesList({
                 <div className="flex flex-col gap-1">
                   <Input
                     placeholder={t('reports.fields.description')}
+                    disabled={disabled}
                     {...register(`otherExpenses.${index}.description`)}
                   />
                   {errors?.[index]?.description && (
@@ -50,12 +52,14 @@ export function OtherExpensesList({
                   type="number"
                   step="any"
                   aria-label={t('reports.fields.amount')}
+                  disabled={disabled}
                   {...register(`otherExpenses.${index}.amount`, {
                     valueAsNumber: true,
                   })}
                 />
                 <Input
                   placeholder={t('reports.fields.notes')}
+                  disabled={disabled}
                   {...register(`otherExpenses.${index}.notes`)}
                 />
                 <Button
@@ -63,6 +67,7 @@ export function OtherExpensesList({
                   variant="ghost"
                   size="sm"
                   onClick={() => onRemove(index)}
+                  disabled={disabled}
                 >
                   {t('reports.otherExpenses.remove')}
                 </Button>
@@ -71,6 +76,7 @@ export function OtherExpensesList({
                 control={control}
                 prefix={`otherExpenses.${index}`}
                 t={t}
+                disabled={disabled}
               />
             </div>
           ))}

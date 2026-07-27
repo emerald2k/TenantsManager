@@ -24,7 +24,7 @@ import { MAX_UPLOAD_SIZE_BYTES, classifyFileType } from '@/lib/fileUpload'
  * `URL.createObjectURL` + cleanup-on-unmount bookkeeping for no requested
  * benefit; a name + "pending" badge is enough until it's actually uploaded.
  */
-export function LineAttachments({ control, prefix, t }) {
+export function LineAttachments({ control, prefix, t, disabled = false }) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `${prefix}.attachments`,
@@ -67,6 +67,7 @@ export function LineAttachments({ control, prefix, t }) {
           variant="outline"
           size="xs"
           onClick={() => inputRef.current?.click()}
+          disabled={disabled}
         >
           {t('reports.attachments.add')}
         </Button>
@@ -110,6 +111,7 @@ export function LineAttachments({ control, prefix, t }) {
                 variant="ghost"
                 size="xs"
                 onClick={() => remove(index)}
+                disabled={disabled}
               >
                 {t('reports.attachments.remove')}
               </Button>

@@ -358,7 +358,21 @@
       "required": "Required field",
       "saveError": "The report could not be saved. Please try again."
     },
-    "save": "Save draft"
+    "save": "Save draft",
+    "sign": {
+      "button": "Sign the list",
+      "confirmTitle": "Sign the list",
+      "confirmBody": "The list becomes final and locked for editing.",
+      "confirmButton": "Sign",
+      "error": "The list could not be signed. Please try again."
+    },
+    "unlock": {
+      "button": "Unlock for correction",
+      "confirmTitle": "Unlock for correction",
+      "confirmBody": "The report becomes editable again and is no longer visible to the tenant until re-signed.",
+      "confirmButton": "Unlock",
+      "error": "The report could not be unlocked. Please try again."
+    }
   },
   "notFound": {
     "title": "Page not found",

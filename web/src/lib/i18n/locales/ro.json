@@ -358,7 +358,21 @@
       "required": "Câmp obligatoriu",
       "saveError": "Raportul nu a putut fi salvat. Încearcă din nou."
     },
-    "save": "Salvează draftul"
+    "save": "Salvează draftul",
+    "sign": {
+      "button": "Semnează lista",
+      "confirmTitle": "Semnează lista",
+      "confirmBody": "Lista devine finală și blocată pentru editare.",
+      "confirmButton": "Semnează",
+      "error": "Lista nu a putut fi semnată. Încearcă din nou."
+    },
+    "unlock": {
+      "button": "Deblochează pentru corecție",
+      "confirmTitle": "Deblochează pentru corecție",
+      "confirmBody": "Raportul redevine editabil și nu mai este vizibil chiriașului până la o nouă semnare.",
+      "confirmButton": "Deblochează",
+      "error": "Raportul nu a putut fi deblocat. Încearcă din nou."
+    }
   },
   "notFound": {
     "title": "Pagina nu a fost găsită",

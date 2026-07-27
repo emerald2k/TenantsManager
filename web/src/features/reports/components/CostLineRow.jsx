@@ -7,7 +7,15 @@ import { LineAttachments } from '@/features/reports/components/LineAttachments'
  * ("rent", "maintenance", "serviceCosts.0"...) so the same row markup serves
  * all three without knowing which one it is.
  */
-export function CostLineRow({ label, prefix, register, control, error, t }) {
+export function CostLineRow({
+  label,
+  prefix,
+  register,
+  control,
+  error,
+  t,
+  disabled = false,
+}) {
   return (
     <div className="flex flex-col gap-2 border-b border-border py-3 last:border-0">
       <div className="grid grid-cols-[1fr_140px_1fr] items-start gap-3">
@@ -19,6 +27,7 @@ export function CostLineRow({ label, prefix, register, control, error, t }) {
             type="number"
             step="any"
             aria-label={label}
+            disabled={disabled}
             {...register(`${prefix}.amount`, { valueAsNumber: true })}
           />
           {error && (
@@ -27,10 +36,16 @@ export function CostLineRow({ label, prefix, register, control, error, t }) {
         </div>
         <Input
           placeholder={t('reports.fields.notes')}
+          disabled={disabled}
           {...register(`${prefix}.notes`)}
         />
       </div>
-      <LineAttachments control={control} prefix={prefix} t={t} />
+      <LineAttachments
+        control={control}
+        prefix={prefix}
+        t={t}
+        disabled={disabled}
+      />
     </div>
   )
 }

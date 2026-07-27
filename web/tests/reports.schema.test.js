@@ -380,6 +380,89 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
       { serviceId: 'gas', name: 'Gas', amount: 80, notes: '', attachments: [] },
     ])
   })
+
+  it('FREEZE (FR-PROP-08): does NOT resync serviceCosts against the property’s current services once signed', () => {
+    const existingReport = {
+      status: 'signed',
+      rent: { amount: 1500, notes: '' },
+      // Signed with "gas" only — the property now ALSO has "electricity" and
+      // no longer even lists "gas" among its (hypothetically renamed) services.
+      serviceCosts: [
+        {
+          serviceId: 'gas',
+          name: 'Gas',
+          amount: 80,
+          notes: '',
+          attachments: [],
+        },
+      ],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      dueDate: '2026-07-05',
+    }
+    const changedProperty = {
+      services: [{ serviceId: 'water', name: 'Water', source: 'catalog' }],
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property: changedProperty,
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    // The signed snapshot's "Gas" line survives untouched...
+    expect(values.serviceCosts).toEqual([
+      { serviceId: 'gas', name: 'Gas', amount: 80, notes: '', attachments: [] },
+    ])
+    // ...even though "Water" is now the property's only active service —
+    // proof this is the FROZEN snapshot, not a live resync.
+  })
+
+  it('still resyncs serviceCosts against current services while DRAFT (unchanged behavior)', () => {
+    const existingReport = {
+      status: 'draft',
+      rent: { amount: 1500, notes: '' },
+      serviceCosts: [
+        {
+          serviceId: 'gas',
+          name: 'Gas',
+          amount: 80,
+          notes: '',
+          attachments: [],
+        },
+      ],
+      otherExpenses: [],
+      previousMonthArrears: 0,
+      previousMonthCredit: 0,
+      dueDate: '2026-07-05',
+    }
+    const changedProperty = {
+      services: [{ serviceId: 'water', name: 'Water', source: 'catalog' }],
+    }
+
+    const values = buildInitialValues({
+      tenancy,
+      property: changedProperty,
+      month: 7,
+      year: 2026,
+      existingReport,
+    })
+
+    // Draft still resyncs: "Gas" drops out (no longer an active service),
+    // "Water" shows up fresh at amount 0 — the pre-existing sub-stage-1 behavior.
+    expect(values.serviceCosts).toEqual([
+      {
+        serviceId: 'water',
+        name: 'Water',
+        amount: 0,
+        notes: '',
+        attachments: [],
+      },
+    ])
+  })
 })
 
 describe('isFinalTotalDiverged (sub-stage 2 dirty-flag derivation)', () => {
