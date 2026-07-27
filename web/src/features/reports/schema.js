@@ -114,6 +114,33 @@ export function calculateTotal(values) {
   )
 }
 
+/**
+ * paymentStatus (FR-PAY-01/02/05, SRS §6): a pure function of finalTotal vs.
+ * amountPaid, computed client-side before every payment write — 'paid'
+ * covers BOTH an exact match and an overpayment (the excess becomes credit
+ * via currentBalance going negative — FR-PAY-05 — it is not a distinct
+ * paymentStatus of its own).
+ */
+export function derivePaymentStatus(finalTotal, amountPaid) {
+  const paid = Number(amountPaid) || 0
+  const total = Number(finalTotal) || 0
+  if (paid >= total) return 'paid'
+  if (paid > 0) return 'partial'
+  return 'unpaid'
+}
+
+/**
+ * The payment mini-form's schema (FR-PAY-01). Presence-only (NFR-VAL-01) —
+ * no minimum-amount or date-format validation.
+ */
+export const paymentSchema = z.object({
+  amountPaid: amountField(),
+  paymentMethod: z.enum(['cash', 'bank_transfer', 'other'], {
+    error: REQUIRED,
+  }),
+  paymentDate: required(),
+})
+
 /** Combines year+month+dueDay into an ISO date string ("YYYY-MM-DD"), same
  * plain-string convention as tenancy.startDate/endDate — no Firestore
  * Timestamp involved (FR-REP-05: pre-filled, editable). Clamped to the
@@ -148,32 +175,53 @@ export function buildInitialValues({
   year,
   existingReport,
 }) {
+  // Hoisted once, reused for BOTH serviceCosts (FR-PROP-08) and the
+  // previousMonthArrears/Credit carry-forward below — a single
+  // `=== 'signed'` check for the whole function, so the two FREEZE gates
+  // can never drift apart.
+  const isSignedSnapshot = existingReport?.status === 'signed'
   const activeServices = property?.services ?? []
   const savedServiceCosts = existingReport?.serviceCosts ?? []
-  const serviceCosts =
-    existingReport?.status === 'signed'
-      ? savedServiceCosts.map((line) => ({
-          serviceId: line.serviceId,
-          name: line.name,
-          amount: line.amount ?? 0,
-          notes: line.notes ?? '',
-          attachments: line.attachments ?? [],
-        }))
-      : activeServices.map((service) => {
-          const saved = savedServiceCosts.find(
-            (line) => line.serviceId === service.serviceId,
-          )
-          return {
-            serviceId: service.serviceId,
-            name: service.name,
-            amount: saved?.amount ?? 0,
-            notes: saved?.notes ?? '',
-            // Attachments carry over with the amount/notes for a service
-            // that's still active — same "live snapshot until signing"
-            // reasoning as those.
-            attachments: saved?.attachments ?? [],
-          }
-        })
+  const serviceCosts = isSignedSnapshot
+    ? savedServiceCosts.map((line) => ({
+        serviceId: line.serviceId,
+        name: line.name,
+        amount: line.amount ?? 0,
+        notes: line.notes ?? '',
+        attachments: line.attachments ?? [],
+      }))
+    : activeServices.map((service) => {
+        const saved = savedServiceCosts.find(
+          (line) => line.serviceId === service.serviceId,
+        )
+        return {
+          serviceId: service.serviceId,
+          name: service.name,
+          amount: saved?.amount ?? 0,
+          notes: saved?.notes ?? '',
+          // Attachments carry over with the amount/notes for a service
+          // that's still active — same "live snapshot until signing"
+          // reasoning as those.
+          attachments: saved?.attachments ?? [],
+        }
+      })
+
+  const currentBalance = tenancy?.currentBalance ?? 0
+  // FREEZE (SRS §6, pinned at e8ca367): a SIGNED report's carry-forward
+  // values are locked at whatever they were when it was signed — they must
+  // NOT react to the tenancy's currentBalance moving on afterward. A DRAFT
+  // mirrors currentBalance LIVE: positive → arrears, negative → credit
+  // (never both at once). Same snapshot-at-signing discipline as
+  // `serviceCosts` above (FR-PROP-08). Computed BEFORE `base` and kept ON
+  // `base` (not spread in afterward) so `calculateTotal(base)` below still
+  // sees them — finalTotal must include the carried-forward arrears, not
+  // just display them.
+  const previousMonthArrears = isSignedSnapshot
+    ? (existingReport.previousMonthArrears ?? 0)
+    : Math.max(currentBalance, 0)
+  const previousMonthCredit = isSignedSnapshot
+    ? (existingReport.previousMonthCredit ?? 0)
+    : Math.max(-currentBalance, 0)
 
   const base = existingReport
     ? {
@@ -194,8 +242,8 @@ export function buildInitialValues({
           notes: line.notes ?? '',
           attachments: line.attachments ?? [],
         })),
-        previousMonthArrears: existingReport.previousMonthArrears ?? 0,
-        previousMonthCredit: existingReport.previousMonthCredit ?? 0,
+        previousMonthArrears,
+        previousMonthCredit,
         dueDate:
           existingReport.dueDate ??
           buildDueDate(year, month, tenancy?.dueDay ?? 1),
@@ -205,8 +253,8 @@ export function buildInitialValues({
         maintenance: { amount: 0, notes: '', attachments: [] },
         serviceCosts,
         otherExpenses: [],
-        previousMonthArrears: 0,
-        previousMonthCredit: 0,
+        previousMonthArrears,
+        previousMonthCredit,
         dueDate: buildDueDate(year, month, tenancy?.dueDay ?? 1),
       }
 

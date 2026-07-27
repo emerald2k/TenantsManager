@@ -11,6 +11,7 @@ import { db, functions } from '@/lib/firebase'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 import { deleteAttachmentBestEffort } from '@/lib/fileUpload'
 import { collectAttachmentUrls, uploadPendingAttachments } from './attachments'
+import { derivePaymentStatus } from './schema'
 
 /**
  * The data access layer for monthly reports (FR-REP-01…05/11/14/07/07a,
@@ -186,6 +187,69 @@ export function useUnlockReport() {
     },
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+    },
+  })
+}
+
+// ─────────────────────────── useMarkPayment ──────────────────────
+/**
+ * Records/corrects a payment on a SIGNED report (FR-PAY-01/02/05/06) via a
+ * plain `updateDoc` — NOT a callable (M4 sub-stage 5, plan Decision 1): the
+ * admin already has full write access to `monthlyReports`, and there is no
+ * cross-document transaction or precondition here that only a trusted
+ * server could enforce. The payload touches ONLY the four payment fields —
+ * `status`/`signedAt` are never in it, so this can never de-sign a report
+ * (same discipline as `useSaveReportDraft`'s re-save path, M4 sub-stage 4).
+ * `onReportWrite` (functions/src/reports.js) reacts to this write and
+ * recomputes `tenancies.currentBalance` — this hook does not touch the
+ * tenancy document directly, it just invalidates the cached read of it.
+ */
+export function useMarkPayment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, values, finalTotal }) =>
+      updateDoc(
+        reportRef(id),
+        stripUndefinedDeep({
+          amountPaid: values.amountPaid,
+          paymentMethod: values.paymentMethod,
+          paymentDate: values.paymentDate,
+          paymentStatus: derivePaymentStatus(finalTotal, values.amountPaid),
+          updatedAt: serverTimestamp(),
+        }),
+      ),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: ['tenancies'] })
+    },
+  })
+}
+
+// ─────────────────────────── useCancelPayment ────────────────────
+/**
+ * Clears a payment back to unpaid (FR-PAY-06). Uses `null`, NOT `undefined`,
+ * for the three payment fields — `updateDoc` only touches keys present in
+ * its payload, and `stripUndefinedDeep` (CLAUDE.md §7) REMOVES `undefined`
+ * keys before the write, so an `undefined` "clear" value here would silently
+ * leave the OLD payment data untouched in Firestore instead of clearing it.
+ * `null` survives `stripUndefinedDeep` and is written as an explicit clear.
+ */
+export function useCancelPayment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id }) =>
+      updateDoc(reportRef(id), {
+        amountPaid: null,
+        paymentMethod: null,
+        paymentDate: null,
+        paymentStatus: 'unpaid',
+        updatedAt: serverTimestamp(),
+      }),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: ['tenancies'] })
     },
   })
 }

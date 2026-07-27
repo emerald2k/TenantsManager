@@ -372,6 +372,26 @@
       "confirmBody": "Raportul redevine editabil și nu mai este vizibil chiriașului până la o nouă semnare.",
       "confirmButton": "Deblochează",
       "error": "Raportul nu a putut fi deblocat. Încearcă din nou."
+    },
+    "payment": {
+      "title": "Plată",
+      "amountPaid": "Sumă achitată",
+      "method": "Metodă",
+      "methodCash": "Numerar",
+      "methodBankTransfer": "Transfer bancar",
+      "methodOther": "Altă metodă",
+      "date": "Data plății",
+      "markButton": "Marchează plata",
+      "cancelButton": "Anulează plata",
+      "cancelConfirmTitle": "Anulează plata",
+      "cancelConfirmBody": "Plata înregistrată este ștearsă, iar raportul redevine neplătit.",
+      "cancelConfirmButton": "Confirmă anularea",
+      "statusPaid": "Achitat",
+      "statusPartial": "Parțial achitat",
+      "statusUnpaid": "Neachitat",
+      "creditNotice": "Suprasumă de {{amount}} — apare drept credit pe raportul lunii următoare.",
+      "markError": "Plata nu a putut fi înregistrată. Încearcă din nou.",
+      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou."
     }
   },
   "notFound": {

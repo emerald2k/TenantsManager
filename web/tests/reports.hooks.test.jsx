@@ -5,6 +5,8 @@ import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   buildReportId,
+  useCancelPayment,
+  useMarkPayment,
   useMonthlyReport,
   useSaveReportDraft,
   useSignReport,
@@ -645,5 +647,104 @@ describe('useUnlockReport (FR-REP-07a)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'detail', 'r1'],
     })
+  })
+})
+
+describe('useMarkPayment (FR-PAY-01/02/05)', () => {
+  it('writes ONLY the four payment fields + updatedAt via updateDoc — never status/signedAt', async () => {
+    const { result } = await renderHookWithProviders(() => useMarkPayment())
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: {
+        amountPaid: 1000,
+        paymentMethod: 'cash',
+        paymentDate: '2026-07-10',
+      },
+      finalTotal: 1500,
+    })
+
+    expect(updateDoc).toHaveBeenCalledTimes(1)
+    expect(setDoc).not.toHaveBeenCalled()
+    const payload = updateDoc.mock.calls[0][1]
+    expect(payload).toEqual({
+      amountPaid: 1000,
+      paymentMethod: 'cash',
+      paymentDate: '2026-07-10',
+      paymentStatus: 'partial',
+      updatedAt: { __serverTimestamp: true },
+    })
+    expect(payload).not.toHaveProperty('status')
+    expect(payload).not.toHaveProperty('signedAt')
+  })
+
+  it('derives paymentStatus: paid on an exact/overpayment', async () => {
+    const { result } = await renderHookWithProviders(() => useMarkPayment())
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: {
+        amountPaid: 1800,
+        paymentMethod: 'bank_transfer',
+        paymentDate: '2026-07-10',
+      },
+      finalTotal: 1500,
+    })
+
+    expect(updateDoc.mock.calls[0][1].paymentStatus).toBe('paid')
+  })
+
+  it('invalidates the report detail AND the tenancies queries on success', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useMarkPayment(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: {
+        amountPaid: 1000,
+        paymentMethod: 'cash',
+        paymentDate: '2026-07-10',
+      },
+      finalTotal: 1500,
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
+  })
+})
+
+describe('useCancelPayment (FR-PAY-06)', () => {
+  it('resets all four payment fields to null/unpaid via updateDoc, using null (not undefined) so stripUndefinedDeep cannot silently skip clearing them', async () => {
+    const { result } = await renderHookWithProviders(() => useCancelPayment())
+
+    await result.current.mutateAsync({ id: 'p1_2026-07' })
+
+    expect(updateDoc).toHaveBeenCalledTimes(1)
+    const payload = updateDoc.mock.calls[0][1]
+    expect(payload).toEqual({
+      amountPaid: null,
+      paymentMethod: null,
+      paymentDate: null,
+      paymentStatus: 'unpaid',
+      updatedAt: { __serverTimestamp: true },
+    })
+  })
+
+  it('invalidates the report detail AND the tenancies queries on success', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useCancelPayment(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'p1_2026-07' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
   })
 })

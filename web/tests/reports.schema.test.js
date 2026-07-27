@@ -3,6 +3,7 @@ import {
   buildDueDate,
   buildInitialValues,
   calculateTotal,
+  derivePaymentStatus,
   isFinalTotalDiverged,
   reportSchema,
 } from '@/features/reports/schema'
@@ -462,6 +463,115 @@ describe('buildInitialValues (FR-REP-02/03/05/14)', () => {
         attachments: [],
       },
     ])
+  })
+})
+
+describe('derivePaymentStatus (FR-PAY-01/02/05)', () => {
+  it('is "unpaid" when nothing has been paid', () => {
+    expect(derivePaymentStatus(1500, 0)).toBe('unpaid')
+  })
+
+  it('is "partial" for a payment less than finalTotal', () => {
+    expect(derivePaymentStatus(1500, 1000)).toBe('partial')
+  })
+
+  it('is "paid" when the payment exactly equals finalTotal', () => {
+    expect(derivePaymentStatus(1500, 1500)).toBe('paid')
+  })
+
+  it('is "paid" (not a fourth state) on overpayment — the excess is a credit, not a status of its own', () => {
+    expect(derivePaymentStatus(1500, 1800)).toBe('paid')
+  })
+})
+
+describe('buildInitialValues — carry-forward arrears/credit (SRS §6, pinned at e8ca367)', () => {
+  const property = { services: [] }
+  const tenancy = { monthlyRent: 1500, dueDay: 5 }
+
+  it('a DRAFT mirrors a POSITIVE tenancy.currentBalance as previousMonthArrears', () => {
+    const values = buildInitialValues({
+      tenancy: { ...tenancy, currentBalance: 500 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: { status: 'draft', dueDate: '2026-07-05' },
+    })
+
+    expect(values.previousMonthArrears).toBe(500)
+    expect(values.previousMonthCredit).toBe(0)
+  })
+
+  it('a DRAFT mirrors a NEGATIVE tenancy.currentBalance as previousMonthCredit', () => {
+    const values = buildInitialValues({
+      tenancy: { ...tenancy, currentBalance: -300 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: { status: 'draft', dueDate: '2026-07-05' },
+    })
+
+    expect(values.previousMonthArrears).toBe(0)
+    expect(values.previousMonthCredit).toBe(300)
+  })
+
+  it('a brand NEW draft (no existingReport) also mirrors tenancy.currentBalance', () => {
+    const values = buildInitialValues({
+      tenancy: { ...tenancy, currentBalance: 500 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: null,
+    })
+
+    expect(values.previousMonthArrears).toBe(500)
+  })
+
+  it('zero balance mirrors as both fields at 0', () => {
+    const values = buildInitialValues({
+      tenancy: { ...tenancy, currentBalance: 0 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: { status: 'draft', dueDate: '2026-07-05' },
+    })
+
+    expect(values.previousMonthArrears).toBe(0)
+    expect(values.previousMonthCredit).toBe(0)
+  })
+
+  it('a fresh draft with a positive currentBalance includes it in finalTotal, not just previousMonthArrears', () => {
+    // Discriminates against the bug where previousMonthArrears/Credit are
+    // computed for display but never fed into calculateTotal(base).
+    const values = buildInitialValues({
+      tenancy: { ...tenancy, currentBalance: 500 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: null,
+    })
+
+    expect(values.previousMonthArrears).toBe(500)
+    expect(values.finalTotal).toBe(2000) // rent 1500 + arrears 500
+  })
+
+  it('FREEZE: a SIGNED report keeps its OWN saved previousMonthArrears/Credit, ignoring tenancy.currentBalance entirely', () => {
+    const values = buildInitialValues({
+      // The tenancy's balance has since moved on (e.g. a later report changed it) —
+      // must NOT leak into this already-signed report's frozen carry-forward.
+      tenancy: { ...tenancy, currentBalance: 9999 },
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: {
+        status: 'signed',
+        previousMonthArrears: 500,
+        previousMonthCredit: 0,
+        dueDate: '2026-07-05',
+      },
+    })
+
+    expect(values.previousMonthArrears).toBe(500)
+    expect(values.previousMonthCredit).toBe(0)
   })
 })
 

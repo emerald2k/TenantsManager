@@ -8,6 +8,8 @@ import {
   useProperty,
 } from '@/features/properties/hooks'
 import {
+  useCancelPayment,
+  useMarkPayment,
   useMonthlyReport,
   useSaveReportDraft,
   useSignReport,
@@ -31,6 +33,8 @@ vi.mock('@/features/reports/hooks', () => ({
   useSaveReportDraft: vi.fn(),
   useSignReport: vi.fn(),
   useUnlockReport: vi.fn(),
+  useMarkPayment: vi.fn(),
+  useCancelPayment: vi.fn(),
 }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -89,6 +93,8 @@ function mockData({ report = null } = {}) {
 const mutateAsync = vi.fn()
 const signMutateAsync = vi.fn()
 const unlockMutateAsync = vi.fn()
+const markPaymentMutateAsync = vi.fn()
+const cancelPaymentMutateAsync = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -102,6 +108,19 @@ beforeEach(() => {
   })
   useUnlockReport.mockReturnValue({
     mutateAsync: unlockMutateAsync,
+    isPending: false,
+  })
+  // PaymentSection renders whenever isLocked is true (SIGNED_REPORT fixtures
+  // below) — mocked here so those pre-existing sub-stage 4 tests don't crash
+  // now that they render it as a side effect.
+  markPaymentMutateAsync.mockResolvedValue({})
+  cancelPaymentMutateAsync.mockResolvedValue({})
+  useMarkPayment.mockReturnValue({
+    mutateAsync: markPaymentMutateAsync,
+    isPending: false,
+  })
+  useCancelPayment.mockReturnValue({
+    mutateAsync: cancelPaymentMutateAsync,
     isPending: false,
   })
 })
@@ -644,5 +663,30 @@ describe('MonthlyReportPage — locked when signed (M4 sub-stage 4, FR-REP-07)',
 
     expect(await screen.findByText('Gas')).toBeVisible()
     expect(screen.queryByText('Water')).toBeNull()
+  })
+})
+
+describe('MonthlyReportPage — PaymentSection wiring (M4 sub-stage 5)', () => {
+  it('renders PaymentSection when the report is signed', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Plată')).toBeVisible()
+  })
+
+  it('does NOT render PaymentSection on a draft', async () => {
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Semnează lista')
+    expect(screen.queryByText('Plată')).toBeNull()
+  })
+
+  it('does NOT render PaymentSection on a brand new (never-saved) report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.queryByText('Plată')).toBeNull()
   })
 })

@@ -372,6 +372,26 @@
       "confirmBody": "The report becomes editable again and is no longer visible to the tenant until re-signed.",
       "confirmButton": "Unlock",
       "error": "The report could not be unlocked. Please try again."
+    },
+    "payment": {
+      "title": "Payment",
+      "amountPaid": "Amount paid",
+      "method": "Method",
+      "methodCash": "Cash",
+      "methodBankTransfer": "Bank transfer",
+      "methodOther": "Other method",
+      "date": "Payment date",
+      "markButton": "Mark payment",
+      "cancelButton": "Cancel payment",
+      "cancelConfirmTitle": "Cancel payment",
+      "cancelConfirmBody": "The recorded payment is cleared and the report becomes unpaid again.",
+      "cancelConfirmButton": "Confirm cancellation",
+      "statusPaid": "Paid",
+      "statusPartial": "Partially paid",
+      "statusUnpaid": "Unpaid",
+      "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
+      "markError": "The payment could not be recorded. Please try again.",
+      "cancelError": "The payment could not be cancelled. Please try again."
     }
   },
   "notFound": {
