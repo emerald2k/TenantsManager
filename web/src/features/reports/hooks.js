@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/lib/firebase'
@@ -38,6 +42,8 @@ export const reportKeys = {
   all: ['monthlyReports'],
   details: () => [...reportKeys.all, 'detail'],
   detail: (id) => [...reportKeys.details(), id],
+  lists: () => [...reportKeys.all, 'list'],
+  forMonth: (month, year) => [...reportKeys.lists(), 'month', month, year],
 }
 
 function reportRef(id) {
@@ -59,6 +65,33 @@ export function useMonthlyReport({ propertyId, month, year }) {
       const snap = await getDoc(reportRef(id))
       if (!snap.exists()) return null
       return { id: snap.id, ...snap.data() }
+    },
+  })
+}
+
+/**
+ * Every report (any status) for one calendar month, across ALL properties —
+ * the shared read behind both the admin dashboard cards and the Current
+ * month list (M4 sub-stage 7). A single two-equality query (month, year),
+ * no `orderBy` — same no-composite-index convention as `useActiveTenancies`/
+ * `useActiveTenancyForProperty` (properties/hooks.js) and
+ * `recomputeCurrentBalance` (functions/src/reports.js). Callers filter
+ * further in memory (by status, by occupied propertyId) because the
+ * dashboard total and the Current month list need different subsets of the
+ * same fetch — see the sub-stage 7 plan's "Query-strategy decision."
+ */
+export function useReportsForMonth(month, year) {
+  return useQuery({
+    queryKey: reportKeys.forMonth(month, year),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(
+          collection(db, COLLECTION),
+          where('month', '==', month),
+          where('year', '==', year),
+        ),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
     },
   })
 }
@@ -143,6 +176,9 @@ export function useSaveReportDraft() {
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      // Additive (M4 sub-stage 7): a saved draft can change the running
+      // total the Current month list shows for this property/month.
+      queryClient.invalidateQueries({ queryKey: reportKeys.lists() })
     },
   })
 }
@@ -166,6 +202,9 @@ export function useSignReport() {
     },
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      // Additive (M4 sub-stage 7): signing flips the badge/total shown for
+      // this property/month on the dashboard and Current month list.
+      queryClient.invalidateQueries({ queryKey: reportKeys.lists() })
     },
   })
 }
@@ -187,6 +226,9 @@ export function useUnlockReport() {
     },
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      // Additive (M4 sub-stage 7): unlocking flips the badge back to
+      // "not entered" on the dashboard and Current month list.
+      queryClient.invalidateQueries({ queryKey: reportKeys.lists() })
     },
   })
 }
@@ -242,6 +284,9 @@ export function useMarkPayment() {
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: ['tenancies'] })
+      // Additive (M4 sub-stage 7): a marked payment flips the badge on the
+      // dashboard and Current month list (paid/partial/overdue).
+      queryClient.invalidateQueries({ queryKey: reportKeys.lists() })
     },
   })
 }
@@ -270,6 +315,9 @@ export function useCancelPayment() {
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: ['tenancies'] })
+      // Additive (M4 sub-stage 7): cancelling a payment flips the badge back
+      // to published/overdue on the dashboard and Current month list.
+      queryClient.invalidateQueries({ queryKey: reportKeys.lists() })
     },
   })
 }

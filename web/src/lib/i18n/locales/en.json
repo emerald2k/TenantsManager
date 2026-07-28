@@ -403,6 +403,37 @@
       "error": "The email could not be sent. Please try again."
     }
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "outstandingThisMonth": "Total to collect this month",
+    "totalArrears": "Total arrears",
+    "error": "Could not load the dashboard.",
+    "emptyState": {
+      "title": "Welcome — let's get started",
+      "addProperty": "Add property",
+      "enrollTenant": "Enroll tenant"
+    },
+    "currentMonth": {
+      "title": "Current month",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "error": "Could not load the current month.",
+      "noOccupiedProperties": "No occupied properties yet.",
+      "columns": {
+        "property": "Property",
+        "tenant": "Tenant",
+        "status": "Status",
+        "total": "Total"
+      },
+      "badge": {
+        "notEntered": "Not entered",
+        "published": "Published",
+        "paid": "Paid",
+        "partial": "Partial",
+        "overdue": "Overdue"
+      }
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"

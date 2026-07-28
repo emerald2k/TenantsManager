@@ -403,6 +403,37 @@
       "error": "Emailul nu a putut fi trimis. Încearcă din nou."
     }
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "outstandingThisMonth": "Total de încasat luna asta",
+    "totalArrears": "Total arierate",
+    "error": "Dashboard-ul nu a putut fi încărcat.",
+    "emptyState": {
+      "title": "Bine ai venit — hai să începem",
+      "addProperty": "Adaugă proprietate",
+      "enrollTenant": "Înrolează chiriaș"
+    },
+    "currentMonth": {
+      "title": "Luna curentă",
+      "previousMonth": "Luna anterioară",
+      "nextMonth": "Luna următoare",
+      "error": "Luna curentă nu a putut fi încărcată.",
+      "noOccupiedProperties": "Nicio proprietate ocupată încă.",
+      "columns": {
+        "property": "Proprietate",
+        "tenant": "Chiriaș",
+        "status": "Status",
+        "total": "Total"
+      },
+      "badge": {
+        "notEntered": "Neintrodus",
+        "published": "Publicat",
+        "paid": "Plătit",
+        "partial": "Parțial",
+        "overdue": "Restant"
+      }
+    }
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"

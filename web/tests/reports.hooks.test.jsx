@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { waitFor } from '@testing-library/react'
-import { getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import {
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
@@ -8,6 +16,7 @@ import {
   useCancelPayment,
   useMarkPayment,
   useMonthlyReport,
+  useReportsForMonth,
   useSaveReportDraft,
   useSendReportNotification,
   useSignReport,
@@ -33,6 +42,10 @@ vi.mock('firebase/firestore', () => ({
   setDoc: vi.fn(),
   updateDoc: vi.fn(),
   serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
+  collection: vi.fn((_db, name) => ({ __collection: name })),
+  getDocs: vi.fn(),
+  query: vi.fn((...args) => ({ __query: args })),
+  where: vi.fn((field, op, value) => ({ __where: [field, op, value] })),
 }))
 
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }))
@@ -126,6 +139,79 @@ describe('useMonthlyReport', () => {
   })
 })
 
+describe('useReportsForMonth (M4 sub-stage 7)', () => {
+  it('queries monthlyReports with two equality filters (month, year), no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 'p1_2026-07',
+          data: () => ({
+            propertyId: 'p1',
+            month: 7,
+            year: 2026,
+            status: 'signed',
+          }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForMonth(7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('month', '==', 7)
+    expect(where).toHaveBeenCalledWith('year', '==', 2026)
+    expect(query).toHaveBeenCalled()
+    expect(result.current.data).toEqual([
+      {
+        id: 'p1_2026-07',
+        propertyId: 'p1',
+        month: 7,
+        year: 2026,
+        status: 'signed',
+      },
+    ])
+  })
+
+  it('returns every status (draft AND signed) — no status filter in the query', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 'p1_2026-07',
+          data: () => ({ propertyId: 'p1', status: 'draft' }),
+        },
+        {
+          id: 'p2_2026-07',
+          data: () => ({ propertyId: 'p2', status: 'signed' }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForMonth(7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toHaveLength(2)
+    expect(result.current.data.map((r) => r.status)).toEqual([
+      'draft',
+      'signed',
+    ])
+  })
+
+  it('returns an empty array, not an error, when no report exists for the month', async () => {
+    getDocs.mockResolvedValue({ docs: [] })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForMonth(7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+})
+
 describe('useSaveReportDraft — creation (isNew: true)', () => {
   const VALUES = {
     ownerId: 'admin-uid',
@@ -205,6 +291,26 @@ describe('useSaveReportDraft — creation (isNew: true)', () => {
 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+  })
+
+  it('ALSO invalidates the month-list query key on success (M4 sub-stage 7, additive), without dropping the existing detail invalidation', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useSaveReportDraft(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: VALUES,
+      isNew: true,
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'list'],
     })
   })
 
@@ -614,6 +720,26 @@ describe('useSignReport (FR-REP-07)', () => {
       queryKey: ['monthlyReports', 'detail', 'r1'],
     })
   })
+
+  it('ALSO invalidates the month-list query key on success (M4 sub-stage 7, additive), without dropping the existing detail invalidation', async () => {
+    const signReportMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1' } })
+    httpsCallable.mockReturnValue(signReportMock)
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useSignReport(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'r1' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'r1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'list'],
+    })
+  })
 })
 
 describe('useUnlockReport (FR-REP-07a)', () => {
@@ -647,6 +773,26 @@ describe('useUnlockReport (FR-REP-07a)', () => {
 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'detail', 'r1'],
+    })
+  })
+
+  it('ALSO invalidates the month-list query key on success (M4 sub-stage 7, additive), without dropping the existing detail invalidation', async () => {
+    const unlockReportMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1' } })
+    httpsCallable.mockReturnValue(unlockReportMock)
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useUnlockReport(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'r1' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'r1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'list'],
     })
   })
 })
@@ -751,6 +897,31 @@ describe('useMarkPayment (FR-PAY-01/02/05)', () => {
     })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
   })
+
+  it('ALSO invalidates the month-list query key on success (M4 sub-stage 7, additive), without dropping the existing detail/tenancies invalidations', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useMarkPayment(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: {
+        amountPaid: 1000,
+        paymentMethod: 'cash',
+        paymentDate: '2026-07-10',
+      },
+      finalTotal: 1500,
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'list'],
+    })
+  })
 })
 
 describe('useCancelPayment (FR-PAY-06)', () => {
@@ -782,5 +953,22 @@ describe('useCancelPayment (FR-PAY-06)', () => {
       queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
     })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
+  })
+
+  it('ALSO invalidates the month-list query key on success (M4 sub-stage 7, additive), without dropping the existing detail/tenancies invalidations', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useCancelPayment(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'p1_2026-07' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'list'],
+    })
   })
 })

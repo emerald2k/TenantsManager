@@ -9,6 +9,8 @@ import { TenantsListPage } from '@/features/tenants/pages/TenantsListPage'
 import { TenantDetailPage } from '@/features/tenants/pages/TenantDetailPage'
 import { OnboardingWizardPage } from '@/features/onboarding/pages/OnboardingWizardPage'
 import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
+import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
+import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -35,14 +37,8 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute allowedRole="admin" />}>
           <Route element={<AdminLayout />}>
-            <Route
-              path="/admin"
-              element={<PlaceholderPage titleKey="pages.adminDashboard" />}
-            />
-            <Route
-              path="/admin/current-month"
-              element={<PlaceholderPage titleKey="pages.currentMonth" />}
-            />
+            <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/current-month" element={<CurrentMonthPage />} />
             <Route path="/admin/properties" element={<PropertiesListPage />} />
             <Route
               path="/admin/properties/new"
