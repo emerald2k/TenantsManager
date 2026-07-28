@@ -2,6 +2,9 @@ const { getApps, initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { onDocumentWritten } = require('firebase-functions/v2/firestore')
+const {
+  buildReportNotificationEmail,
+} = require('./mail-templates/reportNotification')
 
 /**
  * signReport / unlockReport (SRS §7.2, FR-REP-07/07a).
@@ -20,6 +23,12 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore')
 if (!getApps().length) {
   initializeApp()
 }
+
+// The tenant-portal URL that goes into the A2/A3 report notification email —
+// same env-configurable local constant as kyc.js's APP_URL: no per-report
+// deep link exists (SRS §5.4 defines only /app and /app/history), so this is
+// the same generic portal URL A1/A7 already use.
+const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 
 async function signReportCore(reportId) {
   const db = getFirestore()
@@ -187,6 +196,82 @@ const onReportWrite = onDocumentWritten(
   onReportWriteHandler,
 )
 
+/**
+ * sendReportNotification (SRS §7.2, FR-REP-06/FR-REP-07a, pinned at f6d5c83).
+ * ON-DEMAND ONLY — the admin picks `template` ('new' | 'updated' → A2 | A3)
+ * fresh at every send; there is no auto-detection and no tracking field.
+ *
+ * REJECTS a report that isn't `status=='signed'` (failed-precondition,
+ * reason 'not-signed') — a draft is invisible to the tenant (FR-REP-06), so
+ * notifying about it would point at something the tenant can't even see.
+ *
+ * {total} in the email is ALWAYS `finalTotal`, never `calculatedTotal`
+ * (FR-REP-04c) — finalTotal is the only amount owed.
+ *
+ * No transaction: this only WRITES to `mail`, a different collection from
+ * the one it reads (`monthlyReports`) — there is no invariant to protect
+ * between the status read and the mail write. A signed report that gets
+ * unlocked in that narrow window may still get one stale email; that's
+ * harmless and the admin just re-sends, the same tolerance the "no
+ * tracking, manual every time" pin already assumes.
+ */
+async function sendReportNotificationCore(reportId, template) {
+  const db = getFirestore()
+  const reportSnap = await db.collection('monthlyReports').doc(reportId).get()
+  if (!reportSnap.exists) {
+    throw new HttpsError('not-found', `Report ${reportId} does not exist.`)
+  }
+  const report = reportSnap.data()
+  if (report.status !== 'signed') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Only a signed report can be notified by email.',
+      { reason: 'not-signed' },
+    )
+  }
+
+  const userSnap = await db.collection('users').doc(report.userId).get()
+  if (!userSnap.exists) {
+    throw new HttpsError('not-found', 'The tenant account does not exist.')
+  }
+  const user = userSnap.data()
+
+  const mailRef = db.collection('mail').doc()
+  await mailRef.set(
+    buildReportNotificationEmail(template, user.preferredLanguage, {
+      name: user.name,
+      email: user.email,
+      month: report.month,
+      year: report.year,
+      finalTotal: report.finalTotal,
+      dueDate: report.dueDate,
+      url: APP_URL,
+    }),
+  )
+
+  return { reportId, template }
+}
+
+async function sendReportNotificationHandler(request) {
+  if (request.auth?.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Admin access required.')
+  }
+  const reportId = request.data?.reportId
+  if (!reportId) {
+    throw new HttpsError('invalid-argument', 'reportId is required.')
+  }
+  const template = request.data?.template
+  if (template !== 'new' && template !== 'updated') {
+    throw new HttpsError(
+      'invalid-argument',
+      "template must be 'new' or 'updated'.",
+    )
+  }
+  return sendReportNotificationCore(reportId, template)
+}
+
+const sendReportNotification = onCall(sendReportNotificationHandler)
+
 module.exports = {
   signReport,
   unlockReport,
@@ -197,4 +282,7 @@ module.exports = {
   onReportWrite,
   onReportWriteHandler,
   recomputeCurrentBalance,
+  sendReportNotification,
+  sendReportNotificationHandler,
+  sendReportNotificationCore,
 }

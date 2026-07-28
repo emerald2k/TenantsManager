@@ -392,6 +392,15 @@
       "creditNotice": "Suprasumă de {{amount}} — apare drept credit pe raportul lunii următoare.",
       "markError": "Plata nu a putut fi înregistrată. Încearcă din nou.",
       "cancelError": "Plata nu a putut fi anulată. Încearcă din nou."
+    },
+    "notify": {
+      "button": "Trimite pe email",
+      "dialogTitle": "Trimite notificare",
+      "dialogBody": "Alege ce tip de raport trimiți chiriașului.",
+      "templateNew": "Raport nou",
+      "templateUpdated": "Raport actualizat",
+      "success": "Emailul a fost trimis.",
+      "error": "Emailul nu a putut fi trimis. Încearcă din nou."
     }
   },
   "notFound": {

@@ -3,7 +3,12 @@ const { finalizeKyc } = require('./src/kyc')
 const { endTenancy } = require('./src/endTenancy')
 const { resetTenantPassword } = require('./src/resetTenantPassword')
 const { setTenantAccountStatus } = require('./src/setTenantAccountStatus')
-const { signReport, unlockReport, onReportWrite } = require('./src/reports')
+const {
+  signReport,
+  unlockReport,
+  onReportWrite,
+  sendReportNotification,
+} = require('./src/reports')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -12,3 +17,4 @@ exports.setTenantAccountStatus = setTenantAccountStatus
 exports.signReport = signReport
 exports.unlockReport = unlockReport
 exports.onReportWrite = onReportWrite
+exports.sendReportNotification = sendReportNotification

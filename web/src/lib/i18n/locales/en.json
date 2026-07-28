@@ -392,6 +392,15 @@
       "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
       "markError": "The payment could not be recorded. Please try again.",
       "cancelError": "The payment could not be cancelled. Please try again."
+    },
+    "notify": {
+      "button": "Send by email",
+      "dialogTitle": "Send notification",
+      "dialogBody": "Choose which report type to send the tenant.",
+      "templateNew": "New report",
+      "templateUpdated": "Updated report",
+      "success": "The email has been sent.",
+      "error": "The email could not be sent. Please try again."
     }
   },
   "notFound": {

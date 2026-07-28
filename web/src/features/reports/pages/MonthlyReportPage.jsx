@@ -24,6 +24,7 @@ import { CostLineRow } from '@/features/reports/components/CostLineRow'
 import { OtherExpensesList } from '@/features/reports/components/OtherExpensesList'
 import { SignReportControl } from '@/features/reports/components/SignReportControl'
 import { PaymentSection } from '@/features/reports/components/PaymentSection'
+import { SendReportNotificationControl } from '@/features/reports/components/SendReportNotificationControl'
 
 /**
  * The monthly report form (SRS §5.3, `/admin/reports/:propertyId?month=&year=`).
@@ -353,6 +354,9 @@ export function MonthlyReportPage() {
             </Button>
           )}
           {existingReport && <SignReportControl report={existingReport} />}
+          {isLocked && (
+            <SendReportNotificationControl report={existingReport} />
+          )}
         </div>
       </form>
 

@@ -191,6 +191,26 @@ export function useUnlockReport() {
   })
 }
 
+// ─────────────────────────── useSendReportNotification ───────────
+/**
+ * Sends the A2 ('new') or A3 ('updated') report notification email
+ * on-demand (FR-REP-06/07a, pinned at f6d5c83) via the `sendReportNotification`
+ * callable. No `invalidateQueries`: sending an email writes only to `mail`
+ * (Functions-only, NFR-SEC-02), which the client never reads — nothing
+ * cached needs to be refreshed.
+ */
+export function useSendReportNotification() {
+  return useMutation({
+    mutationFn: ({ id, template }) => {
+      const sendReportNotification = httpsCallable(
+        functions,
+        'sendReportNotification',
+      )
+      return sendReportNotification({ reportId: id, template })
+    },
+  })
+}
+
 // ─────────────────────────── useMarkPayment ──────────────────────
 /**
  * Records/corrects a payment on a SIGNED report (FR-PAY-01/02/05/06) via a

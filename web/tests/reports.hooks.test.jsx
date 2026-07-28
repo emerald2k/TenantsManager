@@ -9,6 +9,7 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useSaveReportDraft,
+  useSendReportNotification,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -647,6 +648,41 @@ describe('useUnlockReport (FR-REP-07a)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'detail', 'r1'],
     })
+  })
+})
+
+describe('useSendReportNotification (SRS §7.2, FR-REP-06/07a)', () => {
+  it('calls the sendReportNotification callable with reportId + template', async () => {
+    const sendMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1', template: 'new' } })
+    httpsCallable.mockReturnValue(sendMock)
+
+    const { result } = await renderHookWithProviders(() =>
+      useSendReportNotification(),
+    )
+    await result.current.mutateAsync({ id: 'r1', template: 'new' })
+
+    expect(httpsCallable).toHaveBeenCalledWith(
+      { __fake: 'functions' },
+      'sendReportNotification',
+    )
+    expect(sendMock).toHaveBeenCalledWith({ reportId: 'r1', template: 'new' })
+  })
+
+  it('does NOT invalidate any query on success — nothing client-cached changes', async () => {
+    const sendMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1', template: 'new' } })
+    httpsCallable.mockReturnValue(sendMock)
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useSendReportNotification(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'r1', template: 'updated' })
+
+    expect(invalidate).not.toHaveBeenCalled()
   })
 })
 

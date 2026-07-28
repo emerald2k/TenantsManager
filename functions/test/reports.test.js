@@ -7,6 +7,8 @@ import {
   unlockReportHandler,
   recomputeCurrentBalance,
   onReportWriteHandler,
+  sendReportNotificationCore,
+  sendReportNotificationHandler,
 } from '../src/reports.js'
 
 // Functions tests — the REAL boundary (Firestore emulator), no mocks of the
@@ -48,6 +50,19 @@ async function clearEmulators() {
 
 async function seedReport(id, overrides = {}) {
   await db.collection('monthlyReports').doc(id).set(report(overrides))
+}
+
+async function seedUser(id, overrides = {}) {
+  await db
+    .collection('users')
+    .doc(id)
+    .set({
+      name: 'Ion Popescu',
+      email: 'ion@example.com',
+      preferredLanguage: 'ro',
+      status: 'active',
+      ...overrides,
+    })
 }
 
 async function seedTenancy(id, overrides = {}) {
@@ -576,5 +591,161 @@ describe('onReportWriteHandler — skip/recompute condition (NFR-PERF-04)', () =
 
     const snap = await db.collection('tenancies').doc('tenancy-1').get()
     expect(snap.data().currentBalance).toBe(0)
+  })
+})
+
+describe('sendReportNotificationCore (SRS §7.2, FR-REP-06/07a, pinned at f6d5c83)', () => {
+  it('rejects a report that does not exist', async () => {
+    await expect(
+      sendReportNotificationCore('does-not-exist', 'new'),
+    ).rejects.toMatchObject({ code: 'not-found' })
+  })
+
+  it('REJECTS a DRAFT report — the tenant cannot see it yet, so it cannot be notified', async () => {
+    await seedReport('report-1', { status: 'draft' })
+    await seedUser('user-1')
+
+    await expect(
+      sendReportNotificationCore('report-1', 'new'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'not-signed' },
+    })
+
+    const mailSnap = await db.collection('mail').get()
+    expect(mailSnap.size).toBe(0)
+  })
+
+  it('writes an A2 email when template is "new"', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      month: 7,
+      year: 2026,
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+    })
+    await seedUser('user-1')
+
+    const result = await sendReportNotificationCore('report-1', 'new')
+    expect(result).toEqual({ reportId: 'report-1', template: 'new' })
+
+    const mailSnap = await db.collection('mail').get()
+    expect(mailSnap.size).toBe(1)
+    const mail = mailSnap.docs[0].data()
+    expect(mail.to).toEqual(['ion@example.com'])
+    expect(mail.message.subject).toBe(
+      'Raportul pentru iulie 2026 este disponibil — 1.500,00 lei',
+    )
+  })
+
+  it('writes an A3 email when template is "updated" — different text from A2 for the same report', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      month: 7,
+      year: 2026,
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+    })
+    await seedUser('user-1')
+
+    await sendReportNotificationCore('report-1', 'updated')
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.message.subject).toBe(
+      'Raportul pentru iulie 2026 a fost actualizat',
+    )
+  })
+
+  it('sends in the tenant preferred language (NFR-LOC-04), not a hardcoded one', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+    })
+    await seedUser('user-1', { preferredLanguage: 'en' })
+
+    await sendReportNotificationCore('report-1', 'new')
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.message.subject).toContain('is available')
+  })
+
+  it('uses finalTotal, NEVER calculatedTotal, in the email amount (FR-REP-04c)', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      calculatedTotal: 1550, // diverged — an admin rounding adjustment
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+    })
+    await seedUser('user-1')
+
+    await sendReportNotificationCore('report-1', 'new')
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.message.subject).toContain('1.500,00')
+    expect(mail.message.subject).not.toContain('1.550,00')
+  })
+
+  it('rejects if the tenant account no longer exists', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'ghost-user' })
+
+    await expect(
+      sendReportNotificationCore('report-1', 'new'),
+    ).rejects.toMatchObject({ code: 'not-found' })
+  })
+})
+
+describe('sendReportNotification — callable guard', () => {
+  it('rejects a non-admin caller — nothing written to mail', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+
+    await expect(
+      sendReportNotificationHandler({
+        auth: { token: {}, uid: 'x' },
+        data: { reportId: 'report-1', template: 'new' },
+      }),
+    ).rejects.toMatchObject({ code: 'permission-denied' })
+
+    expect((await db.collection('mail').get()).size).toBe(0)
+  })
+
+  it('rejects a missing reportId argument', async () => {
+    await expect(
+      sendReportNotificationHandler({
+        auth: { token: { admin: true }, uid: 'admin-uid' },
+        data: { template: 'new' },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
+  })
+
+  it('REJECTS a missing template argument', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+
+    await expect(
+      sendReportNotificationHandler({
+        auth: { token: { admin: true }, uid: 'admin-uid' },
+        data: { reportId: 'report-1' },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
+  })
+
+  it('REJECTS a template value other than "new"/"updated"', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+
+    await expect(
+      sendReportNotificationHandler({
+        auth: { token: { admin: true }, uid: 'admin-uid' },
+        data: { reportId: 'report-1', template: 'garbage' },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
+
+    expect((await db.collection('mail').get()).size).toBe(0)
   })
 })

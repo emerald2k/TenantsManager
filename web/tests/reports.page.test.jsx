@@ -12,6 +12,7 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useSaveReportDraft,
+  useSendReportNotification,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -35,6 +36,7 @@ vi.mock('@/features/reports/hooks', () => ({
   useUnlockReport: vi.fn(),
   useMarkPayment: vi.fn(),
   useCancelPayment: vi.fn(),
+  useSendReportNotification: vi.fn(),
 }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -95,6 +97,7 @@ const signMutateAsync = vi.fn()
 const unlockMutateAsync = vi.fn()
 const markPaymentMutateAsync = vi.fn()
 const cancelPaymentMutateAsync = vi.fn()
+const sendNotificationMutateAsync = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -121,6 +124,14 @@ beforeEach(() => {
   })
   useCancelPayment.mockReturnValue({
     mutateAsync: cancelPaymentMutateAsync,
+    isPending: false,
+  })
+  // SendReportNotificationControl renders whenever isLocked is true, same
+  // reasoning as useMarkPayment/useCancelPayment above — mocked up front
+  // this time (M4 sub-stage 6), not rediscovered at test-run time.
+  sendNotificationMutateAsync.mockResolvedValue({})
+  useSendReportNotification.mockReturnValue({
+    mutateAsync: sendNotificationMutateAsync,
     isPending: false,
   })
 })
@@ -688,5 +699,30 @@ describe('MonthlyReportPage — PaymentSection wiring (M4 sub-stage 5)', () => {
 
     await screen.findByText('Gas')
     expect(screen.queryByText('Plată')).toBeNull()
+  })
+})
+
+describe('MonthlyReportPage — SendReportNotificationControl wiring (M4 sub-stage 6)', () => {
+  it('renders the "Send by email" button when the report is signed', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Trimite pe email')).toBeVisible()
+  })
+
+  it('does NOT render it on a draft', async () => {
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Semnează lista')
+    expect(screen.queryByText('Trimite pe email')).toBeNull()
+  })
+
+  it('does NOT render it on a brand new (never-saved) report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.queryByText('Trimite pe email')).toBeNull()
   })
 })
