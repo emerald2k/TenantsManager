@@ -102,6 +102,30 @@ describe('storage.rules — /reports/{reportId}/invoices/**: admin write; owning
     await assertFails(getBytes(ref(storage, PATH)))
   })
 
+  // M4 sub-stage 8 reinforcement: proves the rule does not special-case a
+  // report that carries a live shareToken — anonymous byte access to a
+  // shared report's attachments is served EXCLUSIVELY by the
+  // getSharedReportAttachment Cloud Function (Admin SDK, bypasses rules),
+  // never by a direct Storage read, no matter what the Firestore document's
+  // shareToken/shareTokenRevoked fields say.
+  it('denies a DIRECT anonymous read even when the owning report carries a valid, non-revoked shareToken', async () => {
+    const SHARED_REPORT_ID = 'report-with-live-share-token'
+    const SHARED_PATH = `reports/${SHARED_REPORT_ID}/invoices/invoice.pdf`
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'monthlyReports', SHARED_REPORT_ID),
+        report({
+          shareToken: 'a-very-long-random-token-1234567890',
+          shareTokenRevoked: false,
+        }),
+      )
+      await uploadBytes(ref(context.storage(), SHARED_PATH), BYTES)
+    })
+    const storage = testEnv.unauthenticatedContext().storage()
+
+    await assertFails(getBytes(ref(storage, SHARED_PATH)))
+  })
+
   it('denies a write by the tenant that owns the report (read-only for tenants)', async () => {
     await seed()
     const storage = testEnv.authenticatedContext('tenant-1').storage()

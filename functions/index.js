@@ -9,6 +9,10 @@ const {
   onReportWrite,
   sendReportNotification,
 } = require('./src/reports')
+const {
+  getSharedReport,
+  getSharedReportAttachment,
+} = require('./src/sharedReport')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -18,3 +22,5 @@ exports.signReport = signReport
 exports.unlockReport = unlockReport
 exports.onReportWrite = onReportWrite
 exports.sendReportNotification = sendReportNotification
+exports.getSharedReport = getSharedReport
+exports.getSharedReportAttachment = getSharedReportAttachment

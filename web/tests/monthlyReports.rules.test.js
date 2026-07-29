@@ -98,6 +98,28 @@ describe('firestore.rules — monthlyReports: admin full, tenant reads own SIGNE
     await assertFails(setDoc(doc(db, 'monthlyReports', SIGNED_ID), report()))
   })
 
+  // M4 sub-stage 8 reinforcement: proves the rule does not special-case a
+  // document that carries a live shareToken — anonymous access to a shared
+  // report is served EXCLUSIVELY by the getSharedReport Cloud Function
+  // (Admin SDK, bypasses rules), never by a direct client read, no matter
+  // what the document's own shareToken/shareTokenRevoked fields say.
+  it('denies a DIRECT anonymous read even when the report carries a valid, non-revoked shareToken', async () => {
+    const SHARED_ID = 'report-with-live-share-token'
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'monthlyReports', SHARED_ID),
+        report({
+          status: 'signed',
+          shareToken: 'a-very-long-random-token-1234567890',
+          shareTokenRevoked: false,
+        }),
+      )
+    })
+    const db = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(getDoc(doc(db, 'monthlyReports', SHARED_ID)))
+  })
+
   it("denies the tenant's read of their OWN report while it is still a draft", async () => {
     await seed()
     const db = testEnv.authenticatedContext('tenant-1').firestore()
