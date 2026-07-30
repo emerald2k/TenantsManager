@@ -526,7 +526,7 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 | Forms | React Hook Form + Zod |
 | Data | TanStack Query |
 | Charts | Recharts *(Phase 2)* |
-| PDF | Client-side |
+| PDF/PNG export | Client-side — jsPDF (PDF), html2canvas (DOM→canvas capture, shared by both the PDF and PNG exports) |
 | Photo | input capture (native camera); client compression (~2000px, ~80%) |
 | i18n | react-i18next (RO/EN) |
 | Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)* |
