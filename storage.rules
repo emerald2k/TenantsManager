@@ -8,6 +8,17 @@ service firebase.storage {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // Reads the monthlyReports doc ONCE (via `let`) and checks BOTH fields
+    // against that single fetch — unlike the tenancies/contract rule below
+    // (which only ever checks one field, so a bare inline firestore.get() is
+    // enough there), this path needs userId AND status from the SAME
+    // document, so a helper avoids two separate firestore.get() calls for
+    // one read request.
+    function isOwningTenantOfSignedReport(reportId) {
+      let report = firestore.get(/databases/(default)/documents/monthlyReports/$(reportId)).data;
+      return report.userId == request.auth.uid && report.status == 'signed';
+    }
+
     // /drafts/{draftId}/* — admin only (SRS §6). Onboarding ID photos (tenant +
     // guarantor) are uploaded here as they are captured (Sub-stage D); the folder
     // is flat, the tenant-vs-guarantor distinction lives in the Firestore draft's
@@ -41,6 +52,17 @@ service firebase.storage {
       allow read: if isAdmin() ||
         (request.auth != null &&
           firestore.get(/databases/(default)/documents/tenancies/$(tenancyId)).data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // /reports/{reportId}/invoices/* — admin write; the tenant that report
+    // belongs to may READ, ONLY once it is signed (FR-DOC-01…05, mirrors the
+    // tenancies/contract rule's firestore.get() pattern, SRS §6). An unsigned
+    // report's attachments stay invisible to the tenant — same visibility
+    // boundary as the report document itself (FR-REP-06/08).
+    match /reports/{reportId}/invoices/{fileName} {
+      allow read: if isAdmin() ||
+        (request.auth != null && isOwningTenantOfSignedReport(reportId));
       allow write: if isAdmin();
     }
 

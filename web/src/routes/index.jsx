@@ -8,6 +8,10 @@ import { PropertyDetailPage } from '@/features/properties/pages/PropertyDetailPa
 import { TenantsListPage } from '@/features/tenants/pages/TenantsListPage'
 import { TenantDetailPage } from '@/features/tenants/pages/TenantDetailPage'
 import { OnboardingWizardPage } from '@/features/onboarding/pages/OnboardingWizardPage'
+import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
+import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
+import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
+import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -23,10 +27,7 @@ export function AppRoutes() {
             admin must be able to open the link to check what the tenant sees,
             and GuestRoute would redirect them to /admin.
             Exposes EXCLUSIVELY that month's report — nothing else. */}
-        <Route
-          path="/r/:shareToken"
-          element={<PlaceholderPage titleKey="pages.sharedReport" />}
-        />
+        <Route path="/r/:shareToken" element={<SharedReportPage />} />
 
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
@@ -34,14 +35,8 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute allowedRole="admin" />}>
           <Route element={<AdminLayout />}>
-            <Route
-              path="/admin"
-              element={<PlaceholderPage titleKey="pages.adminDashboard" />}
-            />
-            <Route
-              path="/admin/current-month"
-              element={<PlaceholderPage titleKey="pages.currentMonth" />}
-            />
+            <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/current-month" element={<CurrentMonthPage />} />
             <Route path="/admin/properties" element={<PropertiesListPage />} />
             <Route
               path="/admin/properties/new"
@@ -61,7 +56,7 @@ export function AppRoutes() {
             <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
             <Route
               path="/admin/reports/:propertyId"
-              element={<PlaceholderPage titleKey="pages.monthlyReportForm" />}
+              element={<MonthlyReportPage />}
             />
             {/* Phase 2 */}
             <Route

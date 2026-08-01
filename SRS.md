@@ -6,7 +6,7 @@
 ***v4.3 corrections, resulting from confronting the specification with a real monthly report used in practice:***
 - *FR-REP-03 — inverted: all active services appear in the report, regardless of amount (including 0/negative). Previously they were hidden — wrong.*
 - *FR-REP-03a (new) — notes + attachments **per cost line** (the supporting invoice next to the amount it justifies), visible to the tenant.*
-- *FR-REP-04a/04b/04c (new) — the total can be adjusted manually at publication (commercial rounding for cash payment); the system suggests rounding down to a multiple of 5 RON, editable. `finalTotal` is the only amount owed — arrears and credits are computed against it, not against the exact total; the rounding difference never reappears.*
+- *FR-REP-04a/04b/04c (new) — the total can be adjusted manually at publication (commercial rounding for cash payment); the final total field pre-fills with the exact calculated total, fully editable, with no automatic rounding suggestion. `finalTotal` is the only amount owed — arrears and credits are computed against it, not against the exact total; the rounding difference never reappears.*
 - *FR-DOC-03a (new) — global report-level attachment was removed; documents are attached exclusively per line.*
 - *FR-REP-07/07a (revised) — "publishing" becomes **signing**: the list locks on signing; corrections require explicit unlocking + re-signing (notification "list updated").*
 - *FR-REP-07b/07c (new) — export to **PDF**, **PNG image** (for WhatsApp) and **shareable link without login**. The link uses a random token, does not expire, is manually revocable, and exposes **only the month's report** — not the portal, the history, or personal data. Served through a Cloud Function (`getSharedReport`), not through anonymous Firestore access.*
@@ -152,7 +152,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-CON-01 | Contract: property, start date, end date (mandatory), monthly rent, security deposit (optional), due day, report-preparation reminder lead time (`reportReminderDaysBefore`, default 3 days). |
 | FR-CON-02 | One account — at most one active tenancy at a time. |
 | FR-CON-03 | Manual termination at any time, including early. |
-| FR-CON-04 | Termination blocked if there are unpaid arrears. |
+| FR-CON-04 | Termination blocked if there are unpaid arrears — `currentBalance > 0` on the tenancy (§6). A credit or an exactly-zero balance does NOT block termination. |
 | FR-CON-05 | On termination: the property becomes "free", the account moves to "inactive-readonly". |
 | FR-CON-06 | Extension = editing the end date on the same tenancy. |
 | FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. *(Partially built at M3: the admin-side upload and the Storage access rule — admin write, owning tenant read — are done. The tenant-facing consumption at `/app/contract` is M5, still a placeholder.)* |
@@ -186,12 +186,12 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-REP-03a | Each cost line (rent, maintenance, each service, other expenses) can have: an **optional notes field** (free text, filled in by the admin when entering the cost) and **optional attachments** (image/PDF/document — e.g. the supplier's invoice for that service). Both are **visible to the tenant** (full transparency). |
 | FR-REP-04 | Total computed automatically: **rent + maintenance + service costs + other expenses + previous month's arrears − previous month's credit**; arrears and credit appear as separate lines. |
 | FR-REP-04a | When publishing the report, the administrator can **manually adjust the final total** (e.g. commercial rounding: 2382.17 → 2380). The adjusted amount becomes the **final total owed** — the difference is not carried forward, does not generate arrears and is not kept as a balance. The automatically computed total remains visible as a reference. |
-| FR-REP-04b | The system **automatically suggests** rounding down to the nearest multiple of 5 RON (e.g. 2518.71 → suggestion 2515), based on the administrator's current practice — to facilitate cash payment. The suggestion is displayed as a pre-filled value in the final total field, but remains **fully editable** — the administrator can accept it, change it to another value, or return to the exact computed total. The suggestion is never applied without confirming publication. |
+| FR-REP-04b | The **final total field** is pre-filled with the exact calculated total (`calculatedTotal`) and remains **fully editable** — the administrator can adjust it manually (e.g. commercial rounding for cash payment, per FR-REP-04a). The system does **not** suggest any rounded value automatically. |
 | FR-REP-04c | **`finalTotal` is the only amount owed** and the basis for all subsequent payment calculations. Arrears and credit are computed exclusively against `finalTotal` (the rounded amount), NOT against `calculatedTotal`. Example: calculatedTotal 2518.71 → finalTotal rounded 2515.00 → the tenant pays 2000 → the arrears are 515.00 (not 518.71). The rounding difference never reappears, in any form. |
 | FR-REP-05 | Due date taken from the contract (due day), manual override per month possible. |
 | FR-REP-06 | On **signing** (finalizing the list), the report becomes visible to the tenant in their portal immediately. Sending the email notification is a **separate, optional action** — the administrator triggers it via a "Send by email" button whenever they choose; it is never automatic. |
 | FR-REP-07 | **Signing** is the act by which the administrator confirms the validity and finality of the payment list. Report states: `draft` (in progress, invisible to the tenant) → `signed` (finalized, locked, visible to the tenant). After signing, the report is **locked for editing**. |
-| FR-REP-07a | A signed report can be **unlocked** by the administrator through an explicit action (button "Unlock for correction" + confirmation dialog). After correction and re-signing, the administrator can **optionally** notify the tenant via email ("list updated") using the same button — not automatic. Editing is not possible without prior unlocking — a signed report cannot be modified accidentally. |
+| FR-REP-07a | A signed report can be **unlocked** by the administrator through an explicit action (button "Unlock for correction" + confirmation dialog). Unlocking sets the report's `status` back to `'draft'` — it becomes editable again and drops out of the tenant's visibility until it is re-signed. After correction and re-signing, the administrator can **optionally** notify the tenant via email ("list updated") using the same button — not automatic. Editing is not possible without prior unlocking — a signed report cannot be modified accidentally. |
 | FR-REP-07b | **Signed report export**, available to the administrator in three forms: (a) **PDF** (archive/email), (b) **PNG image** (ready to send on WhatsApp — reproduces the table with the cost lines and attachments), (c) **shareable link** (see FR-REP-07c). |
 | FR-REP-07c | **Shareable link without authentication** — allows the tenant to see the report instantly, without login (e.g. sent on WhatsApp). Mandatory rules: (1) it contains a **long random token, impossible to guess** (not sequential IDs); (2) it opens **only that month's report** — NOT the tenant portal, NOT the history, NOT the contract, NOT personal data; (3) it **does not expire**, but can be **manually revoked** by the administrator at any time (revocation invalidates the link permanently); (4) for the complete history, contract and other reports, the tenant must authenticate into their account. |
 | FR-REP-08 | There is no automatic publication — the report is visible to the tenant only after signing. Corrections are made through unlock → edit → re-sign (FR-REP-07a). |
@@ -360,7 +360,7 @@ The body is a **table of cost lines**, each line having the same structure (insp
 - (5) **Previous arrears/credit** — readonly (red/green)
 - (6) **Due date** — pre-filled, editable
 
-Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **suggestion of rounding down to a multiple of 5** — FR-REP-04b; the admin accepts it, changes it, or returns to the exact total) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), **copy shareable link** (with a **revoke** button), and "Send by email" (optional, triggers the A2/A3 notification on demand).
+Sticky footer: **calculated total** (automatic, readonly, as a reference) + **final total** field (editable, pre-filled with the **exact calculated total** — FR-REP-04a) + **"Sign the list"** (confirmation dialog: "The list becomes final and locked"). After signing: the report is **locked** — the **"Unlock for correction"** button appears (confirmation), plus the **export** area: download **PDF**, download **PNG image** (for WhatsApp), **copy shareable link** (with a **revoke** button), and "Send by email" (optional, triggers the A2/A3 notification on demand — the admin picks "new" vs. "updated" at send time, every time; no auto-detection, §7.2).
 
 After publication — **payment** section: amount, method, date, "Mark payment", "Cancel payment", credit indicator on overpayment.
 
@@ -417,7 +417,17 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - startDate, endDate, monthlyRent, securityDeposit (opt), dueDay
   - reportReminderDaysBefore: number (default 3, admin-editable at assignment or
     later — same step as dueDay)
-  - currentBalance: number (updated automatically by onReportWrite — NFR-PERF-04)
+  - currentBalance: number // = (most recent SIGNED report on this tenancy).finalTotal
+                            //   − amountPaid; positive = arrears, negative = credit.
+                            //   Sourced from the SINGLE most recent signed report, NOT
+                            //   summed across all reports — a signed report's
+                            //   previousMonthArrears/previousMonthCredit already rolls
+                            //   the prior balance forward (see monthlyReports below), so
+                            //   summing every report would double-count it. Uses
+                            //   finalTotal, never calculatedTotal (FR-REP-04c). Before any
+                            //   report on the tenancy has ever been signed, it is 0 — there
+                            //   is no mechanism to seed a pre-existing (pre-app) balance.
+                            //   Updated automatically by onReportWrite (NFR-PERF-04).
   - status: active | ended
   - endedAt: server timestamp, set by endTenancy on termination (absent while active)
   - attachedDocuments[] (signed contract — visible to the tenant)
@@ -460,8 +470,15 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
   - otherExpenses:  [ { description, ...costLine } ]
 
   - previousMonthArrears, previousMonthCredit
+                             // on a DRAFT report, these mirror the tenancy's CURRENT
+                             // currentBalance (its positive part → arrears, its negative
+                             // part → credit) and keep updating as long as the report
+                             // stays a draft. They FREEZE at signing — a signed report is
+                             // never rewritten automatically afterward (FR-REP-12), the
+                             // same snapshot-at-signing discipline as serviceCosts
+                             // (FR-PROP-08).
   - calculatedTotal: number  // the automatic sum (reference, stays visible)
-  - finalTotal:      number  // calculatedTotal or the value adjusted manually by the admin (FR-REP-04a/04b)
+  - finalTotal:      number  // calculatedTotal or the value adjusted manually by the admin (FR-REP-04a)
                              // THE ONLY amount owed — arrears/credits are computed against
                              // finalTotal, NOT against calculatedTotal (FR-REP-04c)
                              // the rounding difference is never carried forward
@@ -471,6 +488,8 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
 
   // Signing / locking (FR-REP-07, 07a)
   - status: 'draft' | 'signed'     // draft = invisible to the tenant; signed = locked + visible
+                                   // the draft<->signed transition happens EXCLUSIVELY through the
+                                   // signReport/unlockReport callables (§7.2) — never a direct client write
   - signedAt, updatedAt
 
   // Shareable link without authentication (FR-REP-07c)
@@ -507,7 +526,7 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 | Forms | React Hook Form + Zod |
 | Data | TanStack Query |
 | Charts | Recharts *(Phase 2)* |
-| PDF | Client-side |
+| PDF/PNG export | Client-side — jsPDF (PDF), html2canvas (DOM→canvas capture, shared by both the PDF and PNG exports) |
 | Photo | input capture (native camera); client compression (~2000px, ~80%) |
 | i18n | react-i18next (RO/EN) |
 | Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)* |
@@ -524,10 +543,14 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 | `resetTenantPassword` | callable (admin) | Generates a new password, sets it on the account, returns it to the admin. |
 | `setTenantAccountStatus` | callable (admin) | Disables / re-enables / archives a tenant's account (`action: 'disable'\|'enable'\|'archive'`). **Disable** and **archive** both set `disabled: true` on the Firebase Auth account (requires the Admin SDK — the client cannot) and revoke the active tokens (`revokeRefreshTokens`), so an open session dies immediately; archive additionally sets `users.status = 'archived'` and is blocked while the account has an active tenancy. **Re-enable** sets `disabled: false` and RECALCULATES `users.status` from a fresh active-tenancy query — `'active'` if one exists, otherwise `'inactive-readonly'` — rather than restoring a remembered prior value. `'archived'` is a TERMINAL state (M3 post-audit fix): before dispatching any action, the function reads the account's current `users.status` and rejects with `failed-precondition` if it is already `'archived'` — no enable, disable, or re-archive from it. Enforced server-side, not just hidden in the admin UI, so a direct API call cannot un-archive an account either. Backs the "Disable/Re-enable"/"Archive" buttons in §5.3 (**Account** tab) and the states in FR-TEN-24. |
 | `endTenancy` | callable (admin) | Manually terminates an active tenancy (FR-CON-03), including early. Blocked while the tenancy has unpaid arrears (FR-CON-04). Atomic: a single Firestore transaction sets tenancy.status → 'ended', property.status → 'free' (symmetric with finalizeKyc, which sets 'occupied'), and users.status → 'inactive-readonly' (FR-CON-05). |
-| `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy; writes the new/updated report email into `mail`. |
+| `onReportWrite` | Firestore trigger | Recomputes `currentBalance` on the tenancy (NFR-PERF-04). Does **not** send email — report notifications are exclusively on-demand, via `sendReportNotification` (FR-REP-06/07a). |
+| `sendReportNotification` | callable (admin) | On the administrator's explicit request (the "Send by email" button, §5.3), writes the report notification email into `mail` — Appendix A2 (new report) or A3 (updated report). The admin MANUALLY SELECTS which of the two at the moment of sending, every time; the callable receives that choice as a parameter. There is no auto-detection (e.g. from `signedAt` vs. a later edit) and no tracking field on `monthlyReports` for "already notified" — the choice is made fresh on each send, never inferred. Never automatic (FR-REP-06, FR-REP-07a). |
+| `signReport` | callable (admin) | Transaction: checks `status=='draft'` (rejects with `failed-precondition` if already `'signed'`), sets `status='signed'` + `signedAt` (server timestamp). The report becomes visible to the tenant (via Security Rules, `status=='signed'`) and locked for editing. NOTE: the edit lock is enforced by this callable + the UI, NOT by Security Rules — the admin keeps full write access per §7.3 (single-trusted-admin model). (FR-REP-07) |
+| `unlockReport` | callable (admin) | Transaction: checks `status=='signed'` (rejects if `'draft'`), sets `status='draft'` — the report becomes editable again and disappears from tenant visibility until re-signed (via `signReport`). (FR-REP-07a) |
 | `onPropertyUpdate` | Firestore trigger | Synchronizes `property { name, address }` in the active tenancy. |
 | `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin) + report-preparation reminders (`reportReminderDaysBefore` before the due day, admin-facing, only if unsigned for the current month). |
-| `getSharedReport` | callable (public, no auth) | Serves a shared report based on the `shareToken`. Validates the token, checks `shareTokenRevoked == false` and `status == 'signed'`, returns **only** the report's fields. The only path of anonymous access to data; the collection stays closed in Security Rules (FR-REP-07c). |
+| `getSharedReport` | callable (public, no auth) | Serves a shared report based on the `shareToken`. Validates the token, checks `shareTokenRevoked == false` and `status == 'signed'`, returns the report's fields plus the property's `name` (context only) — **excluding** the tenant's personal data (name, `cnp`). Attachments are returned as **metadata only** (name, type, reference) — never a Storage URL; their bytes are served exclusively by `getSharedReportAttachment`, below. The only path of anonymous access to report data; the collection stays closed in Security Rules (FR-REP-07c). |
+| `getSharedReportAttachment` | callable (public, no auth) | Serves the BYTES of one report attachment (base64) to an anonymous shared-report visitor. Re-validates the SAME preconditions as `getSharedReport` (`shareToken` valid, `shareTokenRevoked == false`, `status == 'signed'`) — a token revoked after the report was opened stops working here too. Takes the `shareToken` plus an attachment reference, and VERIFIES that reference actually belongs to the report identified by that token (rejects any other Storage path) — so a valid token cannot be used to fetch an unrelated file. The only path of anonymous access to attachment bytes; Storage itself stays closed to anonymous requests in its own rules, exactly like `monthlyReports` in Firestore. |
 | `setAdminClaim` | setup script (once) | Sets the custom claim `admin: true` on the account created in the Console. |
 
 **Note — `finalizeKyc` returns the credentials to the admin:** onboarding is completed face-to-face on a tablet, with the tenant present, so the admin can communicate the password directly instead of waiting for the email to arrive. The `mail` email stays the durable record channel; the callable response is only for immediate confirmation at the desk. This is consistent with `resetTenantPassword`, which already returns the generated password to the admin.
@@ -539,7 +562,7 @@ If the draft's `existingUserId` is set (FR-TEN-07), the function skips Auth/`use
 - `users`, `onboardingDrafts`, `properties`, `mail`, `errorLogs` → admin only (client); `mail` — Functions only.
 - `tenancies` → tenant: read where `resource.data.userId == request.auth.uid`.
 - `monthlyReports` → tenant: read where `userId == auth.uid && status == 'signed'`.
-- `monthlyReports` → **public access through shareToken**: reading a shared report is NOT done directly from the client with Firestore rules (that would expose the collection), but through a **dedicated Cloud Function** (`getSharedReport`) which: receives the token, looks up the report, checks `shareTokenRevoked == false` and `status == 'signed'`, and returns **only** the report's fields (cost lines, notes, attachments, total, due date, payment status). It never returns personal data, history or other reports. The collection remains inaccessible anonymously in Security Rules.
+- `monthlyReports` → **public access through shareToken**: reading a shared report is NOT done directly from the client with Firestore rules (that would expose the collection), but through a **dedicated Cloud Function** (`getSharedReport`) which: receives the token, looks up the report, checks `shareTokenRevoked == false` and `status == 'signed'`, and returns the report's fields (cost lines, notes, total, due date, payment status) plus the property's `name` (context only). It never returns the tenant's personal data (name, `cnp`), history or other reports. Attachments are returned as **metadata only** (name, type, reference) — never a Storage URL: their bytes are served by a second, equally public callable, `getSharedReportAttachment`, which re-validates the same token and checks the requested reference actually belongs to that report before returning its bytes (base64). Storage itself stays closed to anonymous access in its own rules — the proxy callable is the only path in. Revoking the `shareToken` invalidates BOTH callables at once (the same `shareTokenRevoked` check gates each). The collection and the bucket both remain inaccessible anonymously outside these two functions.
 - No write operation from the client for the tenant, anywhere.
 - Storage according to section 6.
 
@@ -586,7 +609,7 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 | M1 | Properties & services | Property CRUD, catalog + custom, archiving, list, **testing foundation (Vitest + React Testing Library + jsdom + config + `test` script); the first tests written together with the property CRUD** | Create/edit/archive properties with services; the test suite runs green |
 | M2 | KYC Onboarding | Drafts, 4-step wizard, photo capture + compression, `finalizeKyc`, credentials email, CNP check | End-to-end onboarding functional, credentials received |
 | M3 | Tenant management | Detail (4 tabs), profile editing, password reset, contract extension/termination | Complete tenant lifecycle |
-| M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard | The complete monthly cycle, with emails |
+| M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard, signed-report export (PDF, PNG, shareable link + revocation) | The complete monthly cycle, with emails; the signed report is exportable and shareable |
 | M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF | The tenant sees and downloads everything |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
 | M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, **move to the Blaze plan + Cloud Billing budget alert**, deploy | Live, tested application |

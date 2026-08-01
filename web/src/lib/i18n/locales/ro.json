@@ -325,6 +325,136 @@
       }
     }
   },
+  "reports": {
+    "notFound": "Această proprietate nu există.",
+    "noActiveTenancy": "Această proprietate nu are o tenanță activă — nu se poate crea un raport.",
+    "sections": {
+      "rent": "Chirie",
+      "maintenance": "Mentenanță",
+      "otherExpenses": "Alte cheltuieli"
+    },
+    "fields": {
+      "amount": "Sumă",
+      "notes": "Note",
+      "description": "Descriere",
+      "dueDate": "Data scadentă",
+      "previousArrears": "Restanțe luna anterioară",
+      "previousCredit": "Credit luna anterioară",
+      "calculatedTotal": "Total calculat",
+      "finalTotal": "Total final"
+    },
+    "otherExpenses": {
+      "add": "Adaugă cheltuială",
+      "remove": "Șterge",
+      "empty": "Nicio altă cheltuială deocamdată."
+    },
+    "attachments": {
+      "add": "Adaugă fișier(e)",
+      "remove": "Șterge",
+      "tooLarge": "\"{{name}}\" depășește 10 MB și nu a fost adăugat.",
+      "pending": "în așteptare"
+    },
+    "errors": {
+      "required": "Câmp obligatoriu",
+      "saveError": "Raportul nu a putut fi salvat. Încearcă din nou."
+    },
+    "save": "Salvează draftul",
+    "sign": {
+      "button": "Semnează lista",
+      "confirmTitle": "Semnează lista",
+      "confirmBody": "Lista devine finală și blocată pentru editare.",
+      "confirmButton": "Semnează",
+      "error": "Lista nu a putut fi semnată. Încearcă din nou."
+    },
+    "unlock": {
+      "button": "Deblochează pentru corecție",
+      "confirmTitle": "Deblochează pentru corecție",
+      "confirmBody": "Raportul redevine editabil și nu mai este vizibil chiriașului până la o nouă semnare.",
+      "confirmButton": "Deblochează",
+      "error": "Raportul nu a putut fi deblocat. Încearcă din nou."
+    },
+    "payment": {
+      "title": "Plată",
+      "amountPaid": "Sumă achitată",
+      "method": "Metodă",
+      "methodCash": "Numerar",
+      "methodBankTransfer": "Transfer bancar",
+      "methodOther": "Altă metodă",
+      "date": "Data plății",
+      "markButton": "Marchează plata",
+      "cancelButton": "Anulează plata",
+      "cancelConfirmTitle": "Anulează plata",
+      "cancelConfirmBody": "Plata înregistrată este ștearsă, iar raportul redevine neplătit.",
+      "cancelConfirmButton": "Confirmă anularea",
+      "statusPaid": "Achitat",
+      "statusPartial": "Parțial achitat",
+      "statusUnpaid": "Neachitat",
+      "creditNotice": "Suprasumă de {{amount}} — apare drept credit pe raportul lunii următoare.",
+      "markError": "Plata nu a putut fi înregistrată. Încearcă din nou.",
+      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou."
+    },
+    "notify": {
+      "button": "Trimite pe email",
+      "dialogTitle": "Trimite notificare",
+      "dialogBody": "Alege ce tip de raport trimiți chiriașului.",
+      "templateNew": "Raport nou",
+      "templateUpdated": "Raport actualizat",
+      "success": "Emailul a fost trimis.",
+      "error": "Emailul nu a putut fi trimis. Încearcă din nou."
+    },
+    "export": {
+      "copyLink": "Copiază link partajabil",
+      "copySuccess": "Linkul a fost copiat.",
+      "copyError": "Linkul nu a putut fi generat. Încearcă din nou.",
+      "revoke": "Revocă",
+      "revokeConfirmTitle": "Revocă link-ul partajabil",
+      "revokeConfirmBody": "Link-ul actual nu va mai funcționa. O nouă copiere va genera un link nou.",
+      "revokeConfirmButton": "Revocă",
+      "downloadPdf": "Descarcă PDF",
+      "downloadPng": "Descarcă PNG",
+      "pdfError": "PDF-ul nu a putut fi generat. Încearcă din nou.",
+      "pngError": "Imaginea nu a putut fi generată. Încearcă din nou."
+    }
+  },
+  "sharedReport": {
+    "unavailable": "Link indisponibil.",
+    "attachments": {
+      "title": "Atașamente",
+      "download": "Descarcă",
+      "error": "Fișierul nu a putut fi descărcat. Încearcă din nou."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "outstandingThisMonth": "Total de încasat luna asta",
+    "totalArrears": "Total arierate",
+    "error": "Dashboard-ul nu a putut fi încărcat.",
+    "emptyState": {
+      "title": "Bine ai venit — hai să începem",
+      "addProperty": "Adaugă proprietate",
+      "enrollTenant": "Înrolează chiriaș"
+    },
+    "currentMonth": {
+      "title": "Luna curentă",
+      "previousMonth": "Luna anterioară",
+      "nextMonth": "Luna următoare",
+      "error": "Luna curentă nu a putut fi încărcată.",
+      "noOccupiedProperties": "Nicio proprietate ocupată încă.",
+      "columns": {
+        "property": "Proprietate",
+        "tenant": "Chiriaș",
+        "status": "Status",
+        "total": "Total"
+      },
+      "badge": {
+        "notEntered": "Neintrodus",
+        "published": "Publicat",
+        "paid": "Plătit",
+        "partial": "Parțial",
+        "overdue": "Restant"
+      }
+    }
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"

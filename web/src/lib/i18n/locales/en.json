@@ -325,6 +325,136 @@
       }
     }
   },
+  "reports": {
+    "notFound": "This property does not exist.",
+    "noActiveTenancy": "This property has no active tenancy — a report cannot be created.",
+    "sections": {
+      "rent": "Rent",
+      "maintenance": "Maintenance",
+      "otherExpenses": "Other expenses"
+    },
+    "fields": {
+      "amount": "Amount",
+      "notes": "Notes",
+      "description": "Description",
+      "dueDate": "Due date",
+      "previousArrears": "Previous month's arrears",
+      "previousCredit": "Previous month's credit",
+      "calculatedTotal": "Calculated total",
+      "finalTotal": "Final total"
+    },
+    "otherExpenses": {
+      "add": "Add expense",
+      "remove": "Remove",
+      "empty": "No other expenses yet."
+    },
+    "attachments": {
+      "add": "Add file(s)",
+      "remove": "Remove",
+      "tooLarge": "\"{{name}}\" exceeds 10 MB and was not added.",
+      "pending": "pending"
+    },
+    "errors": {
+      "required": "Required field",
+      "saveError": "The report could not be saved. Please try again."
+    },
+    "save": "Save draft",
+    "sign": {
+      "button": "Sign the list",
+      "confirmTitle": "Sign the list",
+      "confirmBody": "The list becomes final and locked for editing.",
+      "confirmButton": "Sign",
+      "error": "The list could not be signed. Please try again."
+    },
+    "unlock": {
+      "button": "Unlock for correction",
+      "confirmTitle": "Unlock for correction",
+      "confirmBody": "The report becomes editable again and is no longer visible to the tenant until re-signed.",
+      "confirmButton": "Unlock",
+      "error": "The report could not be unlocked. Please try again."
+    },
+    "payment": {
+      "title": "Payment",
+      "amountPaid": "Amount paid",
+      "method": "Method",
+      "methodCash": "Cash",
+      "methodBankTransfer": "Bank transfer",
+      "methodOther": "Other method",
+      "date": "Payment date",
+      "markButton": "Mark payment",
+      "cancelButton": "Cancel payment",
+      "cancelConfirmTitle": "Cancel payment",
+      "cancelConfirmBody": "The recorded payment is cleared and the report becomes unpaid again.",
+      "cancelConfirmButton": "Confirm cancellation",
+      "statusPaid": "Paid",
+      "statusPartial": "Partially paid",
+      "statusUnpaid": "Unpaid",
+      "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
+      "markError": "The payment could not be recorded. Please try again.",
+      "cancelError": "The payment could not be cancelled. Please try again."
+    },
+    "notify": {
+      "button": "Send by email",
+      "dialogTitle": "Send notification",
+      "dialogBody": "Choose which report type to send the tenant.",
+      "templateNew": "New report",
+      "templateUpdated": "Updated report",
+      "success": "The email has been sent.",
+      "error": "The email could not be sent. Please try again."
+    },
+    "export": {
+      "copyLink": "Copy shareable link",
+      "copySuccess": "The link has been copied.",
+      "copyError": "The link could not be generated. Please try again.",
+      "revoke": "Revoke",
+      "revokeConfirmTitle": "Revoke the shareable link",
+      "revokeConfirmBody": "The current link will stop working. Copying again will generate a new one.",
+      "revokeConfirmButton": "Revoke",
+      "downloadPdf": "Download PDF",
+      "downloadPng": "Download PNG",
+      "pdfError": "The PDF could not be generated. Please try again.",
+      "pngError": "The image could not be generated. Please try again."
+    }
+  },
+  "sharedReport": {
+    "unavailable": "Link unavailable.",
+    "attachments": {
+      "title": "Attachments",
+      "download": "Download",
+      "error": "The file could not be downloaded. Please try again."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "outstandingThisMonth": "Total to collect this month",
+    "totalArrears": "Total arrears",
+    "error": "Could not load the dashboard.",
+    "emptyState": {
+      "title": "Welcome — let's get started",
+      "addProperty": "Add property",
+      "enrollTenant": "Enroll tenant"
+    },
+    "currentMonth": {
+      "title": "Current month",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "error": "Could not load the current month.",
+      "noOccupiedProperties": "No occupied properties yet.",
+      "columns": {
+        "property": "Property",
+        "tenant": "Tenant",
+        "status": "Status",
+        "total": "Total"
+      },
+      "badge": {
+        "notEntered": "Not entered",
+        "published": "Published",
+        "paid": "Paid",
+        "partial": "Partial",
+        "overdue": "Overdue"
+      }
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"

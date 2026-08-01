@@ -27,10 +27,13 @@ const fs = require('fs')
 const path = require('path')
 const { initializeApp } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
-const { getFirestore } = require('firebase-admin/firestore')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getStorage } = require('firebase-admin/storage')
+const { buildDownloadUrl } = require('../src/photoMigration')
 
 const AUTH_EMULATOR_HOST = '127.0.0.1:9099' // must match firebase.json
 const FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080' // must match firebase.json
+const STORAGE_EMULATOR_HOST = '127.0.0.1:9199' // must match firebase.json
 
 // The demo admin. A fixed uid makes `ownerId` on the seeded properties
 // deterministic across runs.
@@ -65,6 +68,19 @@ const SEED_TENANT = {
 }
 const SEED_OCCUPIED_PROPERTY_ID = 'seed-prop-occupied'
 const SEED_TENANCY_ID = 'seed-tenancy-occupied'
+
+// M4 sub-stage 8 (Phase 2 validation fixture) — a SIGNED report on the
+// occupied scenario above, id built the same way buildReportId
+// (web/src/features/reports/hooks.js) would: `${propertyId}_${year}-${month
+// padded}`. Fixed, not "current month": every other date in this file is a
+// fixed literal too (activeTenancy's startDate/endDate below), for the same
+// determinism reason — a re-run must produce identical state.
+const SIGNED_REPORT_ID = `${SEED_OCCUPIED_PROPERTY_ID}_2026-07`
+const REPORT_INVOICES_PREFIX = `reports/${SIGNED_REPORT_ID}/invoices/`
+// Fixed for dev/seed reproducibility — the real app generates this with
+// crypto.getRandomValues (web/src/features/reports/hooks.js's
+// generateShareToken, M4 sub-stage 8 Phase 2), never a fixed literal.
+const SIGNED_REPORT_SHARE_TOKEN = 'seed-fixed-share-token-for-dev-testing-only'
 
 // Sub-stage F fixture — a second KYC-complete tenant with NO active tenancy.
 // `SEED_TENANT` above always has one (the occupied scenario), so starting a NEW
@@ -278,6 +294,57 @@ function activeTenancy(ownerId, property) {
   }
 }
 
+/**
+ * The signed monthlyReports fixture (SRS §6 shape) for M4 sub-stage 8 Phase 2
+ * validation — deliberately UNPAID (no amountPaid/paymentMethod/paymentDate/
+ * paymentStatus at all), so /r/:shareToken shows the "published, not yet
+ * paid" state. `attachments: []` placeholders below are filled in by
+ * `reseedSignedReport` AFTER the real Storage objects are uploaded (the
+ * download URL only exists once the object does).
+ */
+function signedReport(ownerId) {
+  const rent = 2500 // mirrors activeTenancy()'s monthlyRent — same demo tenancy
+  const maintenance = 0
+  const electricity = 150
+  const gas = 80
+  const total = rent + maintenance + electricity + gas
+  return {
+    ownerId,
+    propertyId: SEED_OCCUPIED_PROPERTY_ID,
+    tenancyId: SEED_TENANCY_ID,
+    userId: SEED_TENANT.uid,
+    month: 7,
+    year: 2026,
+    rent: { amount: rent, notes: '', attachments: [] },
+    maintenance: { amount: maintenance, notes: '', attachments: [] },
+    serviceCosts: [
+      {
+        serviceId: 'electricity',
+        name: 'Electricitate',
+        amount: electricity,
+        notes: '',
+        attachments: [],
+      },
+      {
+        serviceId: 'gas',
+        name: 'Gaz',
+        amount: gas,
+        notes: '',
+        attachments: [],
+      },
+    ],
+    otherExpenses: [],
+    previousMonthArrears: 0,
+    previousMonthCredit: 0,
+    calculatedTotal: total,
+    finalTotal: total,
+    dueDate: '2026-07-10',
+    status: 'signed',
+    shareToken: SIGNED_REPORT_SHARE_TOKEN,
+    shareTokenRevoked: false,
+  }
+}
+
 function readProjectId() {
   const rcPath = path.join(__dirname, '..', '..', '.firebaserc')
   const rc = JSON.parse(fs.readFileSync(rcPath, 'utf8'))
@@ -447,22 +514,131 @@ async function reseedOccupied(ownerId) {
   )
 }
 
+/** Deletes every object under `prefix` — idempotent Storage cleanup, same
+ * discipline as the Firestore delete-then-write pattern used everywhere
+ * else in this file. A missing object is not an error (`.catch(() => {})`),
+ * same convention as `deleteObjects` (functions/src/photoMigration.js). */
+async function clearSeedAttachments(bucket, prefix) {
+  const [files] = await bucket.getFiles({ prefix })
+  await Promise.all(files.map((file) => file.delete().catch(() => {})))
+}
+
+/** Uploads one synthetic attachment and returns its download URL in the
+ * EXACT shape a real client upload produces (fileUpload.js's
+ * `uploadAttachment`: `{url, name, type}`, url from `getDownloadURL`) —
+ * built here via `buildDownloadUrl` (photoMigration.js), which is
+ * emulator-aware (FIREBASE_STORAGE_EMULATOR_HOST) and round-trips with
+ * `parseStoragePath`, the exact function getSharedReportAttachmentCore uses
+ * to resolve it back to a Storage path (functions/src/sharedReport.js). No
+ * real file content — a synthetic Buffer with the right `contentType` is
+ * enough to exercise the real Storage read path end to end. */
+async function uploadSeedAttachment(
+  bucket,
+  filePath,
+  content,
+  contentType,
+  downloadToken,
+) {
+  await bucket.file(filePath).save(Buffer.from(content), {
+    contentType,
+    metadata: { firebaseStorageDownloadTokens: downloadToken },
+  })
+  return buildDownloadUrl(bucket.name, filePath, downloadToken)
+}
+
+/**
+ * M4 sub-stage 8 (Phase 2 validation fixture): a SIGNED report on the
+ * occupied scenario, with 2 real Storage attachments and a fixed
+ * shareToken, so /r/:shareToken has something real to open without hand-
+ * creating a report through the admin UI first.
+ *
+ * `STORAGE_BUCKET` is required HERE (lazily), not at module top — requiring
+ * functions/src/sharedReport.js runs its own `if (!getApps().length)
+ * initializeApp()` guard at require-time. If that ran before `main()`'s own
+ * `initializeApp({ projectId })` below, the app would already exist by the
+ * time `main()` reaches it and `initializeApp` would throw ("default app
+ * already exists"). By the time THIS function runs, `main()` has already
+ * initialized the app, so `sharedReport.js`'s guard correctly no-ops and
+ * this just reads its exported constant.
+ *
+ * currentBalance on the tenancy is updated BY HAND to reproduce what
+ * `onReportWrite` (functions/src/reports.js) would have computed — Admin
+ * SDK writes bypass Firestore triggers entirely, so that trigger never
+ * actually fires here. Same formula, not a magic number:
+ *   (mostRecent.finalTotal ?? 0) - (mostRecent.amountPaid ?? 0)
+ * `amountPaid` is absent (this report is deliberately UNPAID), so it
+ * collapses to `finalTotal - 0`.
+ */
+async function reseedSignedReport(ownerId) {
+  const { STORAGE_BUCKET } = require('../src/sharedReport')
+
+  const db = getFirestore()
+  const bucket = getStorage().bucket(STORAGE_BUCKET)
+  const reportRef = db.collection('monthlyReports').doc(SIGNED_REPORT_ID)
+  const tenancyRef = db.collection('tenancies').doc(SEED_TENANCY_ID)
+
+  await reportRef.delete()
+  await clearSeedAttachments(bucket, REPORT_INVOICES_PREFIX)
+
+  const rentUrl = await uploadSeedAttachment(
+    bucket,
+    `${REPORT_INVOICES_PREFIX}rent-invoice.pdf`,
+    'seed rent invoice — synthetic bytes, not a real PDF',
+    'application/pdf',
+    'seed-rent-token',
+  )
+  const electricityUrl = await uploadSeedAttachment(
+    bucket,
+    `${REPORT_INVOICES_PREFIX}electricity-invoice.jpg`,
+    'seed electricity invoice — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-electricity-token',
+  )
+
+  const report = signedReport(ownerId)
+  report.rent.attachments = [
+    { url: rentUrl, name: 'rent-invoice.pdf', type: 'pdf' },
+  ]
+  report.serviceCosts[0].attachments = [
+    { url: electricityUrl, name: 'electricity-invoice.jpg', type: 'image' },
+  ]
+
+  await reportRef.set({
+    ...report,
+    signedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+
+  await tenancyRef.update({ currentBalance: report.finalTotal })
+
+  console.log('Wrote the signed report fixture:')
+  console.log(
+    `  - report ${SIGNED_REPORT_ID}: signed, finalTotal ${report.finalTotal} lei, UNPAID`,
+  )
+  console.log(`  - 2 attachments uploaded under ${REPORT_INVOICES_PREFIX}`)
+  console.log(
+    `  - tenancy ${SEED_TENANCY_ID}.currentBalance -> ${report.finalTotal} (finalTotal - amountPaid??0)`,
+  )
+}
+
 async function main() {
   // Emulator only. A production seed is out of scope — this data is for local dev.
   process.env.FIREBASE_AUTH_EMULATOR_HOST = AUTH_EMULATOR_HOST
   process.env.FIRESTORE_EMULATOR_HOST = FIRESTORE_EMULATOR_HOST
+  process.env.FIREBASE_STORAGE_EMULATOR_HOST = STORAGE_EMULATOR_HOST
 
   const projectId = readProjectId()
   initializeApp({ projectId })
   console.log(
     `Project: ${projectId} — target: emulator ` +
-      `(auth ${AUTH_EMULATOR_HOST}, firestore ${FIRESTORE_EMULATOR_HOST})\n`,
+      `(auth ${AUTH_EMULATOR_HOST}, firestore ${FIRESTORE_EMULATOR_HOST}, storage ${STORAGE_EMULATOR_HOST})\n`,
   )
 
   const ownerId = await ensureAdmin()
   await reseedProperties(ownerId)
   await ensureTenant()
   await reseedOccupied(ownerId)
+  await reseedSignedReport(ownerId)
   await ensureTenantNoTenancy()
   await reseedTenantNoTenancy()
 
@@ -473,6 +649,9 @@ async function main() {
   )
   console.log(
     `   Tenant sign-in (no tenancy):     ${SEED_TENANT_NO_TENANCY.email} / ${SEED_TENANT_NO_TENANCY.password}`,
+  )
+  console.log(
+    `   Shared report link (unauthenticated, M4 sub-stage 8): http://localhost:5173/r/${SIGNED_REPORT_SHARE_TOKEN}`,
   )
 }
 
