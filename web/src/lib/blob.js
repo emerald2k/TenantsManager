@@ -1,8 +1,10 @@
 /**
- * Client-side Blob helpers (M4 sub-stage 8) — shared by the public
- * SharedReportPage (attachment bytes, via getSharedReportAttachment's
- * base64 response) and ExportReportControls (the PNG export, via
- * html2canvas's canvas). Neither feature owns this — both need it.
+ * Client-side Blob helpers (M4 sub-stage 8) — used by the public
+ * SharedReportPage to turn getSharedReportAttachment's base64 response into
+ * a downloadable file. ExportReportControls' PDF/PNG export does NOT use
+ * this: it builds its downloads directly from html2canvas's canvas
+ * (`canvas.toDataURL()`), never through a base64 string, so it never goes
+ * through `base64ToBlob`.
  */
 
 /** Converts a base64 string into a downloadable Blob. */
