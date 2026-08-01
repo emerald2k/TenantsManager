@@ -11,8 +11,10 @@ import {
   useCancelPayment,
   useMarkPayment,
   useMonthlyReport,
+  useRevokeShareLink,
   useSaveReportDraft,
   useSendReportNotification,
+  useShareReport,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -37,7 +39,14 @@ vi.mock('@/features/reports/hooks', () => ({
   useMarkPayment: vi.fn(),
   useCancelPayment: vi.fn(),
   useSendReportNotification: vi.fn(),
+  useShareReport: vi.fn(),
+  useRevokeShareLink: vi.fn(),
 }))
+// ExportReportControls' PDF/PNG buttons pull in real jsPDF/html2canvas —
+// mocked here too (M4 sub-stage 8) so this unrelated wiring test never
+// exercises the real canvas-capture/PDF-generation code.
+vi.mock('jspdf', () => ({ jsPDF: vi.fn(function jsPDFMock() {}) }))
+vi.mock('html2canvas', () => ({ default: vi.fn() }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
   useParams: () => ({ propertyId: 'p1' }),
@@ -98,6 +107,8 @@ const unlockMutateAsync = vi.fn()
 const markPaymentMutateAsync = vi.fn()
 const cancelPaymentMutateAsync = vi.fn()
 const sendNotificationMutateAsync = vi.fn()
+const shareMutateAsync = vi.fn()
+const revokeMutateAsync = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -132,6 +143,18 @@ beforeEach(() => {
   sendNotificationMutateAsync.mockResolvedValue({})
   useSendReportNotification.mockReturnValue({
     mutateAsync: sendNotificationMutateAsync,
+    isPending: false,
+  })
+  // ExportReportControls renders whenever isLocked is true, same reasoning
+  // as useSendReportNotification above (M4 sub-stage 8).
+  shareMutateAsync.mockResolvedValue({ token: 'tok', wrote: false })
+  revokeMutateAsync.mockResolvedValue({})
+  useShareReport.mockReturnValue({
+    mutateAsync: shareMutateAsync,
+    isPending: false,
+  })
+  useRevokeShareLink.mockReturnValue({
+    mutateAsync: revokeMutateAsync,
     isPending: false,
   })
 })
@@ -724,5 +747,32 @@ describe('MonthlyReportPage — SendReportNotificationControl wiring (M4 sub-sta
 
     await screen.findByText('Gas')
     expect(screen.queryByText('Trimite pe email')).toBeNull()
+  })
+})
+
+describe('MonthlyReportPage — ExportReportControls wiring (M4 sub-stage 8)', () => {
+  it('renders the export zone (copy link / PDF / PNG) when the report is signed', async () => {
+    mockData({ report: SIGNED_REPORT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText('Copiază link partajabil')).toBeVisible()
+    expect(screen.getByText('Descarcă PDF')).toBeVisible()
+    expect(screen.getByText('Descarcă PNG')).toBeVisible()
+  })
+
+  it('does NOT render it on a draft', async () => {
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Semnează lista')
+    expect(screen.queryByText('Copiază link partajabil')).toBeNull()
+  })
+
+  it('does NOT render it on a brand new (never-saved) report', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.queryByText('Copiază link partajabil')).toBeNull()
   })
 })

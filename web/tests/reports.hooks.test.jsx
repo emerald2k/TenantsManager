@@ -17,8 +17,10 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useReportsForMonth,
+  useRevokeShareLink,
   useSaveReportDraft,
   useSendReportNotification,
+  useShareReport,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -409,6 +411,20 @@ describe('useSaveReportDraft — re-save (isNew: false, M4 sub-stage 4 fix)', ()
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
     })
+  })
+
+  it("a re-save never includes shareToken/shareTokenRevoked in the updateDoc payload (M4 sub-stage 8, FR-REP-07c — the whole shared-link feature's persistence rests on this)", async () => {
+    const { result } = await renderHookWithProviders(() => useSaveReportDraft())
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      values: VALUES,
+      isNew: false,
+    })
+
+    const payload = updateDoc.mock.calls[0][1]
+    expect(payload).not.toHaveProperty('shareToken')
+    expect(payload).not.toHaveProperty('shareTokenRevoked')
   })
 
   it('invalidates nothing if the write fails', async () => {
@@ -969,6 +985,126 @@ describe('useCancelPayment (FR-PAY-06)', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tenancies'] })
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['monthlyReports', 'list'],
+    })
+  })
+})
+
+describe('useShareReport (FR-REP-07c, M4 sub-stage 8)', () => {
+  it('mints a FRESH token (≥32 chars, base64url charset) when none exists yet', async () => {
+    const { result } = await renderHookWithProviders(() => useShareReport())
+
+    const { token } = await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: null,
+      shareTokenRevoked: false,
+    })
+
+    expect(token.length).toBeGreaterThanOrEqual(32)
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
+  })
+
+  it('writes ONLY shareToken + shareTokenRevoked via updateDoc — never status/signedAt/any report line', async () => {
+    const { result } = await renderHookWithProviders(() => useShareReport())
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: null,
+      shareTokenRevoked: false,
+    })
+
+    expect(updateDoc).toHaveBeenCalledTimes(1)
+    const payload = updateDoc.mock.calls[0][1]
+    expect(Object.keys(payload).sort()).toEqual([
+      'shareToken',
+      'shareTokenRevoked',
+    ])
+    expect(payload.shareTokenRevoked).toBe(false)
+    expect(typeof payload.shareToken).toBe('string')
+  })
+
+  it('reuses the EXISTING token when one is live (not revoked) — writes NOTHING', async () => {
+    const { result } = await renderHookWithProviders(() => useShareReport())
+
+    const { token, wrote } = await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: 'existing-live-token',
+      shareTokenRevoked: false,
+    })
+
+    expect(token).toBe('existing-live-token')
+    expect(wrote).toBe(false)
+    expect(updateDoc).not.toHaveBeenCalled()
+  })
+
+  it('mints a NEW token when the previous one was REVOKED — never reuses a revoked token', async () => {
+    const { result } = await renderHookWithProviders(() => useShareReport())
+
+    const { token, wrote } = await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: 'old-revoked-token',
+      shareTokenRevoked: true,
+    })
+
+    expect(token).not.toBe('old-revoked-token')
+    expect(wrote).toBe(true)
+    expect(updateDoc.mock.calls[0][1].shareToken).toBe(token)
+    expect(updateDoc.mock.calls[0][1].shareTokenRevoked).toBe(false)
+  })
+
+  it('invalidates the report detail query only when it actually wrote (fresh/re-minted token)', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useShareReport(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: null,
+      shareTokenRevoked: false,
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
+    })
+  })
+
+  it('does NOT invalidate anything when reusing an existing token (no write happened)', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useShareReport(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      id: 'p1_2026-07',
+      shareToken: 'existing-live-token',
+      shareTokenRevoked: false,
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+})
+
+describe('useRevokeShareLink (FR-REP-07c)', () => {
+  it('writes ONLY shareTokenRevoked:true — never touches shareToken, status, or signedAt', async () => {
+    const { result } = await renderHookWithProviders(() => useRevokeShareLink())
+
+    await result.current.mutateAsync({ id: 'p1_2026-07' })
+
+    expect(updateDoc).toHaveBeenCalledTimes(1)
+    const payload = updateDoc.mock.calls[0][1]
+    expect(payload).toEqual({ shareTokenRevoked: true })
+  })
+
+  it('invalidates the report detail query on success', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useRevokeShareLink(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ id: 'p1_2026-07' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['monthlyReports', 'detail', 'p1_2026-07'],
     })
   })
 })

@@ -136,3 +136,15 @@ The audit covers **five zones**:
 - **E. Repo hygiene** — correct branch, `main` untouched until the merge, working tree clean, zero committed artifacts, i18n parity, tooling config in place.
 
 **If the audit surfaces a discrepancy, it is fixed as a separate gate BEFORE the merge** — not rationalized away, not deferred.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (github.com/emerald2k/TenantsManager), using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

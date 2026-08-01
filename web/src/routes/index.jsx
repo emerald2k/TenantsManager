@@ -11,6 +11,7 @@ import { OnboardingWizardPage } from '@/features/onboarding/pages/OnboardingWiza
 import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
+import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -26,10 +27,7 @@ export function AppRoutes() {
             admin must be able to open the link to check what the tenant sees,
             and GuestRoute would redirect them to /admin.
             Exposes EXCLUSIVELY that month's report — nothing else. */}
-        <Route
-          path="/r/:shareToken"
-          element={<PlaceholderPage titleKey="pages.sharedReport" />}
-        />
+        <Route path="/r/:shareToken" element={<SharedReportPage />} />
 
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />

@@ -321,3 +321,81 @@ export function useCancelPayment() {
     },
   })
 }
+
+// ─────────────────────────── useShareReport ──────────────────────
+/**
+ * Generates (if needed) the shareToken behind /r/:shareToken (FR-REP-07c,
+ * M4 sub-stage 8). CSPRNG via the Web Crypto API's `getRandomValues` — NEVER
+ * `Math.random` (not cryptographically secure) and NEVER sequential. 24
+ * random bytes = 192 bits of entropy, base64url-encoded to exactly 32
+ * characters (24 is divisible by 3, so no `=` padding) — well past the
+ * "≥32 chars, impossible to guess" bar. base64URL (`+`→`-`, `/`→`_`, no
+ * padding) so the token is a valid URL path segment with no escaping.
+ */
+function generateShareToken() {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+/**
+ * Reuses the EXISTING token if one is live (`shareToken` set AND NOT
+ * revoked) — no write, nothing to invalidate. Mints and writes a FRESH
+ * token only when there is none yet, or the previous one was revoked: a
+ * revoked token never comes back (FR-REP-07c: "invalidates the link
+ * permanently"), a new share always gets a brand new token.
+ *
+ * The `updateDoc` payload is DELIBERATELY isolated to exactly these two
+ * fields — never `status`/`signedAt`/any report line, same discipline as
+ * `useMarkPayment`/`useCancelPayment`: the admin already has full write
+ * access to `monthlyReports` (single-trusted-admin model, §7.3), and there
+ * is no cross-document transaction or precondition here that only a
+ * trusted server could enforce, so a plain client write is correct — not a
+ * new callable.
+ */
+export function useShareReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, shareToken, shareTokenRevoked }) => {
+      if (shareToken && !shareTokenRevoked) {
+        return { token: shareToken, wrote: false }
+      }
+      const token = generateShareToken()
+      await updateDoc(reportRef(id), {
+        shareToken: token,
+        shareTokenRevoked: false,
+      })
+      return { token, wrote: true }
+    },
+    onSuccess: ({ wrote }, { id }) => {
+      if (wrote) {
+        queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+      }
+    },
+  })
+}
+
+// ─────────────────────────── useRevokeShareLink ──────────────────
+/**
+ * Revokes the shared link (FR-REP-07c) — sets `shareTokenRevoked: true`,
+ * NEVER touching `shareToken` itself (the old token stays on the document,
+ * inert forever) nor `status`/`signedAt`/any report line. Both public
+ * callables (getSharedReport, getSharedReportAttachment) re-check this SAME
+ * flag on every call, so revoking invalidates both at once (SRS §7.2/§7.3,
+ * pinned at 5a92763).
+ */
+export function useRevokeShareLink() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id }) =>
+      updateDoc(reportRef(id), { shareTokenRevoked: true }),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
+    },
+  })
+}

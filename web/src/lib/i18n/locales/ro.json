@@ -401,6 +401,27 @@
       "templateUpdated": "Raport actualizat",
       "success": "Emailul a fost trimis.",
       "error": "Emailul nu a putut fi trimis. Încearcă din nou."
+    },
+    "export": {
+      "copyLink": "Copiază link partajabil",
+      "copySuccess": "Linkul a fost copiat.",
+      "copyError": "Linkul nu a putut fi generat. Încearcă din nou.",
+      "revoke": "Revocă",
+      "revokeConfirmTitle": "Revocă link-ul partajabil",
+      "revokeConfirmBody": "Link-ul actual nu va mai funcționa. O nouă copiere va genera un link nou.",
+      "revokeConfirmButton": "Revocă",
+      "downloadPdf": "Descarcă PDF",
+      "downloadPng": "Descarcă PNG",
+      "pdfError": "PDF-ul nu a putut fi generat. Încearcă din nou.",
+      "pngError": "Imaginea nu a putut fi generată. Încearcă din nou."
+    }
+  },
+  "sharedReport": {
+    "unavailable": "Link indisponibil.",
+    "attachments": {
+      "title": "Atașamente",
+      "download": "Descarcă",
+      "error": "Fișierul nu a putut fi descărcat. Încearcă din nou."
     }
   },
   "dashboard": {

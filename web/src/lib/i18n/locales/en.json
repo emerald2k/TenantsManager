@@ -401,6 +401,27 @@
       "templateUpdated": "Updated report",
       "success": "The email has been sent.",
       "error": "The email could not be sent. Please try again."
+    },
+    "export": {
+      "copyLink": "Copy shareable link",
+      "copySuccess": "The link has been copied.",
+      "copyError": "The link could not be generated. Please try again.",
+      "revoke": "Revoke",
+      "revokeConfirmTitle": "Revoke the shareable link",
+      "revokeConfirmBody": "The current link will stop working. Copying again will generate a new one.",
+      "revokeConfirmButton": "Revoke",
+      "downloadPdf": "Download PDF",
+      "downloadPng": "Download PNG",
+      "pdfError": "The PDF could not be generated. Please try again.",
+      "pngError": "The image could not be generated. Please try again."
+    }
+  },
+  "sharedReport": {
+    "unavailable": "Link unavailable.",
+    "attachments": {
+      "title": "Attachments",
+      "download": "Download",
+      "error": "The file could not be downloaded. Please try again."
     }
   },
   "dashboard": {
