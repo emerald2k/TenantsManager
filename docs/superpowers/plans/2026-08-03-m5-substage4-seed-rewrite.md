@@ -51,12 +51,11 @@ landed yet. That is a direct, deliberate reversal of the stated principle,
 not an oversight. Two of the requested scenarios ARE already consumable
 today (the empty state and the ended-tenancy card both render correctly as
 of sub-stage 3), but the multi-year history, the draft-exclusion-via-UI, and
-the contract attachment have no consuming screen yet. Proposal: **rewrite
-that header comment** as part of this sub-stage, to something like _"grows
+the contract attachment have no consuming screen yet. **Approved: the header
+comment is rewritten** as part of this sub-stage, to something like _"grows
 ahead of a milestone's own sub-stages once their SRS requirements are
 pinned, so later sub-stages have real data to build against — not strictly
-lockstep with already-shipped code."_ Flagged here for explicit sign-off,
-not silently changed.
+lockstep with already-shipped code."_
 
 ---
 
@@ -86,14 +85,13 @@ management and have no tenant attached; nothing here touches them.
 | `seed-tenant-ended` (NEW)                | radu@test.ro     | `seed-tenancy-ended`, **ended**, `endedAt` set | `seed-prop-ended`    | FR-TAPP-06: ended-label + (once built) the persistent banner |
 | `seed-tenant-free` (kept, **unchanged**) | cristina@test.ro | none                                           | none                 | FR-TAPP: no-tenancy state                                    |
 
-**Decision, flagged:** `seed-tenant-free`'s id/email are kept as-is rather
-than renamed to `seed-tenant-no-tenancy` (which would read more consistently
+**Approved:** `seed-tenant-free`'s id/email are kept as-is rather than
+renamed to `seed-tenant-no-tenancy` (which would read more consistently
 next to the three new names above) — a rename would orphan the old fixed-id
 Auth account/`users` doc from any seed run before this rewrite ships, since
 the new script would never again reference the old id to delete it. Zero
 behavior difference either way; kept as-is to avoid that orphan risk for a
-purely cosmetic gain. Say the word if you'd rather rename AND add a one-time
-explicit delete of the old id.
+purely cosmetic gain.
 
 `seed-tenant-empty`/`seed-tenant-ended` get the same KYC-complete `users`
 shape as `tenantUser()` today (distinct name/cnp/email/guarantor — proposed:
@@ -222,6 +220,10 @@ name, type}]` on the tenancy doc — matching the shape `useUpdateTenancy`
 - The closing console summary — now lists 4 tenant credentials, one line
   each on what scenario they demonstrate (today's summary only has 2 lines).
 - The file's header doc-comment, per the flagged tension above.
+- `reseedSignedReport`'s doc-comment claiming "Admin SDK writes bypass
+  Firestore triggers entirely" — empirically false (Risk #8); replaced with
+  an accurate explanation of why `currentBalance` is still set by hand
+  (determinism, not trigger-avoidance).
 
 ---
 
@@ -321,10 +323,69 @@ hand, no auto-reference":
    might assume it's an oversight rather than a deliberate orphan-avoidance
    choice. — Mitigated by a comment at its definition site pointing at this
    plan's reasoning (§1's flagged decision).
+8. **Investigated empirically — does `onReportWrite` fire on the seed
+   script's Admin-SDK writes?** Checked in code and config, then confirmed
+   live: wrote a probe `monthlyReports` doc (via the exact same Admin-SDK
+   pattern `seed.js` uses) against this project's own already-running
+   emulator suite, with an obviously-wrong sentinel `currentBalance`
+   pre-set on its tenancy and untouched afterward. Within 5 seconds,
+   `currentBalance` was recomputed, unprompted, to the correct
+   `finalTotal − amountPaid` value — the trigger fired. `firebase.json`
+   declares `functions` as one of the default emulators (port 5001, no
+   `--only` exclusion anywhere), and `README.md`'s documented workflow runs
+   plain `firebase emulators:start` — the FULL set — before `npm run seed`.
+   This is expected, not surprising, once stated plainly: Firestore's
+   trigger mechanism is source-agnostic — it fires on ANY write reaching
+   the emulator's Firestore instance, regardless of which client performed
+   it. The Admin SDK bypasses Security Rules (an access-control concept);
+   it does NOT bypass Firestore triggers (an unrelated, server-side
+   change-notification mechanism). **The existing `reseedSignedReport`
+   doc-comment's claim — "Admin SDK writes bypass Firestore triggers
+   entirely, so that trigger never actually fires here" — is therefore
+   incorrect**, and the rewrite must not carry it forward unchanged (added
+   to §2's rewritten list).
+
+   Given the trigger DOES fire, is the manual `currentBalance` set now
+   pointless, or a race hazard? **Neither** — worked through explicitly:
+   - `recomputeCurrentBalance` (`functions/src/reports.js:130`) is a FULL
+     RE-DERIVATION from scratch every time it runs, never an
+     increment/decrement — it queries every signed report for the tenancy
+     and recomputes from the true most-recent one. Any number of trigger
+     invocations, firing in any order, for any subset of a tenancy's
+     reports, converge on the exact SAME final value once they've all run.
+     There is no interleaving that produces a WRONG answer — only a
+     possibly-STALE one if not all of them have finished yet.
+   - The real risk is therefore completion TIMING, not correctness: the
+     seed script is a short-lived process that exits right after its OWN
+     writes are acknowledged, with no way to know whether the LAST
+     report's trigger invocation (a separate, asynchronous
+     Functions-emulator execution) has actually finished. The probe above
+     needed an explicit 5-second wait before the recomputed value became
+     visible.
+   - **Chosen mitigation: keep the manual `currentBalance` set, executed
+     synchronously as the LAST step for each tenancy, strictly AFTER all
+     of that tenancy's report writes are acknowledged.** This guarantees a
+     deterministic final state that never depends on the trigger's
+     unobservable completion timing. It is not "racing" the trigger in any
+     harmful sense: because the formula is identical and
+     `recomputeCurrentBalance` is idempotent, a straggling trigger that
+     completes AFTER the manual set simply re-writes the SAME correct
+     value — a benign, self-agreeing race, not a correctness bug. The
+     manual set's real job is making the seed's own completion independent
+     of the trigger firing at all, not avoiding a conflict with it.
 
 ---
 
 ## 6. Post-run validation (Emulator UI — what must appear)
+
+**This validation pass also closes the browser-validation debt deferred at
+sub-stage 3's commit `50672aa`** ("Browser validation partial: empty and
+ended-tenancy states not verified live, pending seed rewrite"). Before this
+seed existed, there was no `seed-tenant-empty`/`seed-tenant-ended` account to
+log in as — the "one already-built screen" checklist below (`chirias@test.ro`
+/ `ioana@test.ro` / `radu@test.ro` / `cristina@test.ro`) is that missing
+verification, not a new one. Report it explicitly as closing that debt, not
+just as this sub-stage's own gate.
 
 No app screen exists yet for most of this (Risk #6), so validation is
 primarily direct inspection:
@@ -366,9 +427,8 @@ tenant credentials with a one-line description of what each demonstrates
 ## Phases & commit proposal (for when implementation is approved — not part of this step)
 
 One script, one cohesive rewrite — splitting it into multiple commits would
-just fragment a single coherent change. Recommendation: **one `feat:`
-commit** (or `chore:`, since this is dev tooling, not shippable product
-code — worth confirming which prefix you want), gated on: `npm run seed`
+just fragment a single coherent change. **One `chore:` commit** (decided —
+this is dev tooling, not shippable product code), gated on: `npm run seed`
 actually run against a fresh emulator, the full post-run checklist above
 executed and reported with raw output (doc counts, spot-checked field
 values), and the sub-stage 3 dashboard manually re-checked for all 4
