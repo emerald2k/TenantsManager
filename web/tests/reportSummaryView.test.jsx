@@ -153,4 +153,36 @@ describe('ReportSummaryView', () => {
     expect(screen.getByText('Explicit Name')).toBeVisible()
     expect(screen.getByText('3.000,00 lei')).toBeVisible()
   })
+
+  // M5 sub-stage 3 plan: two MORE default-preserving props, same mechanism —
+  // showPaymentStatus and showHeader, both defaulting to true so /r/:shareToken
+  // and the admin PDF/PNG export render byte-for-byte identically to today.
+
+  it("R1 — with no new props, BOTH the header and the payment-status row still render (today's behavior, unchanged)", async () => {
+    await renderWithProviders(<ReportSummaryView data={summaryData()} />)
+
+    expect(screen.getByText('Apartament Centru')).toBeVisible()
+    expect(screen.getByText('7/2026')).toBeVisible()
+    expect(screen.getByText('Neachitat')).toBeVisible()
+  })
+
+  it('R2 — showPaymentStatus={false} hides the payment-status row; header and table remain', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData()} showPaymentStatus={false} />,
+    )
+
+    expect(screen.queryByText('Neachitat')).not.toBeInTheDocument()
+    expect(screen.getByText('Apartament Centru')).toBeVisible()
+    expect(screen.getByText('Chirie')).toBeVisible()
+  })
+
+  it('R3 — showHeader={false} hides the property name and month/year; the table remains', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData()} showHeader={false} />,
+    )
+
+    expect(screen.queryByText('Apartament Centru')).not.toBeInTheDocument()
+    expect(screen.queryByText('7/2026')).not.toBeInTheDocument()
+    expect(screen.getByText('Chirie')).toBeVisible()
+  })
 })

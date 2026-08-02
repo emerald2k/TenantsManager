@@ -389,6 +389,7 @@
       "statusPaid": "Paid",
       "statusPartial": "Partially paid",
       "statusUnpaid": "Unpaid",
+      "statusNotRecorded": "No payment recorded yet",
       "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
       "markError": "The payment could not be recorded. Please try again.",
       "cancelError": "The payment could not be cancelled. Please try again."
@@ -422,6 +423,14 @@
       "title": "Attachments",
       "download": "Download",
       "error": "The file could not be downloaded. Please try again."
+    }
+  },
+  "tenantApp": {
+    "dashboard": {
+      "empty": "No report has been published yet.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "error": "Could not load your dashboard. Please try again.",
+      "endedLabel": "Final month of the contract"
     }
   },
   "dashboard": {
