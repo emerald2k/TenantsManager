@@ -218,7 +218,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 
 | ID | Requirement |
 |---|---|
-| FR-TAPP-01 | Dashboard: current month total (the final total), due date, payment status, breakdown by lines (rent + maintenance + all active services + other + arrears/credit), with **each line's notes and attachments visible** (the supporting invoice next to its amount). For a tenant whose tenancy has ended, the dashboard shows the last signed report in the same format, labelled explicitly as the final month of the contract — never presented as "the current month". |
+| FR-TAPP-01 | Dashboard: current month total (the final total), due date, payment status, breakdown by lines (rent + maintenance + all active services + other + arrears/credit), with **each line's notes and attachments visible** (the supporting invoice next to its amount). For a tenant whose tenancy has ended, the dashboard shows the last signed report in the same format, labelled explicitly as the final month of the contract — never presented as "the current month". The dashboard shows the most recent signed report, whichever month it belongs to — not strictly the current calendar month, so a report issued late still reaches the tenant immediately. The report's month is always displayed on the card. Only when no signed report exists at all does the empty state appear. Payment status renders as three distinct badges: paid, partial, unpaid, plus a fourth neutral state when `paymentStatus` is absent — no payment has been recorded yet, which is not the same as an overdue debt. |
 | FR-TAPP-02 | Report history, grouped by years. The accordion holds one summary row per report — month, final total, amount paid, status. The full breakdown (cost lines, notes, attachments, PDF) opens on its own page, `/app/reports/{reportId}` — not inline in the accordion. |
 | FR-TAPP-03 | Property/contract data + download of the signed contract. |
 | FR-TAPP-04 | PDF download per monthly report (client-side, in the preferred language). |
@@ -370,11 +370,12 @@ After publication — **payment** section: amount, method, date, "Mark payment",
 When the tenancy has ended, a **persistent banner** ("Contract ended on {date}",
 from `tenancies.endedAt`) sits under the navbar on **every** portal page (FR-TAPP-06).
 
-**`/app`** — central card: total + due date + status badge; full breakdown by line,
-each with its notes and attachments (view/download); "Download PDF". No report for
-the month → "This month's report has not been published yet." Ended tenancy → the
-same card, filled with the **last signed report**, labelled as the contract's final
-month.
+**`/app`** — central card: the **most recent signed report**, with its month
+shown prominently; total + due date + status badge; full breakdown by line, each
+with its notes and attachments (view/download); "Download PDF". No signed report
+at all → "No report has been published yet." Ended tenancy → the same card,
+filled with the last signed report, carrying a **label on the card** ("Final
+month of the contract") distinct from the persistent banner (FR-TAPP-06).
 
 **`/app/history`** — accordion by year. Each year lists one **summary row** per
 report: month, total, amount paid, status badge. Clicking a row navigates to
