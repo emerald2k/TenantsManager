@@ -152,7 +152,9 @@ rendered card.
 **Modify:**
 
 - `web/src/components/shared/ReportSummaryView.jsx` — Task 0: two new
-  default-preserving props, `showPaymentStatus`/`showHeader`.
+  default-preserving props, `showPaymentStatus`/`showHeader`, plus exporting
+  the existing `PAYMENT_STATUS_KEY` map for `PaymentStatusBadge` (Task 1) to
+  import.
 - `web/tests/reportSummaryView.test.jsx` — Task 0: three new tests (R1-R3)
   appended to the existing C1-C3.
 - `web/src/routes/index.jsx` — the `/app` route's element changes from
@@ -190,21 +192,13 @@ yet." wording are worded identically on purpose. `reports.payment.statusPaid`
 `PaymentStatusBadge` for the other three states — checked for overlap before
 adding anything new, per the established convention.
 
-**Note on `reports.payment.statusPaid`/`statusPartial`/`statusUnpaid`
-duplication:** `PaymentStatusBadge` hard-codes its own copy of the
-`{paid,partial,unpaid} → key` map (identical to `ReportSummaryView`'s private
-`PAYMENT_STATUS_KEY`) rather than importing it, because `ReportSummaryView`
-doesn't export it and isn't being touched (see above). Three duplicated
-lines, disclosed rather than silently introduced — same discipline as the
-KYC schema duplication CLAUDE.md §7 already documents, at a much smaller
-scale.
-
 ---
 
 ## Task 0: `web/src/components/shared/ReportSummaryView.jsx` — two more default-preserving props
 
 **What it does (behavior change):** two new props, exactly the same
-mechanism sub-stage 2 already used for `showCalculatedTotal`:
+mechanism sub-stage 2 already used for `showCalculatedTotal`, plus one
+export — three changes to this file, not two:
 
 - `showPaymentStatus = true` — when `false`, the footer's payment-status row
   (`{t('reports.payment.title')}` + the paid/partial/unpaid label) is not
@@ -212,13 +206,18 @@ mechanism sub-stage 2 already used for `showCalculatedTotal`:
 - `showHeader = true` — when `false`, the top `<div>` block
   (`<h2>{propertyName}</h2>` + `<p>{month}/{year}</p>`) is not rendered at
   all.
+- The existing private `PAYMENT_STATUS_KEY` map (`{paid, partial, unpaid} →
+i18n key`) gains an `export` keyword — no rename, no shape change, purely
+  a visibility change with zero effect on `ReportSummaryView`'s own
+  rendering. This is what lets `PaymentStatusBadge` (Task 1) import it
+  instead of hand-copying it.
 
-Both default to `true`, reproducing `/r/:shareToken` and the admin PDF/PNG
-export's current output byte-for-byte — neither `SharedReportPage` nor
-`ExportReportControls` passes either prop, so nothing about their rendered
-output changes. Enables Task 2's dashboard to own its own header and payment
-badge (see the "Note" above) instead of duplicating them alongside
-`ReportSummaryView`'s built-in ones.
+The two props default to `true`, reproducing `/r/:shareToken` and the admin
+PDF/PNG export's current output byte-for-byte — neither `SharedReportPage`
+nor `ExportReportControls` passes either prop, so nothing about their
+rendered output changes. Enables Task 2's dashboard to own its own header
+and payment badge (see the "Note" above) instead of duplicating them
+alongside `ReportSummaryView`'s built-in ones.
 
 ### Paired tests — `web/tests/reportSummaryView.test.jsx` (three more tests appended, alongside the existing C1-C3)
 
@@ -242,10 +241,14 @@ one prop. `paymentStatus` is exactly what `adaptTenantReportSummary` already
 produces: `'paid' | 'partial' | 'unpaid' | null`. Renders a colored pill
 (same `rounded-full px-2 py-0.5 text-xs font-medium` shape as the existing
 `StatusBadge` in `tenants/pages/TenantsListPage.jsx` — mirrored, not
-imported, since that one is keyed on `users.status`, a different enum) with
-the matching i18n label. `null`/`undefined` maps to the NEW neutral state,
-**never** silently collapsed into `unpaid` — that collapse is exactly the bug
-decision #3 exists to prevent.
+imported, since that one is keyed on `users.status`, a different enum).
+**Imports** `PAYMENT_STATUS_KEY` from `ReportSummaryView` (now exported,
+Task 0) and extends it locally with only the fourth key —
+`{ ...PAYMENT_STATUS_KEY, notRecorded: 'reports.payment.statusNotRecorded' }`
+— no copy of the three existing `paid`/`partial`/`unpaid` entries. `null`/
+`undefined` maps to this NEW neutral state, **never** silently collapsed
+into `unpaid` — that collapse is exactly the bug decision #3 exists to
+prevent.
 
 ### Paired tests — `web/tests/tenantApp.paymentStatusBadge.test.jsx`
 
@@ -377,6 +380,22 @@ exist, so validation goes through the actual UI:
 6. Toggle RO/EN via the existing `LanguageSwitcher` in `TenantLayout` and
    confirm every new string above (empty/noTenancy/error/endedLabel/the four
    payment badge states) renders correctly in both languages.
+7. **Mandatory — `/r/:shareToken` (the OTHER real consumer of the modified
+   `ReportSummaryView`) still renders identically.** Open `/r/:shareToken`
+   for the seeded share token, in an incognito window, and confirm it
+   renders EXACTLY as before this sub-stage: the property name and month
+   still appear in the component's OWN header, the payment-status row is
+   still present in the footer, there is still NO "calculated total" row,
+   and attachments are still inert badges.
+8. **Mandatory — the admin's PDF/PNG export (the THIRD consumer, with no
+   automated test of its own) still captures correctly.** From the admin
+   UI, on a signed report, generate the PDF export AND the PNG export, and
+   visually confirm BOTH still contain the header and the payment-status
+   row, exactly as they did before this sub-stage. This is the one consumer
+   `sharedReport.page.test.jsx` does not stand in for — the `html2canvas`
+   capture `ExportReportControls` performs is not exercised by any test in
+   this codebase, so this manual check is the only thing that would catch a
+   regression here.
 
 ---
 
@@ -412,6 +431,19 @@ exist, so validation goes through the actual UI:
    as a separate debt item for the M5 milestone audit (CLAUDE.md §9), rather
    than letting this or any other single sub-stage quietly decide it for the
    whole app.
+6. **Task 0 touches a shared component with THREE real consumers**
+   (`SharedReportPage`, `ExportReportControls`'s PDF/PNG capture, and this
+   sub-stage's `TenantDashboardPage`), and one of the three — the
+   `html2canvas` capture behind the PDF/PNG export — has NO automated test
+   of its own anywhere in this codebase. `sharedReport.page.test.jsx`
+   proves `SharedReportPage`'s rendering is unaffected, but a regression
+   specific to the capture path (e.g. `showHeader`/`showPaymentStatus`
+   somehow defaulting differently under `html2canvas`'s rendering, or the
+   captured canvas silently omitting a row) could pass the ENTIRE fast-band
+   suite green and still be broken. — Covered by browser-validation steps 7
+   and 8 (both consumers checked live, not just the one with a test), not by
+   the fast band — jsdom cannot meaningfully exercise a real canvas capture,
+   so no test is proposed to close this gap; it stays a manual check.
 
 ---
 
