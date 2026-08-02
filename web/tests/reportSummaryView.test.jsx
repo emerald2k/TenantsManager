@@ -117,4 +117,40 @@ describe('ReportSummaryView', () => {
     )
     expect(screen.getByText('Parțial achitat')).toBeVisible()
   })
+
+  // M5 sub-stage 2 plan: two new props, both defaulting to reproduce
+  // /r/:shareToken's current output exactly (no caller above needs to
+  // change) — propertyName and showCalculatedTotal.
+
+  it('C1 — propertyName prop is optional, falls back to data.propertyName when omitted', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData({ propertyName: 'Vila Nord' })} />,
+    )
+    expect(screen.getByText('Vila Nord')).toBeVisible()
+  })
+
+  it('C2 — calculatedTotal is hidden by default (showCalculatedTotal defaults to false)', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({ calculatedTotal: 3000, finalTotal: 2500 })}
+      />,
+    )
+    expect(screen.queryByText('3.000,00 lei')).not.toBeInTheDocument()
+  })
+
+  it('C3 — showCalculatedTotal=true and an explicit propertyName both work forward', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          propertyName: undefined,
+          calculatedTotal: 3000,
+          finalTotal: 2500,
+        })}
+        propertyName="Explicit Name"
+        showCalculatedTotal
+      />,
+    )
+    expect(screen.getByText('Explicit Name')).toBeVisible()
+    expect(screen.getByText('3.000,00 lei')).toBeVisible()
+  })
 })
