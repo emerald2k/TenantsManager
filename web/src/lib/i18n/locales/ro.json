@@ -431,6 +431,11 @@
       "noTenancy": "Nu ai nicio locuință atribuită momentan.",
       "error": "Nu am putut încărca panoul tău. Încearcă din nou.",
       "endedLabel": "Ultima lună a contractului"
+    },
+    "history": {
+      "empty": "Nu ai încă niciun istoric de rapoarte.",
+      "noTenancy": "Nu ai nicio locuință atribuită momentan.",
+      "error": "Nu am putut încărca istoricul rapoartelor tale. Încearcă din nou."
     }
   },
   "dashboard": {

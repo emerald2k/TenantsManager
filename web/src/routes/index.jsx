@@ -13,6 +13,7 @@ import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
 import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
 import { TenantDashboardPage } from '@/features/tenantApp/pages/TenantDashboardPage'
+import { TenantHistoryPage } from '@/features/tenantApp/pages/TenantHistoryPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -74,10 +75,7 @@ export function AppRoutes() {
         <Route element={<ProtectedRoute allowedRole="tenant" />}>
           <Route element={<TenantLayout />}>
             <Route path="/app" element={<TenantDashboardPage />} />
-            <Route
-              path="/app/history"
-              element={<PlaceholderPage titleKey="pages.tenantHistory" />}
-            />
+            <Route path="/app/history" element={<TenantHistoryPage />} />
             <Route
               path="/app/contract"
               element={<PlaceholderPage titleKey="pages.tenantContract" />}

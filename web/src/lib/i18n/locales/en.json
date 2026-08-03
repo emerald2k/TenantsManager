@@ -431,6 +431,11 @@
       "noTenancy": "No property is assigned to your account yet.",
       "error": "Could not load your dashboard. Please try again.",
       "endedLabel": "Final month of the contract"
+    },
+    "history": {
+      "empty": "You have no report history yet.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "error": "Could not load your report history. Please try again."
     }
   },
   "dashboard": {
