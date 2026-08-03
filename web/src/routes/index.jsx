@@ -15,6 +15,7 @@ import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage
 import { TenantDashboardPage } from '@/features/tenantApp/pages/TenantDashboardPage'
 import { TenantHistoryPage } from '@/features/tenantApp/pages/TenantHistoryPage'
 import { TenantReportDetailPage } from '@/features/tenantApp/pages/TenantReportDetailPage'
+import { TenantContractPage } from '@/features/tenantApp/pages/TenantContractPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -81,10 +82,7 @@ export function AppRoutes() {
               path="/app/reports/:reportId"
               element={<TenantReportDetailPage />}
             />
-            <Route
-              path="/app/contract"
-              element={<PlaceholderPage titleKey="pages.tenantContract" />}
-            />
+            <Route path="/app/contract" element={<TenantContractPage />} />
           </Route>
         </Route>
 

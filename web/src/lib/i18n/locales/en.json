@@ -445,6 +445,22 @@
         "title": "Attachments",
         "download": "Download"
       }
+    },
+    "contract": {
+      "error": "Could not load your contract. Please try again.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "fields": {
+        "startDate": "Start date",
+        "endDate": "End date",
+        "monthlyRent": "Monthly rent",
+        "securityDeposit": "Security deposit",
+        "dueDay": "Due day"
+      },
+      "documents": {
+        "title": "Documents",
+        "empty": "The contract has not been uploaded yet.",
+        "download": "Download"
+      }
     }
   },
   "dashboard": {

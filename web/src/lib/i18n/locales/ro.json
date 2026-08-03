@@ -445,6 +445,22 @@
         "title": "Atașamente",
         "download": "Descarcă"
       }
+    },
+    "contract": {
+      "error": "Nu am putut încărca contractul. Încearcă din nou.",
+      "noTenancy": "Nu ai nicio locuință atribuită momentan.",
+      "fields": {
+        "startDate": "Dată început",
+        "endDate": "Dată sfârșit",
+        "monthlyRent": "Chirie lunară",
+        "securityDeposit": "Garanție",
+        "dueDay": "Zi scadentă"
+      },
+      "documents": {
+        "title": "Documente",
+        "empty": "Contractul nu a fost încă încărcat.",
+        "download": "Descarcă"
+      }
     }
   },
   "dashboard": {
