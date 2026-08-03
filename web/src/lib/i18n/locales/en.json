@@ -436,6 +436,15 @@
       "empty": "You have no report history yet.",
       "noTenancy": "No property is assigned to your account yet.",
       "error": "Could not load your report history. Please try again."
+    },
+    "reportDetail": {
+      "error": "Could not load this report. Please try again.",
+      "notFound": "This report could not be found.",
+      "backToHistory": "Back to history",
+      "attachments": {
+        "title": "Attachments",
+        "download": "Download"
+      }
     }
   },
   "dashboard": {

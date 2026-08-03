@@ -20,9 +20,10 @@ vi.mock('@/features/tenantApp/hooks', () => ({
 
 // PARTIAL mock: `renderWithProviders` mounts a real MemoryRouter, so
 // replacing the whole module would take the router down with it (same
-// pattern as `properties.createPage.test.jsx`). HP7 asserts this spy is
-// NEVER called — rows are deliberately non-interactive this sub-stage
-// (M5 sub-stage 5 plan, Decision 3).
+// pattern as `properties.createPage.test.jsx`). HP7 (M5 sub-stage 6 plan,
+// Task 2) asserts this spy IS called with the clicked row's own report id —
+// rows became navigable at sub-stage 6, deliberately superseding sub-stage
+// 5's Decision 3 ("rows are non-interactive"), not regressing it.
 const navigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -179,18 +180,24 @@ describe('TenantHistoryPage', () => {
     expect(screen.queryByText('2.000,00 lei')).not.toBeInTheDocument() // Dec 2025, still collapsed
   })
 
-  it('HP7 — rows are non-interactive: no link/button wraps a row, clicking one fires no navigation', async () => {
+  // HP7 (M5 sub-stage 6 plan, Task 2) DELIBERATELY SUPERSEDES sub-stage 5's
+  // own HP7 ("rows are non-interactive... no navigation fired") — rows
+  // becoming navigable is exactly what sub-stage 6 exists to change, not an
+  // accidental regression of the sub-stage 5 contract. This is an
+  // INTEGRATION-level proof, distinct from `tenantApp.reportHistoryRow.test.jsx`'s
+  // isolated H5/H6: it proves the ACTUAL id flowing through
+  // `useMySignedReports` → `groupReportsByYear` → the page's own `.map()` →
+  // the specific rendered May 2026 row ends up, end to end, calling
+  // `navigate` with the CORRECT path for THAT report.
+  it('HP7 — clicking the rendered May 2026 row navigates to /app/reports/may', async () => {
     useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
     useMySignedReports.mockReturnValue(query({ data: SEED_REPORTS }))
     const user = userEvent.setup()
 
     await renderWithProviders(<TenantHistoryPage />)
     await user.click(screen.getByText('2026'))
-
-    expect(screen.queryAllByRole('link')).toHaveLength(0)
-
     await user.click(screen.getAllByText('5.460,00 lei')[0])
 
-    expect(navigate).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledWith('/app/reports/may')
   })
 })

@@ -436,6 +436,15 @@
       "empty": "Nu ai încă niciun istoric de rapoarte.",
       "noTenancy": "Nu ai nicio locuință atribuită momentan.",
       "error": "Nu am putut încărca istoricul rapoartelor tale. Încearcă din nou."
+    },
+    "reportDetail": {
+      "error": "Nu am putut încărca acest raport. Încearcă din nou.",
+      "notFound": "Acest raport nu a putut fi găsit.",
+      "backToHistory": "Înapoi la istoric",
+      "attachments": {
+        "title": "Atașamente",
+        "download": "Descarcă"
+      }
     }
   },
   "dashboard": {

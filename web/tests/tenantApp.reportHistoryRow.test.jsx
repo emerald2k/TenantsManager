@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { ReportHistoryRow } from '@/features/tenantApp/components/ReportHistoryRow'
 
@@ -7,6 +8,20 @@ import { ReportHistoryRow } from '@/features/tenantApp/components/ReportHistoryR
 // Task 3). `PaymentStatusBadge` is rendered for REAL (not mocked) — same
 // reasoning as sub-stage 3's D-series: proving the real pipeline agrees with
 // itself. Wrapped in <table><tbody> since the row is a <tr>.
+//
+// H5/H6 (M5 sub-stage 6 plan, Task 1): PARTIAL `react-router-dom` mock, same
+// pattern as `properties.createPage.test.jsx` — `renderWithProviders` already
+// mounts a real `MemoryRouter`, so only `useNavigate` is swapped out.
+
+const navigate = vi.fn()
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useNavigate: () => navigate,
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 function renderRow(report) {
   return renderWithProviders(
@@ -86,5 +101,24 @@ describe('ReportHistoryRow', () => {
 
     expect(screen.queryByText('Electricitate')).not.toBeInTheDocument()
     expect(screen.queryByText('Gaz')).not.toBeInTheDocument()
+  })
+
+  it('H5 — clicking the row navigates to /app/reports/{report.id}', async () => {
+    const user = userEvent.setup()
+    await renderRow({ id: 'dec', month: 12, year: 2025, finalTotal: 2730 })
+
+    await user.click(screen.getByRole('row'))
+
+    expect(navigate).toHaveBeenCalledWith('/app/reports/dec')
+  })
+
+  it('H6 — pressing Enter while the row is focused ALSO navigates (keyboard parity with TenantsListPage)', async () => {
+    const user = userEvent.setup()
+    await renderRow({ id: 'dec', month: 12, year: 2025, finalTotal: 2730 })
+
+    screen.getByRole('row').focus()
+    await user.keyboard('{Enter}')
+
+    expect(navigate).toHaveBeenCalledWith('/app/reports/dec')
   })
 })
