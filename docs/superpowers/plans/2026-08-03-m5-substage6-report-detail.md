@@ -80,21 +80,27 @@ is "later."
 > Each year lists one **summary row** per report: month, total, amount paid,
 > status badge. Clicking a row navigates to `/app/reports/{reportId}`.
 
-**One clause is flagged, not silently decided: "Download PDF."** This
+**One clause is a planned deferral, not an omission: "Download PDF."** This
 sub-stage's decision list (given, not reopened) covers `ReportSummaryView`
 reuse, the attachments section, the null state, and the history-row
-supersedure — it says nothing about FR-TAPP-04 (client-side PDF export for
-the tenant). Sub-stage 3 already deferred the identical requirement for
-`/app` with this exact reasoning: _"FR-TAPP-04 (client-side PDF per report)
-is its own requirement, planned as a later M5 sub-stage once the export path
-for the TENANT side is decided (the admin's own PDF export, M4 sub-stage 8,
-is a different flow — `ExportReportControls`, admin-only)."_ That reasoning
-still applies unchanged here, and this plan does **not** decide which future
-sub-stage picks it up — that is the administrator's call at approval time,
-not something to assume silently into this plan's scope. Flagging it here
-converts a silent gap into a visible question, per the same discipline
-sub-stage 5 applied to its own out-of-scope clause (the history row's
-click-through, at the time).
+supersedure — it deliberately does NOT include a PDF button. **Decided: the
+button is not implemented in sub-stage 6. FR-TAPP-04 ships at sub-stage 8**,
+on BOTH surfaces where SRS §5.4 actually requires it — checked against the
+file, not assumed: the `/app` paragraph names "Download PDF" explicitly, and
+this page's own paragraph (quoted above) does too. The `/app/history`
+paragraph does **not** mention it at all (its own quoted text above lists
+only the summary row's four fields and the click-through — no PDF), so
+history is not a third surface FR-TAPP-04 needs to land on. Sub-stage 3
+already deferred the identical requirement for `/app` with this exact
+reasoning: _"FR-TAPP-04 (client-side PDF per report) is its own requirement,
+planned as a later M5 sub-stage once the export path for the TENANT side is
+decided (the admin's own PDF export, M4 sub-stage 8, is a different flow —
+`ExportReportControls`, admin-only)."_ That reasoning still applies, now with
+a named destination: sub-stage 8 delivers FR-TAPP-04 for both `/app` and
+`/app/reports/:reportId` together, in the same sub-stage that decides the
+tenant-side export path — the same "explicitly out of scope, not silently
+dropped, next stop named" discipline sub-stage 5 applied to its own deferred
+clause (the history row's click-through, at the time, landing here).
 
 ---
 
@@ -385,12 +391,17 @@ inventing a state the decisions don't ask for.
    signed reports, seeded at M5 sub-stage 4) — confirm
    `tenantApp.reportDetail.notFound` renders, with the back-to-history link,
    and the browser console shows NO stack trace / unhandled error.
-4. **Recommended (not mandatory) — the tenant's OWN draft renders identically
-   "not found."** Navigate to `/app/reports/seed-prop-occupied_2026-08`
-   (chirias's own August 2026 DRAFT) — confirm the SAME `notFound` message
-   renders, proving the collapse is genuinely indistinct ("not mine" vs.
-   "mine but still a draft"), not two different code paths that happen to
-   look similar.
+4. **MANDATORY — the tenant's OWN draft renders identically "not found."**
+   Navigate to `/app/reports/seed-prop-occupied_2026-08` (chirias's own
+   August 2026 DRAFT) — confirm the SAME `notFound` message renders. This is
+   the ONE case where the access restriction applies to a document the user
+   actually OWNS, not a stranger's — if the "doesn't exist" vs. "exists but
+   you can't read it" distinction leaks anywhere (a stray field, a console
+   error, a different message), it leaks HERE, not on a foreign tenant's
+   report (step 3), because this is the only document whose owner is sitting
+   in front of the screen to notice. Promoted from "recommended" to
+   mandatory for exactly this reason — proving the collapse is genuinely
+   indistinct, not merely that "not mine" is denied.
 5. **Keyboard navigation:** on `/app/history`, Tab to a row, press Enter —
    confirm it navigates the same as a click.
 6. **Ended tenancy:** log in as `radu@test.ro` / `chirias123`, open
@@ -407,11 +418,14 @@ inventing a state the decisions don't ask for.
 
 ## Risks identified and how the plan covers them
 
-1. **"Download PDF" (FR-TAPP-04) is flagged, not decided.** SRS §5.4 lists
-   it as part of this exact page's content; this sub-stage's own decision
-   list is silent on it. Flagged explicitly (see "SRS text this plan
-   implements," above) rather than silently assumed in or out of scope —
-   the administrator decides which future sub-stage picks it up.
+1. **"Download PDF" (FR-TAPP-04) is a decided deferral, not an open
+   question** — not a risk requiring resolution at this gate, kept here only
+   as a scope-boundary record. SRS §5.4 requires it on `/app` and on THIS
+   page; `/app/history`'s own paragraph does not mention it at all (verified
+   by re-reading the quoted text above, not assumed). Decided: sub-stage 6
+   ships neither surface's button; sub-stage 8 ships both together, once the
+   tenant-side export path is decided (see "SRS text this plan implements,"
+   above, for the full reasoning and the sub-stage 3 precedent it extends).
 2. **`useMyTenancy` is this page's THIRD consumer of the "one relevant
    tenancy" assumption** (after the dashboard and history pages) — if a
    tenant ever had more than one tenancy across time, `tenancyQuery.data`
