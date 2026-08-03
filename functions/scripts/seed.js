@@ -927,6 +927,27 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     'seed-contract-occupied-token',
   )
 
+  // The July report's 2 real Storage attachments, uploaded BEFORE the
+  // report doc is built below — their download URLs must exist so they can
+  // be embedded directly into the report object and written ONCE via
+  // `.set()` (see the July-only merge inside the `reports.forEach` loop),
+  // never patched on afterward via a follow-up `.update()`.
+  const rentUrl = await uploadSeedAttachment(
+    bucket,
+    `${invoicesPrefix}rent-invoice.pdf`,
+    'seed rent invoice — synthetic bytes, not a real PDF',
+    'application/pdf',
+    'seed-rent-token',
+  )
+  const electricityUrl = await uploadSeedAttachment(
+    bucket,
+    `${invoicesPrefix}electricity-invoice.jpg`,
+    'seed electricity invoice — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-electricity-token',
+  )
+  const julyReportId = buildReportId(SEED_OCCUPIED_PROPERTY_ID, 2026, 7)
+
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
   writeBatch.set(userRef, tenantUser())
@@ -952,10 +973,55 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     // points at) carries the fixed share token, same slot it has always
     // been in.
     const shareFields =
-      id === buildReportId(SEED_OCCUPIED_PROPERTY_ID, 2026, 7)
+      id === julyReportId
         ? { shareToken: SIGNED_REPORT_SHARE_TOKEN, shareTokenRevoked: false }
         : {}
-    writeBatch.set(reportRefs[index], { ...report, ...common, ...shareFields })
+    // The July report's 2 attachments are merged into its cost lines HERE,
+    // before the single `.set()` below — NEVER via a follow-up `.update()`
+    // with a dotted field path. `rent` is a MAP field, so a dotted path
+    // into it (`'rent.attachments'`) would technically work, but
+    // `serviceCosts` is an ARRAY, and Firestore's `update()` cannot merge a
+    // dotted path into an array element at all: `update({
+    // 'serviceCosts.0.attachments': [...] })` silently REPLACES the entire
+    // `serviceCosts` field with a brand-new map `{ "0": { attachments:
+    // [...] } }`, discarding serviceId/name/amount/notes and every other
+    // index (the gas line) — this is exactly the bug that produced
+    // `(report.serviceCosts ?? []).map is not a function` downstream in
+    // `reportAdapter.js`, confirmed empirically against the emulator. If a
+    // future change needs to attach a file to an existing array cost line,
+    // build the full object (as below) and `.set()` it once — do not reach
+    // for a dotted path on an array, here or anywhere else in this file.
+    const attachmentFields =
+      id === julyReportId
+        ? {
+            rent: {
+              ...report.rent,
+              attachments: [
+                { url: rentUrl, name: 'rent-invoice.pdf', type: 'pdf' },
+              ],
+            },
+            serviceCosts: report.serviceCosts.map((line, lineIndex) =>
+              lineIndex === 0
+                ? {
+                    ...line,
+                    attachments: [
+                      {
+                        url: electricityUrl,
+                        name: 'electricity-invoice.jpg',
+                        type: 'image',
+                      },
+                    ],
+                  }
+                : line,
+            ),
+          }
+        : {}
+    writeBatch.set(reportRefs[index], {
+      ...report,
+      ...common,
+      ...shareFields,
+      ...attachmentFields,
+    })
   })
 
   // The draft's own previousMonthArrears/Credit mirror `buildInitialValues`
@@ -996,35 +1062,6 @@ async function reseedOccupiedScenario(ownerId, bucket) {
   })
 
   await writeBatch.commit()
-
-  // 2 real Storage attachments on the July report's cost lines, uploaded
-  // AFTER the report doc exists (their download URLs are only meaningful
-  // once written), then patched onto that one doc.
-  const rentUrl = await uploadSeedAttachment(
-    bucket,
-    `${invoicesPrefix}rent-invoice.pdf`,
-    'seed rent invoice — synthetic bytes, not a real PDF',
-    'application/pdf',
-    'seed-rent-token',
-  )
-  const electricityUrl = await uploadSeedAttachment(
-    bucket,
-    `${invoicesPrefix}electricity-invoice.jpg`,
-    'seed electricity invoice — synthetic bytes, not a real JPEG',
-    'image/jpeg',
-    'seed-electricity-token',
-  )
-  const julyReportRef = db
-    .collection('monthlyReports')
-    .doc(buildReportId(SEED_OCCUPIED_PROPERTY_ID, 2026, 7))
-  await julyReportRef.update({
-    'rent.attachments': [
-      { url: rentUrl, name: 'rent-invoice.pdf', type: 'pdf' },
-    ],
-    'serviceCosts.0.attachments': [
-      { url: electricityUrl, name: 'electricity-invoice.jpg', type: 'image' },
-    ],
-  })
 
   // Hand-set AFTER every report write above has been acknowledged — see
   // this function's doc-comment for why this is still correct and still
