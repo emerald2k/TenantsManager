@@ -827,7 +827,24 @@ async function clearSeedAttachments(bucket, prefix) {
  * `parseStoragePath`, the exact function getSharedReportAttachmentCore uses
  * to resolve it back to a Storage path (functions/src/sharedReport.js). No
  * real file content — a synthetic Buffer with the right `contentType` is
- * enough to exercise the real Storage read path end to end. */
+ * enough to exercise the real Storage read path end to end.
+ *
+ * `firebaseStorageDownloadTokens` MUST be nested two levels deep —
+ * `metadata: { metadata: { firebaseStorageDownloadTokens: token } }` — not
+ * `metadata: { firebaseStorageDownloadTokens: token }`. The outer `metadata`
+ * option is the GCS object-resource payload (`contentType`,
+ * `cacheControl`, ...); `firebaseStorageDownloadTokens` is not one of that
+ * resource's recognized top-level fields, so the SDK silently drops it
+ * there — the object ends up with NO custom metadata at all, and
+ * `buildDownloadUrl`'s token never matches anything Storage actually
+ * checks, so every download 403s under `storage.rules`. Custom key/value
+ * pairs live in the resource's own NESTED `metadata` map, which is what the
+ * inner `metadata` key here targets — the exact shape
+ * `photoMigration.js:104`'s `.setMetadata({ metadata: {
+ * firebaseStorageDownloadTokens: token } })` already uses correctly
+ * elsewhere in this codebase. Confirmed empirically: before this fix, a
+ * freshly-seeded object's `getMetadata()` had no `metadata` field
+ * whatsoever. */
 async function uploadSeedAttachment(
   bucket,
   filePath,
@@ -837,7 +854,7 @@ async function uploadSeedAttachment(
 ) {
   await bucket.file(filePath).save(Buffer.from(content), {
     contentType,
-    metadata: { firebaseStorageDownloadTokens: downloadToken },
+    metadata: { metadata: { firebaseStorageDownloadTokens: downloadToken } },
   })
   return buildDownloadUrl(bucket.name, filePath, downloadToken)
 }
