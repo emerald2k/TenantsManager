@@ -22,8 +22,8 @@ import { ReportHistoryRow } from '@/features/tenantApp/components/ReportHistoryR
  * otherwise displayed on this page (same reasoning as the dashboard,
  * sub-stage 3).
  *
- * Rows are deliberately non-interactive this sub-stage — the click-through
- * to `/app/reports/:reportId` is sub-stage 6, which does not exist yet.
+ * Rows navigate to `/app/reports/:reportId` on click (sub-stage 6,
+ * `ReportHistoryRow` itself owns the `useNavigate` call, not this page).
  */
 export function TenantHistoryPage() {
   const { t } = useTranslation()

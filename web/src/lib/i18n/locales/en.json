@@ -430,7 +430,11 @@
       "empty": "No report has been published yet.",
       "noTenancy": "No property is assigned to your account yet.",
       "error": "Could not load your dashboard. Please try again.",
-      "endedLabel": "Final month of the contract"
+      "endedLabel": "Final month of the contract",
+      "attachments": {
+        "title": "Attachments",
+        "download": "Download"
+      }
     },
     "history": {
       "empty": "You have no report history yet.",

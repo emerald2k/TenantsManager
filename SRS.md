@@ -155,7 +155,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-CON-04 | Termination blocked if there are unpaid arrears — `currentBalance > 0` on the tenancy (§6). A credit or an exactly-zero balance does NOT block termination. |
 | FR-CON-05 | On termination: the property becomes "free", the account moves to "inactive-readonly". |
 | FR-CON-06 | Extension = editing the end date on the same tenancy. |
-| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. *(Partially built at M3: the admin-side upload and the Storage access rule — admin write, owning tenant read — are done. The tenant-facing consumption at `/app/contract` is M5, still a placeholder.)* |
+| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. |
 | FR-CON-08 | Passing the end date does not trigger anything automatically — the contract remains "active" until manual termination. |
 | FR-CON-09 | Email reminders to the admin **90, 60 and 30 days** before expiry (sent at 09:00, Europe/Bucharest). |
 
@@ -633,7 +633,7 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 | M2 | KYC Onboarding | Drafts, 4-step wizard, photo capture + compression, `finalizeKyc`, credentials email, CNP check | End-to-end onboarding functional, credentials received |
 | M3 | Tenant management | Detail (4 tabs), profile editing, password reset, contract extension/termination | Complete tenant lifecycle |
 | M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard, signed-report export (PDF, PNG, shareable link + revocation) | The complete monthly cycle, with emails; the signed report is exportable and shareable |
-| M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF | The tenant sees and downloads everything |
+| M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF, read-only access after contract end (persistent banner) | The tenant sees and downloads everything |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
 | M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, **move to the Blaze plan + Cloud Billing budget alert**, deploy | Live, tested application |
 

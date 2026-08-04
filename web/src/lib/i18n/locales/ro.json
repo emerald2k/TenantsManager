@@ -430,7 +430,11 @@
       "empty": "Niciun raport nu a fost publicat încă.",
       "noTenancy": "Nu ai nicio locuință atribuită momentan.",
       "error": "Nu am putut încărca panoul tău. Încearcă din nou.",
-      "endedLabel": "Ultima lună a contractului"
+      "endedLabel": "Ultima lună a contractului",
+      "attachments": {
+        "title": "Atașamente",
+        "download": "Descarcă"
+      }
     },
     "history": {
       "empty": "Nu ai încă niciun istoric de rapoarte.",

@@ -212,4 +212,94 @@ describe('TenantDashboardPage', () => {
       screen.queryByRole('button', { name: 'Descarcă PDF' }),
     ).not.toBeInTheDocument()
   })
+
+  // Audit gate — §5.4 requires "(view/download)" for /app's own attachments;
+  // ReportSummaryView's badges are view-only. Mirrors TenantReportDetailPage's
+  // own attachments section (RD6's precedent) exactly, on this page instead.
+  it('D-ATTACH-1 — attachments across all four cost-line types render as downloadable links', async () => {
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useMySignedReports.mockReturnValue(
+      query({
+        data: [
+          reportFixture({
+            rent: {
+              amount: 2500,
+              notes: '',
+              attachments: [
+                {
+                  url: 'https://storage.example/rent-invoice.pdf',
+                  name: 'rent-invoice.pdf',
+                  type: 'pdf',
+                },
+              ],
+            },
+            maintenance: {
+              amount: 50,
+              notes: '',
+              attachments: [
+                {
+                  url: 'https://storage.example/maintenance-invoice.pdf',
+                  name: 'maintenance-invoice.pdf',
+                  type: 'pdf',
+                },
+              ],
+            },
+            serviceCosts: [
+              {
+                serviceId: 'electricity',
+                name: 'Electricitate',
+                amount: 150,
+                notes: '',
+                attachments: [
+                  {
+                    url: 'https://storage.example/electricity-invoice.jpg',
+                    name: 'electricity-invoice.jpg',
+                    type: 'image',
+                  },
+                ],
+              },
+            ],
+            otherExpenses: [
+              {
+                description: 'Reparație',
+                amount: 30,
+                notes: '',
+                attachments: [
+                  {
+                    url: 'https://storage.example/other-invoice.pdf',
+                    name: 'other-invoice.pdf',
+                    type: 'pdf',
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+      }),
+    )
+
+    await renderWithProviders(<TenantDashboardPage />)
+
+    expect(
+      screen.getByRole('link', { name: /rent-invoice\.pdf/ }),
+    ).toHaveAttribute('href', 'https://storage.example/rent-invoice.pdf')
+    expect(
+      screen.getByRole('link', { name: /maintenance-invoice\.pdf/ }),
+    ).toHaveAttribute('href', 'https://storage.example/maintenance-invoice.pdf')
+    expect(
+      screen.getByRole('link', { name: /electricity-invoice\.jpg/ }),
+    ).toHaveAttribute('href', 'https://storage.example/electricity-invoice.jpg')
+    expect(
+      screen.getByRole('link', { name: /other-invoice\.pdf/ }),
+    ).toHaveAttribute('href', 'https://storage.example/other-invoice.pdf')
+  })
+
+  it('D-ATTACH-2 — zero attachments anywhere means the attachments section is NOT rendered', async () => {
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useMySignedReports.mockReturnValue(query({ data: [reportFixture()] }))
+
+    await renderWithProviders(<TenantDashboardPage />)
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
 })
