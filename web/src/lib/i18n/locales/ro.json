@@ -465,6 +465,9 @@
     "export": {
       "downloadPdf": "Descarcă PDF",
       "pdfError": "Nu am putut genera PDF-ul. Încearcă din nou."
+    },
+    "endedBanner": {
+      "message": "Contract încheiat pe {{date}}"
     }
   },
   "dashboard": {

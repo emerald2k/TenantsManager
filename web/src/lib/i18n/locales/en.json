@@ -465,6 +465,9 @@
     "export": {
       "downloadPdf": "Download PDF",
       "pdfError": "The PDF could not be generated. Please try again."
+    },
+    "endedBanner": {
+      "message": "Contract ended on {{date}}"
     }
   },
   "dashboard": {

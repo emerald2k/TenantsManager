@@ -169,7 +169,7 @@ describe('TenantContractPage', () => {
     expect(screen.getByText('Str. Zorilor 12, Cluj-Napoca')).toBeVisible()
   })
 
-  it("CT10 — no ended-tenancy banner renders, regardless of fixture (TEMPORARY: sub-stage 9, FR-TAPP-06, will deliberately add exactly this banner and supersede this test — a planned supersedure, not a future regression, exactly as sub-stage 6 superseded sub-stage 5's own HP7)", async () => {
+  it("CT10 — PERMANENT architectural-boundary test (corrected at sub-stage 9; originally written at sub-stage 7 expecting a TEMPORARY same-file supersedure, mirroring HP7 — that premise was wrong): TenantContractPage rendered ALONE, with no TenantLayout, still shows no ended-tenancy banner, regardless of fixture. This page never owned that responsibility — FR-TAPP-06's persistent banner is mounted once in TenantLayout (M5 sub-stage 9 plan), not per page, so this component legitimately renders none on its own. The banner's actual behavior — including that it DOES reach /app/contract once TenantLayout wraps this page — is proven by web/tests/tenantLayout.test.jsx's own L-CONTRACT test, which explicitly supersedes CT10's ORIGINAL claim (that an ended tenancy viewing /app/contract sees no banner at all)", async () => {
     useMyTenancy.mockReturnValue(
       query({ data: tenancyFixture({ status: 'ended' }) }),
     )
