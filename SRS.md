@@ -368,7 +368,10 @@ After publication — **payment** section: amount, method, date, "Mark payment",
 ### 5.4 Tenant area
 **Navigation:** navbar — Home, History, Contract + language + logout. Mobile-first.
 When the tenancy has ended, a **persistent banner** ("Contract ended on {date}",
-from `tenancies.endedAt`) sits under the navbar on **every** portal page (FR-TAPP-06).
+from `tenancies.endedAt`) sits under the navbar on **every** portal page
+(FR-TAPP-06). The date is formatted in the current interface language
+(e.g. "31 ianuarie 2026" / "January 31, 2026"). Other dates in the tenant
+portal remain unformatted.
 
 **`/app`** — central card: the **most recent signed report**, with its month
 shown prominently; total + due date + status badge; full breakdown by line, each
