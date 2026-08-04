@@ -17,6 +17,12 @@ vi.mock('@/features/tenantApp/hooks', () => ({
   useMyTenancy: vi.fn(),
   useMySignedReports: vi.fn(),
 }))
+// M5 sub-stage 8 plan — the page now mounts the REAL DownloadReportPdfButton
+// + REAL useReportSummaryCapture hook (this file's own convention: render
+// the real pipeline, not a mock of it), so the underlying rasterization
+// libraries are mocked here, same precedent as reports.page.test.jsx.
+vi.mock('jspdf', () => ({ jsPDF: vi.fn(function jsPDFMock() {}) }))
+vi.mock('html2canvas-pro', () => ({ default: vi.fn() }))
 
 function tenancyFixture(overrides = {}) {
   return {
@@ -165,5 +171,45 @@ describe('TenantDashboardPage', () => {
     // same reasoning as D5 above.
     expect(screen.getAllByText('1.000,00 lei').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('9.000,00 lei')).not.toBeInTheDocument()
+  })
+
+  // M5 sub-stage 8 plan, §7.5 (DASH-PDF-1/2).
+  it('DASH-PDF-1 — "Descarcă PDF" renders when a report exists', async () => {
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useMySignedReports.mockReturnValue(query({ data: [reportFixture()] }))
+
+    await renderWithProviders(<TenantDashboardPage />)
+
+    expect(screen.getByRole('button', { name: 'Descarcă PDF' })).toBeVisible()
+  })
+
+  it('DASH-PDF-2 — absent in loading/error/no-tenancy/empty states', async () => {
+    useMyTenancy.mockReturnValue(query({ isPending: true }))
+    useMySignedReports.mockReturnValue(query({ isPending: true }))
+    const { rerender } = await renderWithProviders(<TenantDashboardPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
+
+    useMyTenancy.mockReturnValue(query({ isError: true }))
+    useMySignedReports.mockReturnValue(query({ data: [] }))
+    rerender(<TenantDashboardPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
+
+    useMyTenancy.mockReturnValue(query({ data: null }))
+    useMySignedReports.mockReturnValue(query({ data: [] }))
+    rerender(<TenantDashboardPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
+
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useMySignedReports.mockReturnValue(query({ data: [] }))
+    rerender(<TenantDashboardPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
   })
 })

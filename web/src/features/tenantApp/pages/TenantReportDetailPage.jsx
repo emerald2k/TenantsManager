@@ -4,6 +4,7 @@ import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy, useTenantReport } from '@/features/tenantApp/hooks'
 import { adaptTenantReportSummary } from '@/features/tenantApp/reportAdapter'
+import { DownloadReportPdfButton } from '@/features/tenantApp/components/DownloadReportPdfButton'
 
 /**
  * `/app/reports/:reportId` — the full breakdown of a single signed report
@@ -15,9 +16,16 @@ import { adaptTenantReportSummary } from '@/features/tenantApp/reportAdapter'
  * other tenancy field is displayed (third consumer of the dashboard/
  * history pages' same "one relevant tenancy" assumption).
  *
- * "Download PDF" (FR-TAPP-04) is deliberately NOT implemented here —
- * decided deferral to sub-stage 8, on both surfaces SRS actually requires it
- * (`/app` and this page).
+ * "Download PDF" (FR-TAPP-04, M5 sub-stage 8) — `DownloadReportPdfButton` is
+ * fed the SAME `data`/`propertyName`/`showCalculatedTotal` this page already
+ * passes to the live `ReportSummaryView` above, so its off-screen capture
+ * is IDENTICAL to what's rendered inline here — unlike `/app`'s dashboard,
+ * this page suppresses nothing (header and payment status are both already
+ * shown), so there is no asymmetry to account for (sub-stage 8 plan, §5).
+ * The separate attachments-with-real-links section below does NOT enter
+ * the capture — same boundary as the admin export, see §6: a rasterized
+ * link is a dead link, and the tenant already has the real, clickable
+ * version right here on the page.
  */
 
 function collectAttachments(data) {
@@ -76,6 +84,13 @@ export function TenantReportDetailPage() {
         data={data}
         propertyName={tenancyQuery.data?.property?.name ?? null}
         showCalculatedTotal
+      />
+
+      <DownloadReportPdfButton
+        data={data}
+        propertyName={tenancyQuery.data?.property?.name ?? null}
+        showCalculatedTotal
+        fileNameBase={`raport-${tenancyQuery.data?.property?.name ?? 'proprietate'}-${data.month}-${data.year}`}
       />
 
       {attachments.length > 0 && (

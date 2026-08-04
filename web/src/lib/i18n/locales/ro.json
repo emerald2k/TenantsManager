@@ -461,6 +461,10 @@
         "empty": "Contractul nu a fost încă încărcat.",
         "download": "Descarcă"
       }
+    },
+    "export": {
+      "downloadPdf": "Descarcă PDF",
+      "pdfError": "Nu am putut genera PDF-ul. Încearcă din nou."
     }
   },
   "dashboard": {

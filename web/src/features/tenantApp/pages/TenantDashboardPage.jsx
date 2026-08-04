@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/useAuth'
 import { useMySignedReports, useMyTenancy } from '@/features/tenantApp/hooks'
 import { adaptTenantReportSummary } from '@/features/tenantApp/reportAdapter'
 import { PaymentStatusBadge } from '@/features/tenantApp/components/PaymentStatusBadge'
+import { DownloadReportPdfButton } from '@/features/tenantApp/components/DownloadReportPdfButton'
 
 /**
  * `/app` — the tenant dashboard (FR-TAPP-01, SRS §5.4, M5 sub-stage 3 plan).
@@ -18,6 +19,18 @@ import { PaymentStatusBadge } from '@/features/tenantApp/components/PaymentStatu
  * `showHeader={false}` `showPaymentStatus={false}` (Task 0) so nothing is
  * shown twice — it contributes only the cost-line table and the footer's
  * totals/arrears/credit/due-date rows.
+ *
+ * `DownloadReportPdfButton` (FR-TAPP-04, M5 sub-stage 8) is fed `data` +
+ * `propertyName` only — it never forwards `showHeader`/`showPaymentStatus`,
+ * so its OWN off-screen capture always uses `ReportSummaryView`'s TRUE
+ * defaults (header + payment status both shown), deliberately DIFFERENT
+ * from what's rendered inline on this very page. A downloaded PDF is a
+ * standalone document with no surrounding page chrome to supply the
+ * property name, month, or payment status otherwise — so the capture
+ * cannot reuse this page's own suppressed props. See the sub-stage 8 plan,
+ * §5, for the full reasoning (this is the ONE surface where capture props
+ * and live props deliberately diverge; `/app/reports/:reportId` does not
+ * have this asymmetry).
  */
 export function TenantDashboardPage() {
   const { t, i18n } = useTranslation()
@@ -81,6 +94,12 @@ export function TenantDashboardPage() {
         data={adaptTenantReportSummary(report)}
         showHeader={false}
         showPaymentStatus={false}
+      />
+
+      <DownloadReportPdfButton
+        data={adaptTenantReportSummary(report)}
+        propertyName={tenancy.property?.name}
+        fileNameBase={`raport-${tenancy.property?.name ?? 'proprietate'}-${report.month}-${report.year}`}
       />
     </div>
   )

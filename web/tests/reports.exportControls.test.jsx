@@ -33,7 +33,7 @@ const fakeCanvas = {
   toDataURL: vi.fn(() => 'data:image/png;base64,fake'),
 }
 const html2canvasMock = vi.fn(async () => fakeCanvas)
-vi.mock('html2canvas', () => ({
+vi.mock('html2canvas-pro', () => ({
   default: (...args) => html2canvasMock(...args),
 }))
 
@@ -202,5 +202,81 @@ describe('ExportReportControls', () => {
     expect(jsPDFInstance.save).not.toHaveBeenCalled()
     expect(clickSpy).toHaveBeenCalled()
     clickSpy.mockRestore()
+  })
+
+  // M5 sub-stage 8 plan, §7.2 (EC-console-1/2/3) — the three previously
+  // SILENT catch blocks now log the real error via console.error, on top
+  // of the existing i18n message (already covered above). Each of these
+  // failure paths gets its OWN spy/assertion so an anti-vacuity injection
+  // on one catch cannot accidentally be masked by another.
+  it('EC-console-1 — PDF failure logs the real error via console.error, i18n message still shows', async () => {
+    const boom = new Error('rasterization failed')
+    html2canvasMock.mockRejectedValueOnce(boom)
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    const user = userEvent.setup()
+    await renderWithProviders(
+      <ExportReportControls report={report()} property={PROPERTY} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Descarcă PDF' }))
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(boom)
+    expect(
+      await screen.findByText(
+        'PDF-ul nu a putut fi generat. Încearcă din nou.',
+      ),
+    ).toBeVisible()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('EC-console-2 — PNG failure logs the real error via console.error, i18n message still shows', async () => {
+    const boom = new Error('rasterization failed')
+    html2canvasMock.mockRejectedValueOnce(boom)
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    const user = userEvent.setup()
+    await renderWithProviders(
+      <ExportReportControls report={report()} property={PROPERTY} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Descarcă PNG' }))
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(boom)
+    expect(
+      await screen.findByText(
+        'Imaginea nu a putut fi generată. Încearcă din nou.',
+      ),
+    ).toBeVisible()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('EC-console-3 — copy-link failure logs the real error via console.error, i18n message still shows', async () => {
+    const boom = new Error('token write failed')
+    useShareReport.mockReturnValue({
+      mutateAsync: vi.fn().mockRejectedValue(boom),
+      isPending: false,
+    })
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    const user = userEvent.setup()
+    await renderWithProviders(
+      <ExportReportControls report={report()} property={PROPERTY} />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Copiază link partajabil' }),
+    )
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(boom)
+    expect(
+      await screen.findByText(
+        'Linkul nu a putut fi generat. Încearcă din nou.',
+      ),
+    ).toBeVisible()
+    consoleErrorSpy.mockRestore()
   })
 })

@@ -461,6 +461,10 @@
         "empty": "The contract has not been uploaded yet.",
         "download": "Download"
       }
+    },
+    "export": {
+      "downloadPdf": "Download PDF",
+      "pdfError": "The PDF could not be generated. Please try again."
     }
   },
   "dashboard": {

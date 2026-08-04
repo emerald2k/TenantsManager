@@ -24,6 +24,12 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
   useParams: () => ({ reportId: 'report-1' }),
 }))
+// M5 sub-stage 8 plan — the page now mounts the REAL DownloadReportPdfButton
+// + REAL useReportSummaryCapture hook (this file's own convention: render
+// the real pipeline, not a mock of it), so the underlying rasterization
+// libraries are mocked here, same precedent as reports.page.test.jsx.
+vi.mock('jspdf', () => ({ jsPDF: vi.fn(function jsPDFMock() {}) }))
+vi.mock('html2canvas-pro', () => ({ default: vi.fn() }))
 
 function tenancyFixture(overrides = {}) {
   return {
@@ -251,5 +257,38 @@ describe('TenantReportDetailPage', () => {
     expect(
       screen.getByRole('link', { name: 'Înapoi la istoric' }),
     ).toHaveAttribute('href', '/app/history')
+  })
+
+  // M5 sub-stage 8 plan, §7.5 (RD-PDF-1/2).
+  it('RD-PDF-1 — "Descarcă PDF" renders alongside the report breakdown', async () => {
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useTenantReport.mockReturnValue(query({ data: reportFixture() }))
+
+    await renderWithProviders(<TenantReportDetailPage />)
+
+    expect(screen.getByRole('button', { name: 'Descarcă PDF' })).toBeVisible()
+  })
+
+  it('RD-PDF-2 — absent in loading/error/not-found states', async () => {
+    useMyTenancy.mockReturnValue(query({ isPending: true }))
+    useTenantReport.mockReturnValue(query({ isPending: true }))
+    const { rerender } = await renderWithProviders(<TenantReportDetailPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
+
+    useMyTenancy.mockReturnValue(query({ isError: true }))
+    useTenantReport.mockReturnValue(query({ data: reportFixture() }))
+    rerender(<TenantReportDetailPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
+
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useTenantReport.mockReturnValue(query({ data: null }))
+    rerender(<TenantReportDetailPage />)
+    expect(
+      screen.queryByRole('button', { name: 'Descarcă PDF' }),
+    ).not.toBeInTheDocument()
   })
 })
