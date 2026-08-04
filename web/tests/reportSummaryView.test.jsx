@@ -117,4 +117,72 @@ describe('ReportSummaryView', () => {
     )
     expect(screen.getByText('Parțial achitat')).toBeVisible()
   })
+
+  // M5 sub-stage 2 plan: two new props, both defaulting to reproduce
+  // /r/:shareToken's current output exactly (no caller above needs to
+  // change) — propertyName and showCalculatedTotal.
+
+  it('C1 — propertyName prop is optional, falls back to data.propertyName when omitted', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData({ propertyName: 'Vila Nord' })} />,
+    )
+    expect(screen.getByText('Vila Nord')).toBeVisible()
+  })
+
+  it('C2 — calculatedTotal is hidden by default (showCalculatedTotal defaults to false)', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({ calculatedTotal: 3000, finalTotal: 2500 })}
+      />,
+    )
+    expect(screen.queryByText('3.000,00 lei')).not.toBeInTheDocument()
+  })
+
+  it('C3 — showCalculatedTotal=true and an explicit propertyName both work forward', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          propertyName: undefined,
+          calculatedTotal: 3000,
+          finalTotal: 2500,
+        })}
+        propertyName="Explicit Name"
+        showCalculatedTotal
+      />,
+    )
+    expect(screen.getByText('Explicit Name')).toBeVisible()
+    expect(screen.getByText('3.000,00 lei')).toBeVisible()
+  })
+
+  // M5 sub-stage 3 plan: two MORE default-preserving props, same mechanism —
+  // showPaymentStatus and showHeader, both defaulting to true so /r/:shareToken
+  // and the admin PDF/PNG export render byte-for-byte identically to today.
+
+  it("R1 — with no new props, BOTH the header and the payment-status row still render (today's behavior, unchanged)", async () => {
+    await renderWithProviders(<ReportSummaryView data={summaryData()} />)
+
+    expect(screen.getByText('Apartament Centru')).toBeVisible()
+    expect(screen.getByText('7/2026')).toBeVisible()
+    expect(screen.getByText('Neachitat')).toBeVisible()
+  })
+
+  it('R2 — showPaymentStatus={false} hides the payment-status row; header and table remain', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData()} showPaymentStatus={false} />,
+    )
+
+    expect(screen.queryByText('Neachitat')).not.toBeInTheDocument()
+    expect(screen.getByText('Apartament Centru')).toBeVisible()
+    expect(screen.getByText('Chirie')).toBeVisible()
+  })
+
+  it('R3 — showHeader={false} hides the property name and month/year; the table remains', async () => {
+    await renderWithProviders(
+      <ReportSummaryView data={summaryData()} showHeader={false} />,
+    )
+
+    expect(screen.queryByText('Apartament Centru')).not.toBeInTheDocument()
+    expect(screen.queryByText('7/2026')).not.toBeInTheDocument()
+    expect(screen.getByText('Chirie')).toBeVisible()
+  })
 })

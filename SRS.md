@@ -155,7 +155,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-CON-04 | Termination blocked if there are unpaid arrears — `currentBalance > 0` on the tenancy (§6). A credit or an exactly-zero balance does NOT block termination. |
 | FR-CON-05 | On termination: the property becomes "free", the account moves to "inactive-readonly". |
 | FR-CON-06 | Extension = editing the end date on the same tenancy. |
-| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. *(Partially built at M3: the admin-side upload and the Storage access rule — admin write, owning tenant read — are done. The tenant-facing consumption at `/app/contract` is M5, still a placeholder.)* |
+| FR-CON-07 | The attached signed contract is visible/downloadable by the tenant. |
 | FR-CON-08 | Passing the end date does not trigger anything automatically — the contract remains "active" until manual termination. |
 | FR-CON-09 | Email reminders to the admin **90, 60 and 30 days** before expiry (sent at 09:00, Europe/Bucharest). |
 
@@ -218,12 +218,12 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 
 | ID | Requirement |
 |---|---|
-| FR-TAPP-01 | Dashboard: current month total (the final total), due date, payment status, breakdown by lines (rent + maintenance + all active services + other + arrears/credit), with **each line's notes and attachments visible** (the supporting invoice next to its amount). |
-| FR-TAPP-02 | Report history (grouped by years), with status and breakdown per service + invoices attached on opening. |
+| FR-TAPP-01 | Dashboard: current month total (the final total), due date, payment status, breakdown by lines (rent + maintenance + all active services + other + arrears/credit), with **each line's notes and attachments visible** (the supporting invoice next to its amount). For a tenant whose tenancy has ended, the dashboard shows the last signed report in the same format, labelled explicitly as the final month of the contract — never presented as "the current month". The dashboard shows the most recent signed report, whichever month it belongs to — not strictly the current calendar month, so a report issued late still reaches the tenant immediately. The report's month is always displayed on the card. Only when no signed report exists at all does the empty state appear. Payment status renders as three distinct badges: paid, partial, unpaid, plus a fourth neutral state when `paymentStatus` is absent — no payment has been recorded yet, which is not the same as an overdue debt. |
+| FR-TAPP-02 | Report history, grouped by years. The accordion holds one summary row per report — month, final total, amount paid, status. The full breakdown (cost lines, notes, attachments, PDF) opens on its own page, `/app/reports/{reportId}` — not inline in the accordion. |
 | FR-TAPP-03 | Property/contract data + download of the signed contract. |
 | FR-TAPP-04 | PDF download per monthly report (client-side, in the preferred language). |
 | FR-TAPP-05 | The tenant cannot edit anything in their profile and cannot change their password. |
-| FR-TAPP-06 | After the contract ends: read-only access to their own history. |
+| FR-TAPP-06 | After the contract ends: read-only access to the tenant's own history. The dashboard, the history, the report detail pages and the contract data all stay reachable. Every page of the portal shows a persistent banner stating that the contract ended on `tenancies.endedAt`. No new report can appear; nothing becomes editable (the tenant never writes anyway — FR-TAPP-05). |
 
 ### 3.8 Administrator Dashboard module (DASH)
 
@@ -314,6 +314,7 @@ ADMIN (layout with sidebar; collapsible on tablet)
 TENANT (top navbar; mobile-first)
   /app                            — dashboard
   /app/history                    — report history by year
+  /app/reports/:reportId          — full breakdown of one signed report + PDF
   /app/contract                   — property data + contract
 ```
 
@@ -366,9 +367,31 @@ After publication — **payment** section: amount, method, date, "Mark payment",
 
 ### 5.4 Tenant area
 **Navigation:** navbar — Home, History, Contract + language + logout. Mobile-first.
-**`/app`** — central card: total + due date + status badge; full breakdown; attached invoices (view/download); "Download PDF". No report → "This month's report has not been published yet."
-**`/app/history`** — accordion by year: month, total, paid, status; click → breakdown per service + invoices; PDF per report.
-**`/app/contract`** — property data (denormalized from the tenancy), period, rent, security deposit, due day; download of the signed contract.
+When the tenancy has ended, a **persistent banner** ("Contract ended on {date}",
+from `tenancies.endedAt`) sits under the navbar on **every** portal page
+(FR-TAPP-06). The date is formatted in the current interface language
+(e.g. "31 ianuarie 2026" / "January 31, 2026"). Other dates in the tenant
+portal remain unformatted.
+
+**`/app`** — central card: the **most recent signed report**, with its month
+shown prominently; total + due date + status badge; full breakdown by line, each
+with its notes and attachments (view/download); "Download PDF". No signed report
+at all → "No report has been published yet." Ended tenancy → the same card,
+filled with the last signed report, carrying a **label on the card** ("Final
+month of the contract") distinct from the persistent banner (FR-TAPP-06).
+
+**`/app/history`** — accordion by year. Each year lists one **summary row** per
+report: month, total, amount paid, status badge. Clicking a row navigates to
+`/app/reports/{reportId}`. No breakdown inline.
+
+**`/app/reports/:reportId`** — the full breakdown of a single signed report: every
+cost line with its notes and attachments, arrears/credit, calculated total and final
+total, due date, payment status, "Download PDF", link back to the history. Only the
+tenant's **own, signed** reports are reachable; a foreign or draft `reportId` is
+denied by Security Rules and must render as **not found**, not as a technical error.
+
+**`/app/contract`** — property data (denormalized from the tenancy), period, rent,
+security deposit, due day; download of the signed contract.
 
 ### 5.5 Cross-cutting UI rules
 States: loading (skeleton), empty (message+action), error (message+"Retry"). Confirmation for destructive actions or those affecting the tenant. Inline Zod validation, in the selected language. Amounts in RON, Romanian format.
@@ -610,7 +633,7 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 | M2 | KYC Onboarding | Drafts, 4-step wizard, photo capture + compression, `finalizeKyc`, credentials email, CNP check | End-to-end onboarding functional, credentials received |
 | M3 | Tenant management | Detail (4 tabs), profile editing, password reset, contract extension/termination | Complete tenant lifecycle |
 | M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard, signed-report export (PDF, PNG, shareable link + revocation) | The complete monthly cycle, with emails; the signed report is exportable and shareable |
-| M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF | The tenant sees and downloads everything |
+| M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF, read-only access after contract end (persistent banner) | The tenant sees and downloads everything |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
 | M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, **move to the Blaze plan + Cloud Billing budget alert**, deploy | Live, tested application |
 

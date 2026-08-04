@@ -1,12 +1,9 @@
-import { useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { useRevokeShareLink, useShareReport } from '@/features/reports/hooks'
+import { useReportSummaryCapture } from '@/lib/reportSummaryCapture'
 
 /**
  * The export zone on a SIGNED report (SRS §5.3, FR-REP-07b/07c, M4 sub-stage
@@ -71,7 +68,9 @@ export function ExportReportControls({ report, property }) {
   const { t } = useTranslation()
   const shareReport = useShareReport()
   const revokeShareLink = useRevokeShareLink()
-  const captureRef = useRef(null)
+  const { captureCanvas, downloadPdf, captureNode } = useReportSummaryCapture({
+    data: toReportSummaryData(report, property),
+  })
 
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState(null) // 'success' | 'error' | null
@@ -79,12 +78,6 @@ export function ExportReportControls({ report, property }) {
   const [pdfError, setPdfError] = useState(false)
   const [pngPending, setPngPending] = useState(false)
   const [pngError, setPngError] = useState(false)
-  // Mounted ONLY for the duration of a capture — not permanently, so it
-  // never duplicates the report's text in the DOM (which would collide
-  // with the live form's own "Gas"/"Plată"/etc. for every query in every
-  // other test on this page) and isn't rendered at all on a page that never
-  // exports.
-  const [captureMounted, setCaptureMounted] = useState(false)
 
   const hasLiveLink = Boolean(report.shareToken) && !report.shareTokenRevoked
 
@@ -100,7 +93,8 @@ export function ExportReportControls({ report, property }) {
         `${window.location.origin}/r/${token}`,
       )
       setCopyStatus('success')
-    } catch {
+    } catch (error) {
+      console.error(error)
       setCopyStatus('error')
     }
   }
@@ -112,37 +106,13 @@ export function ExportReportControls({ report, property }) {
 
   const exportFileBase = `raport-${property?.name ?? report.propertyId}-${report.month}-${report.year}`
 
-  /** Mounts the capture target synchronously (`flushSync` — a plain
-   * `setState` only commits on the NEXT render, which would leave
-   * `captureRef.current` null right when html2canvas needs it), captures
-   * it, then unmounts it again regardless of outcome. */
-  async function captureSummaryCanvas() {
-    flushSync(() => setCaptureMounted(true))
-    try {
-      return await html2canvas(captureRef.current)
-    } finally {
-      setCaptureMounted(false)
-    }
-  }
-
   async function handleDownloadPdf() {
     setPdfError(false)
     setPdfPending(true)
     try {
-      const canvas = await captureSummaryCanvas()
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt' })
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const imgHeight = (canvas.height * pageWidth) / canvas.width
-      pdf.addImage(
-        canvas.toDataURL('image/png'),
-        'PNG',
-        0,
-        0,
-        pageWidth,
-        imgHeight,
-      )
-      pdf.save(`${exportFileBase}.pdf`)
-    } catch {
+      await downloadPdf(exportFileBase)
+    } catch (error) {
+      console.error(error)
       setPdfError(true)
     } finally {
       setPdfPending(false)
@@ -153,12 +123,13 @@ export function ExportReportControls({ report, property }) {
     setPngError(false)
     setPngPending(true)
     try {
-      const canvas = await captureSummaryCanvas()
+      const canvas = await captureCanvas()
       const link = document.createElement('a')
       link.href = canvas.toDataURL('image/png')
       link.download = `${exportFileBase}.png`
       link.click()
-    } catch {
+    } catch (error) {
+      console.error(error)
       setPngError(true)
     } finally {
       setPngPending(false)
@@ -234,15 +205,7 @@ export function ExportReportControls({ report, property }) {
         isPending={revokeShareLink.isPending}
       />
 
-      {/* The PDF/PNG capture target — off-screen (NOT display:none, which
-          html2canvas cannot rasterize: zero layout size, nothing to
-          capture) — mounted ONLY during an actual capture, see
-          captureSummaryCanvas above. */}
-      {captureMounted && (
-        <div ref={captureRef} className="absolute -left-[9999px] top-0">
-          <ReportSummaryView data={toReportSummaryData(report, property)} />
-        </div>
-      )}
+      {captureNode}
     </div>
   )
 }

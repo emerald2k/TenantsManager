@@ -12,6 +12,10 @@ import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
 import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
+import { TenantDashboardPage } from '@/features/tenantApp/pages/TenantDashboardPage'
+import { TenantHistoryPage } from '@/features/tenantApp/pages/TenantHistoryPage'
+import { TenantReportDetailPage } from '@/features/tenantApp/pages/TenantReportDetailPage'
+import { TenantContractPage } from '@/features/tenantApp/pages/TenantContractPage'
 import { ProtectedRoute, GuestRoute, RootRedirect } from '@/routes/guards'
 import { AdminLayout } from '@/routes/AdminLayout'
 import { TenantLayout } from '@/routes/TenantLayout'
@@ -72,18 +76,13 @@ export function AppRoutes() {
 
         <Route element={<ProtectedRoute allowedRole="tenant" />}>
           <Route element={<TenantLayout />}>
+            <Route path="/app" element={<TenantDashboardPage />} />
+            <Route path="/app/history" element={<TenantHistoryPage />} />
             <Route
-              path="/app"
-              element={<PlaceholderPage titleKey="pages.tenantDashboard" />}
+              path="/app/reports/:reportId"
+              element={<TenantReportDetailPage />}
             />
-            <Route
-              path="/app/history"
-              element={<PlaceholderPage titleKey="pages.tenantHistory" />}
-            />
-            <Route
-              path="/app/contract"
-              element={<PlaceholderPage titleKey="pages.tenantContract" />}
-            />
+            <Route path="/app/contract" element={<TenantContractPage />} />
           </Route>
         </Route>
 

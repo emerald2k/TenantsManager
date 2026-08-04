@@ -42,11 +42,11 @@ vi.mock('@/features/reports/hooks', () => ({
   useShareReport: vi.fn(),
   useRevokeShareLink: vi.fn(),
 }))
-// ExportReportControls' PDF/PNG buttons pull in real jsPDF/html2canvas —
-// mocked here too (M4 sub-stage 8) so this unrelated wiring test never
-// exercises the real canvas-capture/PDF-generation code.
+// ExportReportControls' PDF/PNG buttons pull in real jsPDF/html2canvas-pro —
+// mocked here too (M4 sub-stage 8, renamed M5 sub-stage 8) so this unrelated
+// wiring test never exercises the real canvas-capture/PDF-generation code.
 vi.mock('jspdf', () => ({ jsPDF: vi.fn(function jsPDFMock() {}) }))
-vi.mock('html2canvas', () => ({ default: vi.fn() }))
+vi.mock('html2canvas-pro', () => ({ default: vi.fn() }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
   useParams: () => ({ propertyId: 'p1' }),

@@ -54,8 +54,10 @@ function SummaryLineRow({ label, amount, notes, attachments }) {
 }
 
 // Reuses the SAME keys PaymentSection already shows the admin (reports.payment.*)
-// — no new vocabulary for the same three states.
-const PAYMENT_STATUS_KEY = {
+// — no new vocabulary for the same three states. Exported (M5 sub-stage 3)
+// so PaymentStatusBadge can extend it with a fourth key instead of
+// hand-copying these three.
+export const PAYMENT_STATUS_KEY = {
   paid: 'reports.payment.statusPaid',
   partial: 'reports.payment.statusPartial',
   unpaid: 'reports.payment.statusUnpaid',
@@ -66,22 +68,44 @@ const PAYMENT_STATUS_KEY = {
  *   maintenance, serviceCosts[], otherExpenses[], previousMonthArrears,
  *   previousMonthCredit, calculatedTotal, finalTotal, dueDate,
  *   paymentStatus, amountPaid }. Each cost line's `attachments[]` needs
- *   only `{ name, type }` — extra keys (e.g. `reference`) are ignored.
+ *   only `{ name, type }` — extra keys (e.g. `reference`, `url`) are
+ *   ignored.
+ * @param propertyName defaults to `data.propertyName` — every existing
+ *   caller (SharedReportPage, ExportReportControls' toReportSummaryData)
+ *   already embeds it inside `data`, so neither needs to change. A tenant
+ *   caller (M5 sub-stage 2), whose adapter output has no `propertyName` key,
+ *   passes this prop explicitly instead.
+ * @param showCalculatedTotal defaults to `false` — reproduces the current
+ *   output exactly (calculatedTotal has never been rendered here).
+ * @param showPaymentStatus defaults to `true` — when `false`, the footer's
+ *   payment-status row is not rendered at all (M5 sub-stage 3: the tenant
+ *   dashboard owns its own four-state badge instead).
+ * @param showHeader defaults to `true` — when `false`, the property-name/
+ *   month header block is not rendered at all (M5 sub-stage 3: the tenant
+ *   dashboard owns its own header instead).
  */
-export function ReportSummaryView({ data }) {
+export function ReportSummaryView({
+  data,
+  propertyName = data.propertyName,
+  showCalculatedTotal = false,
+  showPaymentStatus = true,
+  showHeader = true,
+}) {
   const { t } = useTranslation()
   const paymentStatusKey = PAYMENT_STATUS_KEY[data.paymentStatus ?? 'unpaid']
 
   return (
     <div className="flex flex-col gap-4 bg-background p-6 text-sm">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          {data.propertyName}
-        </h2>
-        <p className="text-muted-foreground">
-          {data.month}/{data.year}
-        </p>
-      </div>
+      {showHeader && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            {propertyName}
+          </h2>
+          <p className="text-muted-foreground">
+            {data.month}/{data.year}
+          </p>
+        </div>
+      )}
 
       <table className="w-full text-left">
         <tbody>
@@ -119,6 +143,14 @@ export function ReportSummaryView({ data }) {
       </table>
 
       <div className="flex flex-col gap-1 border-t border-border pt-3">
+        {showCalculatedTotal && (
+          <div className="flex items-center justify-between">
+            <span>{t('reports.fields.calculatedTotal')}</span>
+            <span className="tabular-nums">
+              {formatCurrency(data.calculatedTotal)}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span>{t('reports.fields.previousArrears')}</span>
           <span className="tabular-nums">
@@ -141,10 +173,12 @@ export function ReportSummaryView({ data }) {
           <span>{t('reports.fields.dueDate')}</span>
           <span>{data.dueDate}</span>
         </div>
-        <div className="flex items-center justify-between">
-          <span>{t('reports.payment.title')}</span>
-          <span>{t(paymentStatusKey)}</span>
-        </div>
+        {showPaymentStatus && (
+          <div className="flex items-center justify-between">
+            <span>{t('reports.payment.title')}</span>
+            <span>{t(paymentStatusKey)}</span>
+          </div>
+        )}
       </div>
     </div>
   )

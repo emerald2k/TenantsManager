@@ -389,6 +389,7 @@
       "statusPaid": "Paid",
       "statusPartial": "Partially paid",
       "statusUnpaid": "Unpaid",
+      "statusNotRecorded": "No payment recorded yet",
       "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
       "markError": "The payment could not be recorded. Please try again.",
       "cancelError": "The payment could not be cancelled. Please try again."
@@ -422,6 +423,55 @@
       "title": "Attachments",
       "download": "Download",
       "error": "The file could not be downloaded. Please try again."
+    }
+  },
+  "tenantApp": {
+    "dashboard": {
+      "empty": "No report has been published yet.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "error": "Could not load your dashboard. Please try again.",
+      "endedLabel": "Final month of the contract",
+      "attachments": {
+        "title": "Attachments",
+        "download": "Download"
+      }
+    },
+    "history": {
+      "empty": "You have no report history yet.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "error": "Could not load your report history. Please try again."
+    },
+    "reportDetail": {
+      "error": "Could not load this report. Please try again.",
+      "notFound": "This report could not be found.",
+      "backToHistory": "Back to history",
+      "attachments": {
+        "title": "Attachments",
+        "download": "Download"
+      }
+    },
+    "contract": {
+      "error": "Could not load your contract. Please try again.",
+      "noTenancy": "No property is assigned to your account yet.",
+      "fields": {
+        "startDate": "Start date",
+        "endDate": "End date",
+        "monthlyRent": "Monthly rent",
+        "securityDeposit": "Security deposit",
+        "dueDay": "Due day"
+      },
+      "documents": {
+        "title": "Documents",
+        "empty": "The contract has not been uploaded yet.",
+        "download": "Download"
+      }
+    },
+    "export": {
+      "downloadPdf": "Download PDF",
+      "pdfError": "The PDF could not be generated. Please try again."
+    },
+    "endedBanner": {
+      "message": "Contract ended on {{date}}"
     }
   },
   "dashboard": {
