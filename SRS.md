@@ -413,6 +413,9 @@ HTTPS/TLS through the Firebase SDKs.
 users/{userId}                        [ACCESS: admin only]
   - name, dateOfBirth, email, phone, preferredLanguage: 'ro' | 'en'
   - cnp, idDocumentPhotos[]
+    // idDocumentPhotos[] and guarantor.idDocumentPhotos[]:
+    //   [ { path (bucket-relative Storage path), name, type: 'image'|'pdf'|'doc' } ]
+    //   same item shape as attachedDocuments[] and costLine.attachments[]
   - mailingAddress (opt), previousAddress
   - emergencyContact { name, phone }
   - occupantCount, smoker, pets { has, type },
@@ -454,8 +457,11 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - status: active | ended
   - endedAt: server timestamp, set by endTenancy on termination (absent while active)
   - attachedDocuments[] (signed contract — visible to the tenant)
-    // attachedDocuments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
-    //   same item shape as costLine.attachments[] (consistency, not duplication)
+    // attachedDocuments[]: [ { path (bucket-relative Storage path), name,
+    //                          type: 'image'|'pdf'|'doc' } ]
+    //   same item shape as costLine.attachments[] and users.idDocumentPhotos[]
+    //   (consistency, not duplication)
+    //   NEVER a download URL — see "Storage references" at the end of this section
 
 properties/{propertyId}               [ACCESS: admin only]
   - ownerId, name, address { street, number, city, county, postalCode }
@@ -483,7 +489,9 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
 
   // Every cost line has the same shape: amount + notes + attachments (FR-REP-03a)
   // "costLine" = { amount, notes (optional), attachments[] (optional) }
-  //   attachments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
+  //   attachments[]: [ { path (bucket-relative Storage path), name,
+  //                      type: 'image'|'pdf'|'doc' } ]
+  //   NEVER a download URL — see "Storage references" at the end of this section
   //   the notes AND the attachments are visible to the tenant (FR-DOC-04)
 
   - rent:        costLine
@@ -531,6 +539,16 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 - `/tenancies/{tenancyId}/contract/*` — admin + the tenant of the tenancy
 - `/reports/{reportId}/invoices/*` — admin + the tenant of the report
 - `/drafts/{draftId}/*` — admin only
+
+**Storage references — no persisted download URLs.** Every stored reference to a
+Storage object is the bucket-relative `path`, never a download URL.
+`getDownloadURL()` mints a permanent token in the object's own metadata, and a
+request carrying that token is served WITHOUT Security Rules being consulted at
+all. A persisted URL therefore survives report unlocking, share-link revocation
+and account disabling — the access it grants cannot be withdrawn. Authenticated
+clients resolve `path` → URL at display time, so every access is checked by the
+rules. Anonymous shared-report visitors receive no URL at any point: attachment
+bytes are served server-side by `getSharedReportAttachment` (§7.2).
 
 **Notes:** `serviceCosts[].name` = snapshot (FR-PROP-08); the `utilityReadings` collection does not exist (no index); the denormalizations (tenantName, property) eliminate any need for the tenant to access `users`/`properties`.
 
