@@ -8,11 +8,12 @@ import { uploadAttachment } from '@/lib/fileUpload'
  * (`collectAttachmentUrls`) used on both sides of the upload.
  *
  * Each cost line's `attachments[]` entry, in FORM state, is uniform:
- * `{ url, name, type, file }` — exactly one of `url` (already persisted) or
- * `file` (a raw `File`, picked but not yet uploaded) is present. The
- * PERSISTED shape (what actually reaches Firestore) only ever has
- * `{ url, name, type }` — `uploadPendingAttachments` is what strips `file`
- * out, by replacing every `file`-bearing entry with its uploaded reference.
+ * `{ path, name, type, file }` — exactly one of `path` (already persisted,
+ * a bucket-relative Storage path — debt #5, never a download URL) or `file`
+ * (a raw `File`, picked but not yet uploaded) is present. The PERSISTED shape
+ * (what actually reaches Firestore) only ever has `{ path, name, type }` —
+ * `uploadPendingAttachments` is what strips `file` out, by replacing every
+ * `file`-bearing entry with its uploaded reference.
  */
 
 const LINE_FIELDS = ['rent', 'maintenance']
@@ -28,7 +29,7 @@ function costLinesOf(report) {
 }
 
 /**
- * Every attachment URL currently present on a report — used both as the
+ * Every attachment path currently present on a report — used both as the
  * "before" snapshot (on load, from `existingReport`) and the "after" snapshot
  * (post-save, from the just-written document); the difference is what the
  * admin removed (see `useSaveReportDraft`). `null`/`undefined` (a brand new
@@ -38,15 +39,15 @@ function costLinesOf(report) {
 export function collectAttachmentUrls(report) {
   return costLinesOf(report).flatMap((line) =>
     (line.attachments ?? [])
-      .map((attachment) => attachment.url)
+      .map((attachment) => attachment.path)
       .filter(Boolean),
   )
 }
 
 /** Uploads the `file`-bearing attachments on ONE cost line, leaving
- * already-persisted ones (`url`, no `file`) untouched. Returns the line with
- * a CLEAN `attachments[]` (only `{ url, name, type }`, zero `file` left) plus
- * the URLs of whatever it just uploaded (for orphan cleanup on a later
+ * already-persisted ones (`path`, no `file`) untouched. Returns the line with
+ * a CLEAN `attachments[]` (only `{ path, name, type }`, zero `file` left) plus
+ * the paths of whatever it just uploaded (for orphan cleanup on a later
  * failure). */
 async function uploadLineAttachments(line, basePath) {
   const newUrls = []
@@ -54,14 +55,14 @@ async function uploadLineAttachments(line, basePath) {
     (line.attachments ?? []).map(async (attachment) => {
       if (!attachment.file) {
         return {
-          url: attachment.url,
+          path: attachment.path,
           name: attachment.name,
           type: attachment.type,
         }
       }
       const path = `${basePath}/${crypto.randomUUID()}-${attachment.file.name}`
       const uploaded = await uploadAttachment(path, attachment.file)
-      newUrls.push(uploaded.url)
+      newUrls.push(uploaded.path)
       return uploaded
     }),
   )
@@ -73,7 +74,7 @@ async function uploadLineAttachments(line, basePath) {
  * rent, maintenance, each service, each other-expense line — and returns a
  * version of `values` with CLEAN attachments everywhere (no `File` object
  * survives anywhere in the tree: Firestore throws on one), plus the flat list
- * of newly-uploaded URLs (so a failed `setDoc` right after can clean up only
+ * of newly-uploaded paths (so a failed `setDoc` right after can clean up only
  * those orphans — see `useSaveReportDraft`).
  */
 export async function uploadPendingAttachments(values, basePath) {

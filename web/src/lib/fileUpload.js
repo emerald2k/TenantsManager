@@ -1,10 +1,5 @@
 import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
 
 /**
@@ -36,9 +31,10 @@ export function classifyFileType(file) {
 
 /**
  * Uploads one file to `path` and returns the persisted reference shape
- * (`{ url, name, type }`, SRS §6). Compression is CONDITIONAL — only when the
- * file classifies as `'image'` (FR-DOC-05); a PDF/doc uploads byte-for-byte,
- * since running it through `imageCompression` would corrupt it.
+ * (`{ path, name, type }`, SRS §6 — debt #5: a bucket-relative Storage path,
+ * never a download URL). Compression is CONDITIONAL — only when the file
+ * classifies as `'image'` (FR-DOC-05); a PDF/doc uploads byte-for-byte, since
+ * running it through `imageCompression` would corrupt it.
  *
  * Does NOT check `MAX_UPLOAD_SIZE_BYTES` — that is a pre-upload, UI-level
  * decision (reject before ever touching Storage), left to the caller.
@@ -52,9 +48,8 @@ export async function uploadAttachment(path, file) {
 
   const objectRef = ref(storage, path)
   await uploadBytes(objectRef, payload)
-  const url = await getDownloadURL(objectRef)
 
-  return { url, name: file.name, type }
+  return { path: objectRef.fullPath, name: file.name, type }
 }
 
 /**

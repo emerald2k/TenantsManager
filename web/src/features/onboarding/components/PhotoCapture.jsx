@@ -2,12 +2,7 @@ import { useRef, useState } from 'react'
 import { useFormContext } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { useUpdateDraft } from '@/features/onboarding/hooks'
@@ -38,7 +33,7 @@ function getNestedError(errors, path) {
  *
  * Photos upload to Storage IMMEDIATELY on capture, to a flat `/drafts/{draftId}/`
  * folder (SRS §6) — not staged in memory for a later batch save. The draft only
- * ever holds the Storage references (`{ url, name, type }`, `storageReferenceSchema`
+ * ever holds the Storage references (`{ path, name, type }`, `storageReferenceSchema`
  * in schema.js), so it autosaves via `useUpdateDraft` right after each add/delete,
  * independently of the wizard's Back/Continue autosave.
  *
@@ -80,9 +75,11 @@ export function PhotoCapture({ draftId, fieldPath, required }) {
     const path = `drafts/${draftId}/${crypto.randomUUID()}-${file.name}`
     const objectRef = ref(storage, path)
     await uploadBytes(objectRef, compressed)
-    const url = await getDownloadURL(objectRef)
 
-    persist([...photos, { url, name: file.name, type: 'image' }])
+    persist([
+      ...photos,
+      { path: objectRef.fullPath, name: file.name, type: 'image' },
+    ])
   }
 
   async function handleDelete(index) {

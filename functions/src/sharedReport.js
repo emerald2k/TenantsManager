@@ -2,7 +2,6 @@ const { getApps, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { getStorage } = require('firebase-admin/storage')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { parseStoragePath } = require('./photoMigration')
 
 /**
  * getSharedReport / getSharedReportAttachment (SRS §7.2/§7.3, FR-REP-07b/07c,
@@ -109,7 +108,7 @@ function toPublicReport(report, propertyName) {
 /**
  * The inverse of attachmentsMeta: walks the SAME structure using a
  * client-supplied reference to locate the real attachment (with its real
- * Storage url). Returns null for anything that doesn't resolve — a
+ * Storage path). Returns null for anything that doesn't resolve — a
  * malformed, out-of-range, or wrong-section reference simply fails to find
  * anything (`array[NaN]` -> undefined -> null), which the caller turns into
  * a `not-found`. No extra input validation beyond this: since resolution is
@@ -190,7 +189,7 @@ async function getSharedReportAttachmentCore(shareToken, reference) {
   }
 
   const bucket = getStorage().bucket(STORAGE_BUCKET)
-  const path = parseStoragePath(attachment.url)
+  const path = attachment.path
   const file = bucket.file(path)
   const [bytes] = await file.download()
   const [metadata] = await file.getMetadata()

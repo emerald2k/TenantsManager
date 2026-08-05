@@ -67,12 +67,13 @@ const numberField = (inner) => z.preprocess(blankToUndefined, inner)
 
 /**
  * A photo reference (Step 2 / guarantor). The SAME shape as the SRS §6 attachments
- * — `{ url, name, type }`, a Storage reference, NOT a file. The photos are uploaded
- * to /drafts/{draftId}/ as they are taken (Sub-stage D); the draft only ever holds
- * these references. The schema validates the reference's shape.
+ * — `{ path, name, type }`, a bucket-relative Storage path, NOT a file and NEVER
+ * a download URL (debt #5). The photos are uploaded to /drafts/{draftId}/ as
+ * they are taken (Sub-stage D); the draft only ever holds these references.
+ * The schema validates the reference's shape.
  */
 export const storageReferenceSchema = z.object({
-  url: required(),
+  path: required(),
   name: required(),
   type: z.enum(['image', 'pdf', 'doc'], { error: REQUIRED }),
 })

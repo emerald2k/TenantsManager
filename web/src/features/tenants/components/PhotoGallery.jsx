@@ -1,12 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -77,9 +72,11 @@ export function PhotoGallery({
     const path = `users/${userId}/${storageFolder}/${crypto.randomUUID()}-${file.name}`
     const objectRef = ref(storage, path)
     await uploadBytes(objectRef, compressed)
-    const url = await getDownloadURL(objectRef)
 
-    persist([...photos, { url, name: file.name, type: 'image' }])
+    persist([
+      ...photos,
+      { path: objectRef.fullPath, name: file.name, type: 'image' },
+    ])
   }
 
   async function handleDelete(index) {

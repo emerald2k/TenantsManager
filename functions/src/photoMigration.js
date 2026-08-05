@@ -16,24 +16,12 @@ const crypto = require('node:crypto')
  * where they were, so the draft stays resumable and nothing is orphaned.
  */
 
-// Firebase Storage download URL shape (what PhotoCapture.jsx's client-side
-// `getDownloadURL()` produces, and what every `idDocumentPhotos[].url`
-// reaching finalizeKyc looks like):
-//   https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
-const STORAGE_PATH_PATTERN = /\/o\/([^?]+)/
-
-/** Extracts the Storage object path (decoded) from a Firebase download URL. */
-function parseStoragePath(url) {
-  const match = url.match(STORAGE_PATH_PATTERN)
-  if (!match) {
-    throw new Error(`Not a Firebase Storage download URL: ${url}`)
-  }
-  return decodeURIComponent(match[1])
-}
-
 /**
- * The inverse of `parseStoragePath` — builds a download URL for a given
- * bucket/path/token. `token` is NOT extracted from the source: each copy gets
+ * Builds a download URL for a given bucket/path/token — still used by
+ * `functions/scripts/seed.js` (poarta C3) to synthesize fixture attachment
+ * references, so it stays exported here even though `copyPhotosToUser` below
+ * no longer calls it itself (debt #5: migrated references now persist `path`,
+ * not a download URL). `token` is NOT extracted from the source: each copy gets
  * a freshly generated one (see `copyPhotosToUser`), so this never depends on
  * whether Storage's `copy()` happens to preserve custom metadata.
  *
@@ -82,7 +70,7 @@ async function deleteObjects(bucket, paths) {
  * reason about a half-migrated batch. The sources are untouched either way.
  *
  * @returns { references, sourcePaths, destPaths } — `references` is the new
- *   `{url, name, type}` array ready to write into the `users` document;
+ *   `{path, name, type}` array ready to write into the `users` document;
  *   `sourcePaths`/`destPaths` let the caller do post-commit cleanup or,
  *   on failure elsewhere (e.g. a sibling batch), roll this batch back too.
  */
@@ -93,7 +81,7 @@ async function copyPhotosToUser(bucket, photos, userId, destFolder) {
 
   try {
     for (const photo of photos) {
-      const sourcePath = parseStoragePath(photo.url)
+      const sourcePath = photo.path
       const basename = sourcePath.split('/').pop()
       const destPath = `users/${userId}/${destFolder}/${basename}`
       const token = crypto.randomUUID()
@@ -106,7 +94,7 @@ async function copyPhotosToUser(bucket, photos, userId, destFolder) {
       sourcePaths.push(sourcePath)
       destPaths.push(destPath)
       references.push({
-        url: buildDownloadUrl(bucket.name, destPath, token),
+        path: destPath,
         name: photo.name,
         type: photo.type,
       })
@@ -120,7 +108,6 @@ async function copyPhotosToUser(bucket, photos, userId, destFolder) {
 }
 
 module.exports = {
-  parseStoragePath,
   buildDownloadUrl,
   copyPhotosToUser,
   deleteObjects,
