@@ -9,15 +9,16 @@
  * Unlike `functions/src/sharedReport.js`'s `toPublicReport` (built for an
  * ANONYMOUS audience, which proxies attachment bytes behind an opaque
  * `reference`), this adapter serves an authenticated tenant reading their
- * OWN signed document — attachment `url`s (real Storage download URLs) pass
- * through unmodified, for direct `href` use later.
+ * OWN signed document — attachment `path`s (bucket-relative Storage paths,
+ * debt #5, never a download URL) pass through unmodified; the caller resolves
+ * each one to a real URL at render time via `useAttachmentUrl`.
  */
 
 function mapAttachments(attachments) {
   return (attachments ?? []).map((att) => ({
     name: att.name,
     type: att.type,
-    url: att.url,
+    path: att.path,
   }))
 }
 

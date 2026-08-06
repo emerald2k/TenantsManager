@@ -13,7 +13,7 @@ import { ContractUpload } from '@/features/tenants/components/ContractUpload'
 vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
 
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
   getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
@@ -35,7 +35,7 @@ const mutate = vi.fn()
 
 function documentRef(overrides) {
   return {
-    url: 'https://storage.example/lease.pdf',
+    path: 'tenancies/t1/contract/lease.pdf',
     name: 'lease.pdf',
     type: 'pdf',
     ...overrides,
@@ -59,8 +59,10 @@ beforeEach(() => {
     new File(['compressed'], 'photo.jpg', { type: 'image/jpeg' }),
   )
   uploadBytes.mockResolvedValue({})
-  getDownloadURL.mockResolvedValue(
-    'https://storage.example/tenancies/t1/contract/new-contract.pdf',
+  // Echoes the resolved path back — lets each test predict the rendered
+  // src/href from the fixture's own `path`, instead of one fixed URL.
+  getDownloadURL.mockImplementation((objectRef) =>
+    Promise.resolve(`https://storage.example/resolved/${objectRef.__ref}`),
   )
   deleteObject.mockResolvedValue(undefined)
 })
@@ -74,7 +76,7 @@ describe('ContractUpload — rendering per document type (FR-CON-07, FR-DOC-01/0
       />,
     )
 
-    expect(screen.getByRole('img', { name: 'scan.jpg' })).toBeVisible()
+    expect(await screen.findByRole('img', { name: 'scan.jpg' })).toBeVisible()
   })
 
   it('renders a PDF/doc document as an icon + name + link, not an <img>', async () => {
@@ -82,11 +84,27 @@ describe('ContractUpload — rendering per document type (FR-CON-07, FR-DOC-01/0
       <ContractUpload {...props} documents={[documentRef()]} />,
     )
 
+    const link = await screen.findByRole('link', { name: /lease\.pdf/ })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://storage.example/resolved/tenancies/t1/contract/lease.pdf',
+    )
     expect(
       screen.queryByRole('img', { name: 'lease.pdf' }),
     ).not.toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /lease\.pdf/ })
-    expect(link).toHaveAttribute('href', 'https://storage.example/lease.pdf')
+  })
+
+  it('a document whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a clickable dead link', async () => {
+    getDownloadURL.mockRejectedValue(new Error('storage/unauthorized'))
+
+    await renderWithProviders(
+      <ContractUpload {...props} documents={[documentRef()]} />,
+    )
+
+    expect(await screen.findByText(/Indisponibil/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /lease\.pdf/ }),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -109,7 +127,9 @@ describe('ContractUpload — upload (FR-CON-07, FR-DOC-05)', () => {
       values: {
         attachedDocuments: [
           {
-            url: 'https://storage.example/tenancies/t1/contract/new-contract.pdf',
+            path: expect.stringMatching(
+              /^tenancies\/t1\/contract\/.*-contract\.pdf$/,
+            ),
             name: 'contract.pdf',
             type: 'pdf',
           },

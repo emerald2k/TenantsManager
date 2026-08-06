@@ -13,7 +13,7 @@ import { PhotoCapture } from '@/features/onboarding/components/PhotoCapture'
 vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
 
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
   getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
@@ -27,7 +27,12 @@ vi.mock('@/features/onboarding/hooks', () => ({
   useUpdateDraft: vi.fn(),
 }))
 
-import { uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage'
 import imageCompression from 'browser-image-compression'
 import { useUpdateDraft } from '@/features/onboarding/hooks'
 
@@ -65,8 +70,10 @@ beforeEach(() => {
     new File(['compressed'], 'front.jpg', { type: 'image/jpeg' }),
   )
   uploadBytes.mockResolvedValue({})
-  getDownloadURL.mockResolvedValue(
-    'https://storage.example/drafts/draft-1/front.jpg',
+  // Echoes the resolved path back — lets each test predict the img src from
+  // the fixture's own `path`, instead of a single fixed URL for everything.
+  getDownloadURL.mockImplementation((objectRef) =>
+    Promise.resolve(`https://storage.example/resolved/${objectRef.__ref}`),
   )
   deleteObject.mockResolvedValue(undefined)
 })
@@ -109,14 +116,18 @@ describe('PhotoCapture', () => {
       values: {
         idDocumentPhotos: [
           {
-            url: 'https://storage.example/drafts/draft-1/front.jpg',
+            path: expect.stringMatching(/^drafts\/draft-1\/.*-front\.jpg$/),
             name: 'front.jpg',
             type: 'image',
           },
         ],
       },
     })
-    expect(screen.getByRole('img', { name: 'front.jpg' })).toBeInTheDocument()
+    // The thumbnail resolves the persisted path -> url via useAttachmentUrl —
+    // async (TanStack Query), so it appears only after that resolves.
+    expect(
+      await screen.findByRole('img', { name: 'front.jpg' }),
+    ).toBeInTheDocument()
   })
 
   it('deletes a photo: best-effort Storage cleanup, reference removed even if cleanup fails', async () => {
@@ -126,7 +137,38 @@ describe('PhotoCapture', () => {
       defaultValues: {
         idDocumentPhotos: [
           {
-            url: 'https://storage.example/a.jpg',
+            path: 'drafts/draft-1/a.jpg',
+            name: 'a.jpg',
+            type: 'image',
+          },
+        ],
+      },
+    })
+    await screen.findByRole('img', { name: 'a.jpg' })
+
+    await user.click(screen.getByRole('button', { name: 'Șterge' }))
+
+    await waitFor(() => expect(deleteObject).toHaveBeenCalledTimes(1))
+    expect(ref).toHaveBeenCalledWith(
+      { __fake: 'storage' },
+      'drafts/draft-1/a.jpg',
+    )
+    await waitFor(() =>
+      expect(updateMutate).toHaveBeenCalledWith({
+        id: 'draft-1',
+        values: { idDocumentPhotos: [] },
+      }),
+    )
+    expect(screen.queryByRole('img', { name: 'a.jpg' })).toBeNull()
+  })
+
+  it('a photo whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a broken/dead <img>', async () => {
+    getDownloadURL.mockRejectedValue(new Error('storage/unauthorized'))
+    await renderPhotoCapture({
+      defaultValues: {
+        idDocumentPhotos: [
+          {
+            path: 'drafts/draft-1/a.jpg',
             name: 'a.jpg',
             type: 'image',
           },
@@ -134,15 +176,7 @@ describe('PhotoCapture', () => {
       },
     })
 
-    await user.click(screen.getByRole('button', { name: 'Șterge' }))
-
-    await waitFor(() => expect(deleteObject).toHaveBeenCalledTimes(1))
-    await waitFor(() =>
-      expect(updateMutate).toHaveBeenCalledWith({
-        id: 'draft-1',
-        values: { idDocumentPhotos: [] },
-      }),
-    )
+    expect(await screen.findByText('Indisponibil')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'a.jpg' })).toBeNull()
   })
 

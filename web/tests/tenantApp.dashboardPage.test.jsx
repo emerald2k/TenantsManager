@@ -17,6 +17,11 @@ vi.mock('@/features/tenantApp/hooks', () => ({
   useMyTenancy: vi.fn(),
   useMySignedReports: vi.fn(),
 }))
+// `AttachmentLink` (debt #5) resolves `path` -> url via `useAttachmentUrl` —
+// mocked at this boundary, same convention as tenantApp.contractPage.test.jsx.
+vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
+
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 // M5 sub-stage 8 plan — the page now mounts the REAL DownloadReportPdfButton
 // + REAL useReportSummaryCapture hook (this file's own convention: render
 // the real pipeline, not a mock of it), so the underlying rasterization
@@ -60,6 +65,11 @@ function query(overrides = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   useAuth.mockReturnValue({ user: { uid: 'tenant-1' } })
+  useAttachmentUrl.mockImplementation((path) => ({
+    url: path ? `https://storage.example/resolved/${path}` : undefined,
+    isLoading: false,
+    isError: false,
+  }))
 })
 
 describe('TenantDashboardPage', () => {
@@ -227,7 +237,7 @@ describe('TenantDashboardPage', () => {
               notes: '',
               attachments: [
                 {
-                  url: 'https://storage.example/rent-invoice.pdf',
+                  path: 'reports/r1/invoices/rent-invoice.pdf',
                   name: 'rent-invoice.pdf',
                   type: 'pdf',
                 },
@@ -238,7 +248,7 @@ describe('TenantDashboardPage', () => {
               notes: '',
               attachments: [
                 {
-                  url: 'https://storage.example/maintenance-invoice.pdf',
+                  path: 'reports/r1/invoices/maintenance-invoice.pdf',
                   name: 'maintenance-invoice.pdf',
                   type: 'pdf',
                 },
@@ -252,7 +262,7 @@ describe('TenantDashboardPage', () => {
                 notes: '',
                 attachments: [
                   {
-                    url: 'https://storage.example/electricity-invoice.jpg',
+                    path: 'reports/r1/invoices/electricity-invoice.jpg',
                     name: 'electricity-invoice.jpg',
                     type: 'image',
                   },
@@ -266,7 +276,7 @@ describe('TenantDashboardPage', () => {
                 notes: '',
                 attachments: [
                   {
-                    url: 'https://storage.example/other-invoice.pdf',
+                    path: 'reports/r1/invoices/other-invoice.pdf',
                     name: 'other-invoice.pdf',
                     type: 'pdf',
                   },
@@ -282,16 +292,28 @@ describe('TenantDashboardPage', () => {
 
     expect(
       screen.getByRole('link', { name: /rent-invoice\.pdf/ }),
-    ).toHaveAttribute('href', 'https://storage.example/rent-invoice.pdf')
+    ).toHaveAttribute(
+      'href',
+      'https://storage.example/resolved/reports/r1/invoices/rent-invoice.pdf',
+    )
     expect(
       screen.getByRole('link', { name: /maintenance-invoice\.pdf/ }),
-    ).toHaveAttribute('href', 'https://storage.example/maintenance-invoice.pdf')
+    ).toHaveAttribute(
+      'href',
+      'https://storage.example/resolved/reports/r1/invoices/maintenance-invoice.pdf',
+    )
     expect(
       screen.getByRole('link', { name: /electricity-invoice\.jpg/ }),
-    ).toHaveAttribute('href', 'https://storage.example/electricity-invoice.jpg')
+    ).toHaveAttribute(
+      'href',
+      'https://storage.example/resolved/reports/r1/invoices/electricity-invoice.jpg',
+    )
     expect(
       screen.getByRole('link', { name: /other-invoice\.pdf/ }),
-    ).toHaveAttribute('href', 'https://storage.example/other-invoice.pdf')
+    ).toHaveAttribute(
+      'href',
+      'https://storage.example/resolved/reports/r1/invoices/other-invoice.pdf',
+    )
   })
 
   it('D-ATTACH-2 — zero attachments anywhere means the attachments section is NOT rendered', async () => {
@@ -301,5 +323,40 @@ describe('TenantDashboardPage', () => {
     await renderWithProviders(<TenantDashboardPage />)
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('D-ATTACH-3 — an attachment whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a clickable dead link', async () => {
+    useAttachmentUrl.mockReturnValue({
+      url: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useMySignedReports.mockReturnValue(
+      query({
+        data: [
+          reportFixture({
+            rent: {
+              amount: 2500,
+              notes: '',
+              attachments: [
+                {
+                  path: 'reports/r1/invoices/rent-invoice.pdf',
+                  name: 'rent-invoice.pdf',
+                  type: 'pdf',
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+    )
+
+    await renderWithProviders(<TenantDashboardPage />)
+
+    expect(screen.getByText(/Indisponibil/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /rent-invoice\.pdf/ }),
+    ).not.toBeInTheDocument()
   })
 })

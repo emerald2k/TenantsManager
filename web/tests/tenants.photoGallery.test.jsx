@@ -12,7 +12,7 @@ import { PhotoGallery } from '@/features/tenants/components/PhotoGallery'
 vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
 
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
   getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
@@ -26,7 +26,12 @@ vi.mock('@/features/tenants/hooks', () => ({
   useUpdateUser: vi.fn(),
 }))
 
-import { deleteObject, getDownloadURL, uploadBytes } from 'firebase/storage'
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from 'firebase/storage'
 import imageCompression from 'browser-image-compression'
 import { useUpdateUser } from '@/features/tenants/hooks'
 
@@ -34,7 +39,7 @@ const mutate = vi.fn()
 
 function photo(overrides) {
   return {
-    url: 'https://storage.example/a.jpg',
+    path: 'users/u1/documents/a.jpg',
     name: 'a.jpg',
     type: 'image',
     ...overrides,
@@ -52,8 +57,10 @@ beforeEach(() => {
     new File(['compressed'], 'new.jpg', { type: 'image/jpeg' }),
   )
   uploadBytes.mockResolvedValue({})
-  getDownloadURL.mockResolvedValue(
-    'https://storage.example/users/u1/documents/new.jpg',
+  // Echoes the resolved path back — lets each test predict the rendered
+  // src/href from the fixture's own `path`, instead of one fixed URL.
+  getDownloadURL.mockImplementation((objectRef) =>
+    Promise.resolve(`https://storage.example/resolved/${objectRef.__ref}`),
   )
   deleteObject.mockResolvedValue(undefined)
 })
@@ -72,28 +79,40 @@ describe('PhotoGallery — tenant ID photos (min 1, FR-TEN-03/06)', () => {
         {...props}
         photos={[
           photo({ name: 'a.jpg' }),
-          photo({ name: 'b.jpg', url: 'https://storage.example/b.jpg' }),
+          photo({ name: 'b.jpg', path: 'users/u1/documents/b.jpg' }),
         ]}
       />,
     )
 
-    expect(screen.getByRole('img', { name: 'a.jpg' })).toBeVisible()
-    expect(screen.getByRole('img', { name: 'b.jpg' })).toBeVisible()
+    expect(await screen.findByRole('img', { name: 'a.jpg' })).toBeVisible()
+    expect(await screen.findByRole('img', { name: 'b.jpg' })).toBeVisible()
+  })
+
+  it('a photo whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a broken <img>', async () => {
+    getDownloadURL.mockRejectedValue(new Error('storage/unauthorized'))
+
+    await renderWithProviders(<PhotoGallery {...props} photos={[photo()]} />)
+
+    expect(await screen.findByText('Indisponibil')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'a.jpg' })).toBeNull()
   })
 
   it('opens a lightbox with the full image when a thumbnail is clicked', async () => {
     const user = userEvent.setup()
     await renderWithProviders(<PhotoGallery {...props} photos={[photo()]} />)
 
-    await user.click(screen.getByRole('img', { name: 'a.jpg' }))
+    await user.click(await screen.findByRole('img', { name: 'a.jpg' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('img', { name: 'a.jpg' })).toBeVisible()
+    expect(
+      await within(dialog).findByRole('img', { name: 'a.jpg' }),
+    ).toBeVisible()
   })
 
   it('uploads a new photo: compresses, uploads under /users/{userId}/{folder}/, and appends the reference', async () => {
     const user = userEvent.setup()
     await renderWithProviders(<PhotoGallery {...props} photos={[photo()]} />)
+    await screen.findByRole('img', { name: 'a.jpg' })
 
     const input = document.querySelector('input[type="file"]')
     await user.upload(input, makeFile())
@@ -110,7 +129,7 @@ describe('PhotoGallery — tenant ID photos (min 1, FR-TEN-03/06)', () => {
         idDocumentPhotos: [
           photo(),
           {
-            url: 'https://storage.example/users/u1/documents/new.jpg',
+            path: expect.stringMatching(/^users\/u1\/documents\/.*-new\.jpg$/),
             name: 'new.jpg',
             type: 'image',
           },
@@ -126,23 +145,28 @@ describe('PhotoGallery — tenant ID photos (min 1, FR-TEN-03/06)', () => {
         {...props}
         photos={[
           photo({ name: 'a.jpg' }),
-          photo({ name: 'b.jpg', url: 'https://storage.example/b.jpg' }),
+          photo({ name: 'b.jpg', path: 'users/u1/documents/b.jpg' }),
         ]}
       />,
     )
+    const thumbnail = await screen.findByRole('img', { name: 'a.jpg' })
 
     await user.click(
-      within(
-        screen.getByRole('img', { name: 'a.jpg' }).closest('div'),
-      ).getByRole('button', { name: 'Șterge' }),
+      within(thumbnail.closest('div')).getByRole('button', {
+        name: 'Șterge',
+      }),
     )
 
     await waitFor(() => expect(deleteObject).toHaveBeenCalledTimes(1))
+    expect(ref).toHaveBeenCalledWith(
+      { __fake: 'storage' },
+      'users/u1/documents/a.jpg',
+    )
     expect(mutate).toHaveBeenCalledWith({
       id: 'u1',
       values: {
         idDocumentPhotos: [
-          photo({ name: 'b.jpg', url: 'https://storage.example/b.jpg' }),
+          photo({ name: 'b.jpg', path: 'users/u1/documents/b.jpg' }),
         ],
       },
     })
@@ -153,6 +177,7 @@ describe('PhotoGallery — tenant ID photos (min 1, FR-TEN-03/06)', () => {
   // and clicking it would call mutate — this test fails in that case.
   it('blocks deleting the LAST tenant photo: no delete button, mutate never called', async () => {
     await renderWithProviders(<PhotoGallery {...props} photos={[photo()]} />)
+    await screen.findByRole('img', { name: 'a.jpg' })
 
     const deleteButton = screen.queryByRole('button', { name: 'Șterge' })
     expect(deleteButton == null || deleteButton.disabled).toBe(true)
@@ -197,7 +222,7 @@ describe('PhotoGallery — guarantor photos (min 0, FR-TEN-04/06)', () => {
       values: {
         'guarantor.idDocumentPhotos': [
           {
-            url: 'https://storage.example/users/u1/documents/new.jpg',
+            path: expect.stringMatching(/^users\/u1\/guarantor\/.*-new\.jpg$/),
             name: 'new.jpg',
             type: 'image',
           },

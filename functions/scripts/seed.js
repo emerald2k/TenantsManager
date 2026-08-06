@@ -43,7 +43,6 @@ const {
   Timestamp,
 } = require('firebase-admin/firestore')
 const { getStorage } = require('firebase-admin/storage')
-const { buildDownloadUrl } = require('../src/photoMigration')
 
 const AUTH_EMULATOR_HOST = '127.0.0.1:9099' // must match firebase.json
 const FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080' // must match firebase.json
@@ -275,7 +274,16 @@ function endedProperty(ownerId) {
 
 /** The KYC-complete tenant (SRS §6 users shape). Realistic profile with a well-formed
  * CNP, useful for exercising the duplicate-CNP path in later sub-stages. `status:
- * 'active'` — the account is active immediately (FR-TEN-24). */
+ * 'active'` — the account is active immediately (FR-TEN-24).
+ *
+ * `idDocumentPhotos` is DELIBERATELY absent here — it is a real Storage
+ * upload (`uploadSeedIdPhoto`), merged in by the caller at write time, same
+ * pattern as `attachedDocuments` on the tenancy. Debt #5's investigation
+ * found this profile hand-writing a fake `gs://demo/...` literal instead,
+ * never actually uploaded — every seeded tenant's ID photo rendered as a
+ * broken image in the Profile tab's lightbox. Fixed by routing through the
+ * exact same `uploadSeedAttachment` mechanism the contract/invoice
+ * attachments already used correctly. */
 function tenantUser() {
   return {
     name: 'Andrei Ionescu',
@@ -284,13 +292,6 @@ function tenantUser() {
     phone: '0745123456',
     preferredLanguage: 'ro',
     cnp: '1880512123456',
-    idDocumentPhotos: [
-      {
-        url: 'gs://demo/seed-tenant/ci-front.jpg',
-        name: 'ci-front.jpg',
-        type: 'image',
-      },
-    ],
     previousAddress: 'Str. Dorobanților 5, Cluj-Napoca',
     emergencyContact: { name: 'Elena Ionescu', phone: '0745999888' },
     occupantCount: 2,
@@ -321,13 +322,6 @@ function tenantEmptyUser() {
     phone: '0745234567',
     preferredLanguage: 'ro',
     cnp: '2960815234567',
-    idDocumentPhotos: [
-      {
-        url: 'gs://demo/seed-tenant-empty/ci-front.jpg',
-        name: 'ci-front.jpg',
-        type: 'image',
-      },
-    ],
     previousAddress: 'Str. Traian 22, Cluj-Napoca',
     emergencyContact: { name: 'Cosmin Dumitrescu', phone: '0745888777' },
     occupantCount: 1,
@@ -360,13 +354,6 @@ function tenantEndedUser() {
     phone: '0745345678',
     preferredLanguage: 'ro',
     cnp: '1750604234567',
-    idDocumentPhotos: [
-      {
-        url: 'gs://demo/seed-tenant-ended/ci-front.jpg',
-        name: 'ci-front.jpg',
-        type: 'image',
-      },
-    ],
     previousAddress: 'Str. Horea 15, Cluj-Napoca',
     emergencyContact: { name: 'Elena Constantin', phone: '0745777666' },
     occupantCount: 1,
@@ -399,13 +386,6 @@ function tenantNoTenancyUser() {
     phone: '0755123456',
     preferredLanguage: 'ro',
     cnp: '2950320123456',
-    idDocumentPhotos: [
-      {
-        url: 'gs://demo/seed-tenant-free/ci-front.jpg',
-        name: 'ci-front.jpg',
-        type: 'image',
-      },
-    ],
     previousAddress: 'Str. Republicii 10, Cluj-Napoca',
     emergencyContact: { name: 'Radu Marin', phone: '0755999888' },
     occupantCount: 1,
@@ -795,14 +775,18 @@ async function ensureTenantAccount({ uid, email, password }, displayName) {
 
 /** Sub-stage F: (re)writes `seed-tenant-free`'s `users` doc — delete then rewrite,
  * same deterministic pattern as the rest of this file. Deliberately touches NO
- * `tenancies` document: that absence is the whole point of this fixture.
- * UNCHANGED across the M5 sub-stage 4 rewrite. */
-async function reseedTenantNoTenancy() {
+ * `tenancies` document: that absence is the whole point of this fixture. */
+async function reseedTenantNoTenancy(bucket) {
   const db = getFirestore()
   const userRef = db.collection('users').doc(SEED_TENANT_NO_TENANCY.uid)
 
   await userRef.delete()
-  const user = tenantNoTenancyUser()
+  const idDocumentPhotos = await uploadSeedIdPhoto(
+    bucket,
+    SEED_TENANT_NO_TENANCY.uid,
+    'seed-idphoto-free-token',
+  )
+  const user = { ...tenantNoTenancyUser(), idDocumentPhotos }
   await userRef.set(user)
 
   console.log(
@@ -819,15 +803,19 @@ async function clearSeedAttachments(bucket, prefix) {
   await Promise.all(files.map((file) => file.delete().catch(() => {})))
 }
 
-/** Uploads one synthetic attachment and returns its download URL in the
- * EXACT shape a real client upload produces (fileUpload.js's
- * `uploadAttachment`: `{url, name, type}`, url from `getDownloadURL`) —
- * built here via `buildDownloadUrl` (photoMigration.js), which is
- * emulator-aware (FIREBASE_STORAGE_EMULATOR_HOST) and round-trips with
- * `parseStoragePath`, the exact function getSharedReportAttachmentCore uses
- * to resolve it back to a Storage path (functions/src/sharedReport.js). No
- * real file content — a synthetic Buffer with the right `contentType` is
- * enough to exercise the real Storage read path end to end.
+/** Uploads one synthetic attachment and returns the persisted reference
+ * shape a real client upload produces (fileUpload.js's `uploadAttachment`:
+ * `{ path, name, type }`, debt #5 — a bucket-relative Storage path, NEVER a
+ * download URL). `filePath` IS the path — no construction needed, same as
+ * `objectRef.fullPath` on a real client-side `ref(storage, path)`. No real
+ * file content — a synthetic Buffer with the right `contentType` is enough
+ * to exercise the real Storage read path end to end.
+ *
+ * The download token is still written (`firebaseStorageDownloadTokens`) even
+ * though nothing here embeds it into a URL anymore — an authenticated
+ * client's own `getDownloadURL()` call at display time (`useAttachmentUrl`)
+ * may still depend on it existing; removing it would be a decision about
+ * that still-open question (C1/C2), not this migration's job.
  *
  * `firebaseStorageDownloadTokens` MUST be nested two levels deep —
  * `metadata: { metadata: { firebaseStorageDownloadTokens: token } }` — not
@@ -835,11 +823,9 @@ async function clearSeedAttachments(bucket, prefix) {
  * option is the GCS object-resource payload (`contentType`,
  * `cacheControl`, ...); `firebaseStorageDownloadTokens` is not one of that
  * resource's recognized top-level fields, so the SDK silently drops it
- * there — the object ends up with NO custom metadata at all, and
- * `buildDownloadUrl`'s token never matches anything Storage actually
- * checks, so every download 403s under `storage.rules`. Custom key/value
- * pairs live in the resource's own NESTED `metadata` map, which is what the
- * inner `metadata` key here targets — the exact shape
+ * there — the object ends up with NO custom metadata at all. Custom
+ * key/value pairs live in the resource's own NESTED `metadata` map, which is
+ * what the inner `metadata` key here targets — the exact shape
  * `photoMigration.js:104`'s `.setMetadata({ metadata: {
  * firebaseStorageDownloadTokens: token } })` already uses correctly
  * elsewhere in this codebase. Confirmed empirically: before this fix, a
@@ -856,28 +842,49 @@ async function uploadSeedAttachment(
     contentType,
     metadata: { metadata: { firebaseStorageDownloadTokens: downloadToken } },
   })
-  return buildDownloadUrl(bucket.name, filePath, downloadToken)
+  return filePath
 }
 
 /** Uploads the tenancy's signed-contract fixture (FR-CON-07, `/app/contract`)
  * at the EXACT path `ContractUpload.jsx:56` writes to
  * (`tenancies/{tenancyId}/contract/{filename}`), and returns the
  * `attachedDocuments[]` entry shape `useUpdateTenancy` persists
- * (`{url, name, type}`). A fixed filename (not a `crypto.randomUUID()`
- * prefix like the real uploader uses) — the seed only ever has ONE contract
- * per tenancy, so a random prefix would only break idempotency for no
- * benefit. */
+ * (`{path, name, type}`, debt #5). A fixed filename (not a
+ * `crypto.randomUUID()` prefix like the real uploader uses) — the seed only
+ * ever has ONE contract per tenancy, so a random prefix would only break
+ * idempotency for no benefit. */
 async function uploadSeedContract(bucket, tenancyId, downloadToken) {
   const prefix = `tenancies/${tenancyId}/contract/`
   await clearSeedAttachments(bucket, prefix)
-  const url = await uploadSeedAttachment(
+  const filePath = await uploadSeedAttachment(
     bucket,
     `${prefix}contract.pdf`,
     'seed contract — synthetic bytes, not a real PDF',
     'application/pdf',
     downloadToken,
   )
-  return [{ url, name: 'contract.pdf', type: 'pdf' }]
+  return [{ path: filePath, name: 'contract.pdf', type: 'pdf' }]
+}
+
+/** Uploads one tenant's ID-photo fixture (FR-TEN-03) at the real path a
+ * finalized tenant's photo lives at (`users/{userId}/documents/{filename}`,
+ * `copyPhotosToUser`'s own destination shape), and returns the
+ * `idDocumentPhotos[]` entry shape `finalizeKyc` persists (`{path, name,
+ * type}`, debt #5). Same synthetic-bytes discipline as `uploadSeedContract`
+ * — this is what closes the investigation's finding: these photos used to be
+ * hand-written `gs://demo/...` literals, never actually uploaded, rendering
+ * as broken images in the Profile tab's lightbox. */
+async function uploadSeedIdPhoto(bucket, userId, downloadToken) {
+  const prefix = `users/${userId}/documents/`
+  await clearSeedAttachments(bucket, prefix)
+  const filePath = await uploadSeedAttachment(
+    bucket,
+    `${prefix}ci-front.jpg`,
+    'seed ID photo — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    downloadToken,
+  )
+  return [{ path: filePath, name: 'ci-front.jpg', type: 'image' }]
 }
 
 /**
@@ -943,20 +950,25 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     SEED_TENANCY_ID,
     'seed-contract-occupied-token',
   )
+  const idDocumentPhotos = await uploadSeedIdPhoto(
+    bucket,
+    SEED_TENANT.uid,
+    'seed-idphoto-occupied-token',
+  )
 
   // The July report's 2 real Storage attachments, uploaded BEFORE the
-  // report doc is built below — their download URLs must exist so they can
-  // be embedded directly into the report object and written ONCE via
-  // `.set()` (see the July-only merge inside the `reports.forEach` loop),
-  // never patched on afterward via a follow-up `.update()`.
-  const rentUrl = await uploadSeedAttachment(
+  // report doc is built below — their paths must exist so they can be
+  // embedded directly into the report object and written ONCE via `.set()`
+  // (see the July-only merge inside the `reports.forEach` loop), never
+  // patched on afterward via a follow-up `.update()`.
+  const rentPath = await uploadSeedAttachment(
     bucket,
     `${invoicesPrefix}rent-invoice.pdf`,
     'seed rent invoice — synthetic bytes, not a real PDF',
     'application/pdf',
     'seed-rent-token',
   )
-  const electricityUrl = await uploadSeedAttachment(
+  const electricityPath = await uploadSeedAttachment(
     bucket,
     `${invoicesPrefix}electricity-invoice.jpg`,
     'seed electricity invoice — synthetic bytes, not a real JPEG',
@@ -967,7 +979,7 @@ async function reseedOccupiedScenario(ownerId, bucket) {
 
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
-  writeBatch.set(userRef, tenantUser())
+  writeBatch.set(userRef, { ...tenantUser(), idDocumentPhotos })
   writeBatch.set(tenancyRef, {
     ...tenancy,
     attachedDocuments: contractDocuments,
@@ -1014,7 +1026,7 @@ async function reseedOccupiedScenario(ownerId, bucket) {
             rent: {
               ...report.rent,
               attachments: [
-                { url: rentUrl, name: 'rent-invoice.pdf', type: 'pdf' },
+                { path: rentPath, name: 'rent-invoice.pdf', type: 'pdf' },
               ],
             },
             serviceCosts: report.serviceCosts.map((line, lineIndex) =>
@@ -1023,7 +1035,7 @@ async function reseedOccupiedScenario(ownerId, bucket) {
                     ...line,
                     attachments: [
                       {
-                        url: electricityUrl,
+                        path: electricityPath,
                         name: 'electricity-invoice.jpg',
                         type: 'image',
                       },
@@ -1096,12 +1108,14 @@ async function reseedOccupiedScenario(ownerId, bucket) {
   console.log(
     `  - payment states covered: paid, partial, unpaid (explicit), absent`,
   )
-  console.log(`  - 2 invoice attachments + 1 contract attachment uploaded`)
+  console.log(
+    `  - 2 invoice attachments + 1 contract attachment + 1 ID photo uploaded`,
+  )
 }
 
 /** Scenario 2: `seed-tenant-empty`, active tenancy, ZERO `monthlyReports`
  * docs — the starkest demonstration of FR-TAPP-01's empty state. */
-async function reseedEmptyScenario(ownerId) {
+async function reseedEmptyScenario(ownerId, bucket) {
   const db = getFirestore()
   const propertyRef = db.collection('properties').doc(SEED_EMPTY_PROPERTY_ID)
   const userRef = db.collection('users').doc(SEED_TENANT_EMPTY.uid)
@@ -1113,10 +1127,16 @@ async function reseedEmptyScenario(ownerId) {
   delBatch.delete(tenancyRef)
   await delBatch.commit()
 
+  const idDocumentPhotos = await uploadSeedIdPhoto(
+    bucket,
+    SEED_TENANT_EMPTY.uid,
+    'seed-idphoto-empty-token',
+  )
+
   const property = emptyProperty(ownerId)
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
-  writeBatch.set(userRef, tenantEmptyUser())
+  writeBatch.set(userRef, { ...tenantEmptyUser(), idDocumentPhotos })
   writeBatch.set(tenancyRef, emptyTenancy(ownerId, property))
   await writeBatch.commit()
 
@@ -1126,6 +1146,7 @@ async function reseedEmptyScenario(ownerId) {
   console.log(
     `  - tenancy ${SEED_TENANCY_EMPTY_ID}: active, ZERO monthlyReports docs (empty state)`,
   )
+  console.log(`  - 1 ID photo uploaded`)
 }
 
 /**
@@ -1166,6 +1187,11 @@ async function reseedEndedScenario(ownerId, bucket) {
     SEED_TENANCY_ENDED_ID,
     'seed-contract-ended-token',
   )
+  const idDocumentPhotos = await uploadSeedIdPhoto(
+    bucket,
+    SEED_TENANT_ENDED.uid,
+    'seed-idphoto-ended-token',
+  )
 
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
@@ -1173,7 +1199,11 @@ async function reseedEndedScenario(ownerId, bucket) {
   // the account moves to 'inactive-readonly', not just the tenancy to
   // 'ended'. Reproduced by hand for the same "don't seed an impossible
   // state" reason as the settled-arrears invariant above.
-  writeBatch.set(userRef, { ...tenantEndedUser(), status: 'inactive-readonly' })
+  writeBatch.set(userRef, {
+    ...tenantEndedUser(),
+    idDocumentPhotos,
+    status: 'inactive-readonly',
+  })
   writeBatch.set(tenancyRef, {
     ...tenancy,
     attachedDocuments: contractDocuments,
@@ -1209,7 +1239,7 @@ async function reseedEndedScenario(ownerId, bucket) {
   console.log(
     `  - tenancy ${SEED_TENANCY_ENDED_ID}: ended ${SEED_TENANCY_ENDED_DATE}, 2 signed reports, currentBalance -> ${finalBalance} (must be 0)`,
   )
-  console.log(`  - 1 contract attachment uploaded`)
+  console.log(`  - 1 contract attachment + 1 ID photo uploaded`)
 }
 
 async function main() {
@@ -1244,13 +1274,13 @@ async function main() {
   await reseedOccupiedScenario(ownerId, bucket)
 
   await ensureTenantAccount(SEED_TENANT_EMPTY, tenantEmptyUser().name)
-  await reseedEmptyScenario(ownerId)
+  await reseedEmptyScenario(ownerId, bucket)
 
   await ensureTenantAccount(SEED_TENANT_ENDED, tenantEndedUser().name)
   await reseedEndedScenario(ownerId, bucket)
 
   await ensureTenantAccount(SEED_TENANT_NO_TENANCY, tenantNoTenancyUser().name)
-  await reseedTenantNoTenancy()
+  await reseedTenantNoTenancy(bucket)
 
   console.log('\n✅ Seed complete.')
   console.log(`   Admin sign-in: ${ADMIN.email} / ${ADMIN.password}`)

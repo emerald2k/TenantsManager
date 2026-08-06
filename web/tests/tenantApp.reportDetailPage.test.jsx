@@ -16,6 +16,11 @@ vi.mock('@/features/tenantApp/hooks', () => ({
   useMyTenancy: vi.fn(),
   useTenantReport: vi.fn(),
 }))
+// `AttachmentLink` (debt #5) resolves `path` -> url via `useAttachmentUrl` —
+// mocked at this boundary, same convention as tenantApp.dashboardPage.test.jsx.
+vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
+
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 // PARTIAL mock: same convention `sharedReport.page.test.jsx` already uses
 // for `shareToken` — `renderWithProviders` mounts a real MemoryRouter, so
@@ -70,6 +75,11 @@ function query(overrides = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   useAuth.mockReturnValue({ user: { uid: 'tenant-1' } })
+  useAttachmentUrl.mockImplementation((path) => ({
+    url: path ? `https://storage.example/resolved/${path}` : undefined,
+    isLoading: false,
+    isError: false,
+  }))
 })
 
 describe('TenantReportDetailPage', () => {
@@ -137,7 +147,7 @@ describe('TenantReportDetailPage', () => {
             amount: 2500,
             attachments: [
               {
-                url: 'https://storage.example/rent-invoice.pdf',
+                path: 'reports/r1/invoices/rent-invoice.pdf',
                 name: 'rent-invoice.pdf',
                 type: 'pdf',
               },
@@ -147,7 +157,7 @@ describe('TenantReportDetailPage', () => {
             amount: 50,
             attachments: [
               {
-                url: 'https://storage.example/maintenance-invoice.pdf',
+                path: 'reports/r1/invoices/maintenance-invoice.pdf',
                 name: 'maintenance-invoice.pdf',
                 type: 'pdf',
               },
@@ -161,7 +171,7 @@ describe('TenantReportDetailPage', () => {
               notes: '',
               attachments: [
                 {
-                  url: 'https://storage.example/electricity-invoice.jpg',
+                  path: 'reports/r1/invoices/electricity-invoice.jpg',
                   name: 'electricity-invoice.jpg',
                   type: 'image',
                 },
@@ -175,7 +185,7 @@ describe('TenantReportDetailPage', () => {
               notes: '',
               attachments: [
                 {
-                  url: 'https://storage.example/other-invoice.pdf',
+                  path: 'reports/r1/invoices/other-invoice.pdf',
                   name: 'other-invoice.pdf',
                   type: 'pdf',
                 },
@@ -217,7 +227,7 @@ describe('TenantReportDetailPage', () => {
     expect(screen.queryByText('Atașamente')).not.toBeInTheDocument()
   })
 
-  it("RD8 — a given attachment's name appears TWICE: ReportSummaryView's own inert badge, and THIS page's own downloadable link (href = att.url)", async () => {
+  it("RD8 — a given attachment's name appears TWICE: ReportSummaryView's own inert badge, and THIS page's own downloadable link (href resolved from att.path)", async () => {
     useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
     useTenantReport.mockReturnValue(
       query({
@@ -226,7 +236,7 @@ describe('TenantReportDetailPage', () => {
             amount: 2500,
             attachments: [
               {
-                url: 'https://storage.example/rent-invoice.pdf',
+                path: 'reports/r1/invoices/rent-invoice.pdf',
                 name: 'rent-invoice.pdf',
                 type: 'pdf',
               },
@@ -244,8 +254,40 @@ describe('TenantReportDetailPage', () => {
     const downloadLink = screen.getByRole('link', { name: /rent-invoice\.pdf/ })
     expect(downloadLink).toHaveAttribute(
       'href',
-      'https://storage.example/rent-invoice.pdf',
+      'https://storage.example/resolved/reports/r1/invoices/rent-invoice.pdf',
     )
+  })
+
+  it('RD10 — an attachment whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a clickable dead link', async () => {
+    useAttachmentUrl.mockReturnValue({
+      url: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
+    useTenantReport.mockReturnValue(
+      query({
+        data: reportFixture({
+          rent: costLine({
+            amount: 2500,
+            attachments: [
+              {
+                path: 'reports/r1/invoices/rent-invoice.pdf',
+                name: 'rent-invoice.pdf',
+                type: 'pdf',
+              },
+            ],
+          }),
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantReportDetailPage />)
+
+    expect(screen.getByText(/Indisponibil/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /rent-invoice\.pdf/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('RD9 — the back-to-history link is present on the VALID render too, not only on the not-found state', async () => {

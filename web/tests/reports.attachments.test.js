@@ -2,14 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
-  getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
 }))
 vi.mock('browser-image-compression', () => ({ default: vi.fn() }))
 
-import { getDownloadURL, uploadBytes } from 'firebase/storage'
+import { uploadBytes } from 'firebase/storage'
 import imageCompression from 'browser-image-compression'
 import {
   collectAttachmentUrls,
@@ -20,18 +19,10 @@ function makeFile({ name = 'invoice.pdf', type = 'application/pdf' } = {}) {
   return new File(['x'], name, { type })
 }
 
-let uploadCounter
-
 beforeEach(() => {
   vi.clearAllMocks()
-  uploadCounter = 0
   imageCompression.mockImplementation(async (file) => file)
   uploadBytes.mockResolvedValue({})
-  // A distinct URL per call, so tests can tell uploads apart.
-  getDownloadURL.mockImplementation(async () => {
-    uploadCounter += 1
-    return `https://storage.example/uploaded-${uploadCounter}`
-  })
 })
 
 describe('collectAttachmentUrls', () => {
@@ -40,30 +31,30 @@ describe('collectAttachmentUrls', () => {
     expect(collectAttachmentUrls(undefined)).toEqual([])
   })
 
-  it('collects urls from rent, maintenance, services, and other expenses', () => {
+  it('collects paths from rent, maintenance, services, and other expenses', () => {
     const report = {
       rent: {
         amount: 1500,
-        attachments: [{ url: 'u1', name: 'a', type: 'pdf' }],
+        attachments: [{ path: 'p1', name: 'a', type: 'pdf' }],
       },
       maintenance: { amount: 0, attachments: [] },
       serviceCosts: [
         {
           serviceId: 'gas',
           amount: 50,
-          attachments: [{ url: 'u2', name: 'b', type: 'image' }],
+          attachments: [{ path: 'p2', name: 'b', type: 'image' }],
         },
       ],
       otherExpenses: [
         {
           description: 'Repair',
           amount: 20,
-          attachments: [{ url: 'u3', name: 'c', type: 'doc' }],
+          attachments: [{ path: 'p3', name: 'c', type: 'doc' }],
         },
       ],
     }
 
-    expect(collectAttachmentUrls(report)).toEqual(['u1', 'u2', 'u3'])
+    expect(collectAttachmentUrls(report)).toEqual(['p1', 'p2', 'p3'])
   })
 
   it('ignores lines with no attachments at all (undefined field)', () => {
@@ -73,7 +64,7 @@ describe('collectAttachmentUrls', () => {
 })
 
 describe('uploadPendingAttachments', () => {
-  it('replaces a pending File with an uploaded {url,name,type} ref — zero File left', async () => {
+  it('replaces a pending File with an uploaded {path,name,type} ref — zero File left', async () => {
     const values = {
       rent: {
         amount: 1500,
@@ -97,22 +88,24 @@ describe('uploadPendingAttachments', () => {
 
     expect(result.rent.attachments).toEqual([
       {
-        url: 'https://storage.example/uploaded-1',
+        path: expect.stringMatching(/^reports\/r1\/invoices\/.*-lease\.pdf$/),
         name: 'lease.pdf',
         type: 'pdf',
       },
     ])
     expect(result.rent.attachments[0]).not.toHaveProperty('file')
-    expect(newUrls).toEqual(['https://storage.example/uploaded-1'])
+    expect(newUrls).toEqual([
+      expect.stringMatching(/^reports\/r1\/invoices\/.*-lease\.pdf$/),
+    ])
   })
 
-  it('leaves an already-persisted attachment (has url, no file) untouched — no re-upload', async () => {
+  it('leaves an already-persisted attachment (has path, no file) untouched — no re-upload', async () => {
     const values = {
       rent: {
         amount: 1500,
         attachments: [
           {
-            url: 'https://storage.example/old.pdf',
+            path: 'reports/r1/invoices/old.pdf',
             name: 'old.pdf',
             type: 'pdf',
           },
@@ -129,7 +122,11 @@ describe('uploadPendingAttachments', () => {
     )
 
     expect(result.rent.attachments).toEqual([
-      { url: 'https://storage.example/old.pdf', name: 'old.pdf', type: 'pdf' },
+      {
+        path: 'reports/r1/invoices/old.pdf',
+        name: 'old.pdf',
+        type: 'pdf',
+      },
     ])
     expect(uploadBytes).not.toHaveBeenCalled()
     expect(newUrls).toEqual([])
@@ -145,7 +142,7 @@ describe('uploadPendingAttachments', () => {
           amount: 50,
           attachments: [
             {
-              url: 'https://storage.example/kept.jpg',
+              path: 'reports/r1/invoices/kept.jpg',
               name: 'kept.jpg',
               type: 'image',
             },
@@ -179,26 +176,26 @@ describe('uploadPendingAttachments', () => {
 
     expect(result.serviceCosts[0].attachments).toEqual([
       {
-        url: 'https://storage.example/kept.jpg',
+        path: 'reports/r1/invoices/kept.jpg',
         name: 'kept.jpg',
         type: 'image',
       },
       {
-        url: 'https://storage.example/uploaded-1',
+        path: expect.stringMatching(/^reports\/r1\/invoices\/.*-new\.pdf$/),
         name: 'new.pdf',
         type: 'pdf',
       },
     ])
     expect(result.otherExpenses[0].attachments).toEqual([
       {
-        url: 'https://storage.example/uploaded-2',
+        path: expect.stringMatching(/^reports\/r1\/invoices\/.*-receipt\.jpg$/),
         name: 'receipt.jpg',
         type: 'image',
       },
     ])
     expect(newUrls).toEqual([
-      'https://storage.example/uploaded-1',
-      'https://storage.example/uploaded-2',
+      expect.stringMatching(/^reports\/r1\/invoices\/.*-new\.pdf$/),
+      expect.stringMatching(/^reports\/r1\/invoices\/.*-receipt\.jpg$/),
     ])
     // The image one went through compression, the pdf one didn't.
     expect(imageCompression).toHaveBeenCalledTimes(1)
