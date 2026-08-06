@@ -257,6 +257,55 @@ cd functions
 npm run seed
 ```
 
+### Production (alpha deploy and beyond)
+
+None of the above scripts touch the real cloud project — `set-admin` and `seed` are
+emulator-only by design. Production uses a separate, dedicated script:
+`bootstrapProdAdmin.js`. It creates the admin Auth account **and** sets its
+`admin: true` claim in a single run — production starts completely empty (no demo
+data; properties and tenants are entered afterward through the UI).
+
+```bash
+cd functions
+npm run bootstrap-prod-admin -- admin@yourdomain.ro
+```
+
+Before running it, Application Default Credentials (ADC) must already be configured
+in the shell — the script authenticates against the real project this way, never
+with a hardcoded credential or a service-account file committed to the repo. Either:
+
+- `gcloud auth application-default login` (interactive, one-time), or
+- `GOOGLE_APPLICATION_CREDENTIALS` pointing at a service-account key file.
+
+The script refuses to run (with a clear message, before touching anything) if:
+
+- `.firebaserc`'s project is not exactly `tenants-manager-2026`,
+- either `FIRESTORE_EMULATOR_HOST` or `FIREBASE_AUTH_EMULATOR_HOST` is set in the
+  environment (a production script must never silently land on the emulator),
+- the email is missing, or
+- an account with that email already exists — it never regenerates the password of
+  a live account, and it never changes an existing account's claim (that is
+  `set-admin`'s job, on purpose).
+
+The password is **generated** (12 characters, same generator `finalizeKyc` uses for
+real tenant credentials) and printed to the terminal **exactly once**:
+
+```
+✅ Admin account created: admin@yourdomain.ro (uid: ...)
+✅ Custom claim "admin: true" set.
+
+⚠️  PASSWORD (shown ONCE — never logged or stored anywhere else):
+   <generated password>
+
+Write it down NOW. It cannot be recovered afterward — only reset, from the
+Firebase Console (SRS §2.8).
+```
+
+It is never written to a file, a log, or any Firestore document. If it is lost, the
+only way back in is the same one described below in
+["Recovering administrator access"](#recovering-administrator-access): a password
+reset from the Firebase Console.
+
 ---
 
 ## Project structure

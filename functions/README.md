@@ -17,8 +17,9 @@ functions/
 ├── test/
 │   └── kyc.test.js                # finalizeKyc, against the Auth + Firestore emulators
 ├── scripts/
-│   ├── setAdminClaim.js           # setup script: grants the admin role
-│   └── seed.js                    # setup script: admin + demo data (emulator)
+│   ├── setAdminClaim.js           # setup script: grants the admin role (emulator)
+│   ├── seed.js                    # setup script: admin + demo data (emulator)
+│   └── bootstrapProdAdmin.js      # setup script: creates the admin account (PRODUCTION)
 └── vitest.config.js
 ```
 
@@ -30,14 +31,21 @@ today.
 ## Commands
 
 ```bash
-npm run set-admin -- <email>   # grants the admin custom claim to an existing account
-npm run seed                   # writes deterministic demo data (admin + properties)
-npm run test:emulator          # starts an emulator, runs the functions tests, shuts it down
-npm test                       # runs the tests directly, no emulator started
+npm run set-admin -- <email>            # grants the admin custom claim to an existing account
+npm run seed                            # writes deterministic demo data (admin + properties)
+npm run bootstrap-prod-admin -- <email> # PRODUCTION: creates the admin account + claim
+npm run test:emulator                   # starts an emulator, runs the functions tests, shuts it down
+npm test                                # runs the tests directly, no emulator started
 ```
 
 - **`set-admin`** and **`seed`** are one-off setup scripts, run manually against a
   running emulator (see the root README, "Creating the administrator account").
+- **`bootstrap-prod-admin`** is the PRODUCTION-only counterpart — it targets the real
+  cloud project, never the emulator (it refuses to run if either emulator env var is
+  set), and it's the only one of these three that both creates the account AND grants
+  the claim in one step. See the root README, "Creating the administrator account" →
+  "Production (alpha deploy and beyond)" for the full guard list, the ADC
+  prerequisite, and the one-time-password-display behavior.
 - **`test:emulator`** is the one to use normally: it starts its own Auth + Firestore
   emulator (`firebase emulators:exec`), runs `test/kyc.test.js` against it, and shuts
   it down — so **port 8080 must be free**, exactly like `test:rules` in `web/`. If a
