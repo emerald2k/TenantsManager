@@ -3,7 +3,8 @@
     "language": "Limbă",
     "logout": "Deconectare",
     "loading": "Se încarcă...",
-    "cancel": "Anulează"
+    "cancel": "Anulează",
+    "attachmentUnavailable": "Indisponibil"
   },
   "login": {
     "title": "Autentificare",

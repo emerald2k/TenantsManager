@@ -3,7 +3,8 @@
     "language": "Language",
     "logout": "Log out",
     "loading": "Loading...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "attachmentUnavailable": "Unavailable"
   },
   "login": {
     "title": "Sign in",
