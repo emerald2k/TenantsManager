@@ -413,6 +413,9 @@ HTTPS/TLS through the Firebase SDKs.
 users/{userId}                        [ACCESS: admin only]
   - name, dateOfBirth, email, phone, preferredLanguage: 'ro' | 'en'
   - cnp, idDocumentPhotos[]
+    // idDocumentPhotos[] and guarantor.idDocumentPhotos[]:
+    //   [ { path (bucket-relative Storage path), name, type: 'image'|'pdf'|'doc' } ]
+    //   same item shape as attachedDocuments[] and costLine.attachments[]
   - mailingAddress (opt), previousAddress
   - emergencyContact { name, phone }
   - occupantCount, smoker, pets { has, type },
@@ -454,8 +457,11 @@ tenancies/{tenancyId}                 [ACCESS: admin full; the tenant reads wher
   - status: active | ended
   - endedAt: server timestamp, set by endTenancy on termination (absent while active)
   - attachedDocuments[] (signed contract — visible to the tenant)
-    // attachedDocuments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
-    //   same item shape as costLine.attachments[] (consistency, not duplication)
+    // attachedDocuments[]: [ { path (bucket-relative Storage path), name,
+    //                          type: 'image'|'pdf'|'doc' } ]
+    //   same item shape as costLine.attachments[] and users.idDocumentPhotos[]
+    //   (consistency, not duplication)
+    //   NEVER a download URL — see "Storage references" at the end of this section
 
 properties/{propertyId}               [ACCESS: admin only]
   - ownerId, name, address { street, number, city, county, postalCode }
@@ -483,7 +489,9 @@ monthlyReports/{reportId}             [ACCESS: admin full; the tenant reads wher
 
   // Every cost line has the same shape: amount + notes + attachments (FR-REP-03a)
   // "costLine" = { amount, notes (optional), attachments[] (optional) }
-  //   attachments[]: [ { url (Storage ref), name, type: 'image'|'pdf'|'doc' } ]
+  //   attachments[]: [ { path (bucket-relative Storage path), name,
+  //                      type: 'image'|'pdf'|'doc' } ]
+  //   NEVER a download URL — see "Storage references" at the end of this section
   //   the notes AND the attachments are visible to the tenant (FR-DOC-04)
 
   - rent:        costLine
@@ -531,6 +539,16 @@ errorLogs/{logId}                     [Phase 2; ACCESS: admin only]
 - `/tenancies/{tenancyId}/contract/*` — admin + the tenant of the tenancy
 - `/reports/{reportId}/invoices/*` — admin + the tenant of the report
 - `/drafts/{draftId}/*` — admin only
+
+**Storage references — no persisted download URLs.** Every stored reference to a
+Storage object is the bucket-relative `path`, never a download URL.
+`getDownloadURL()` mints a permanent token in the object's own metadata, and a
+request carrying that token is served WITHOUT Security Rules being consulted at
+all. A persisted URL therefore survives report unlocking, share-link revocation
+and account disabling — the access it grants cannot be withdrawn. Authenticated
+clients resolve `path` → URL at display time, so every access is checked by the
+rules. Anonymous shared-report visitors receive no URL at any point: attachment
+bytes are served server-side by `getSharedReportAttachment` (§7.2).
 
 **Notes:** `serviceCosts[].name` = snapshot (FR-PROP-08); the `utilityReadings` collection does not exist (no index); the denormalizations (tenantName, property) eliminate any need for the tenant to access `users`/`properties`.
 
@@ -612,6 +630,22 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 
 **Firebase plan strategy (assumed decision):** development (M0-M6) is done entirely on the **free Spark plan + local emulators** — no card attached, no costs. The emulators include Storage and Functions in full, so all flows (photo/document upload, backend functions) are developable and testable locally. Moving to the **Blaze** plan (pay-as-you-go, card required) becomes mandatory only at **production deploy (M7)**, because from 2026 Cloud Storage and Cloud Functions deployment require Blaze. At this project's volume (5-20 properties) usage will almost certainly remain within the free quotas included in Blaze (1 GiB storage, 10 GB egress/month, 2M function invocations/month) → estimated bill ~0. **Mandatory mitigation when activating Blaze:** a Cloud Billing budget alert (e.g. threshold 5 RON/month) to be notified of any unexpected consumption.
 
+**Deviation — alpha deploy after M5 (assumed decision):** the plan above places
+the move to Blaze and the first production deploy at M7. An alpha deploy is
+instead performed immediately after M5, ahead of M6. Two reasons. First, M6's
+`dailyScheduler` (arrears reminders, contract-expiry reminders, report-preparation
+reminders) cannot be meaningfully validated on the emulator: it depends on real
+scheduled execution at 09:00 Europe/Bucharest and on email actually leaving
+through the Trigger Email extension. Validating it against a live environment
+first is better engineering order, not merely an earlier launch. Second, the
+tenant portal (M5) is the part real tenants touch, and feedback on it is worth
+more before the automations are built around it than after. The alpha runs on
+fictitious data first; real tenant data is admitted ONLY after the Storage-path
+migration (§6, "Storage references") is complete — persisted download URLs would
+expose CNP and ID photos through permanently valid, unrevocable links. Blaze
+activation and the Cloud Billing budget alert (5 RON/month) move to this point;
+M7 keeps the rest of its scope unchanged.
+
 ---
 
 ## 8. Assumptions and dependencies
@@ -634,14 +668,23 @@ A single Firebase project (production) + the **Firebase Emulator Suite** for loc
 | M3 | Tenant management | Detail (4 tabs), profile editing, password reset, contract extension/termination | Complete tenant lifecycle |
 | M4 | Reports & payments | Monthly form, publication/editing + notifications, payments (marking/cancelling), arrears/credits, automatic balance, Current month, dashboard, signed-report export (PDF, PNG, shareable link + revocation) | The complete monthly cycle, with emails; the signed report is exportable and shareable |
 | M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF, read-only access after contract end (persistent banner) | The tenant sees and downloads everything |
+| A | Alpha deploy *(deviation from §7.5 — see the note below the table)* | Storage-path migration (§6), seed adapted for a real environment (no automatic deletion, generated passwords, wrong-project guard), Blaze + Cloud Billing budget alert, "Trigger Email" extension (SendGrid/Mailgun), `firebase deploy`, post-deploy validation | The application runs in production; a fictitious tenant completes the full flow end to end — receives the credentials email, logs in, sees the report, downloads an attachment and the PDF |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
-| M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, **move to the Blaze plan + Cloud Billing budget alert**, deploy | Live, tested application |
+| M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, deploy (Blaze already active since stage A) | Live, tested application |
 
 **M7 note — bundle optimization (code splitting):** lazy loading achieved with the native React mechanism (`React.lazy` + `Suspense`), applied at two granularities:
 1. **At route level** — each major area (the admin portal, the tenant portal, the public `/r/` route) becomes a separate chunk of JavaScript, loaded on demand. Priority: the public route `/r/:shareToken` must load **without the admin area's code** — a minimal bundle for the anonymous visitor opening a shared report.
 2. **At the level of an individual heavy component** — expensive but rarely used components (the PDF generator, the image/document viewer, the Phase 2 Recharts charts) are loaded lazily even inside an already-loaded page, where bundle measurement shows it is worth it.
 
 The principle: optimization is applied **after measurement, not prematurely** — which is why it is placed at M7, not earlier.
+
+**Note — the alpha deploy (stage A):** placed deliberately between M5 and M6,
+deviating from §7.5's original "Blaze only at M7". The full reasoning is in §7.5,
+"Deviation — alpha deploy after M5". Stage A is not a milestone in the M0–M7
+sense: it adds no product scope and no new FR — it moves an existing M7 activity
+earlier and gates it on one piece of technical debt. Real tenant data is admitted
+only after the Storage-path migration is complete; until then the alpha runs on
+fictitious data.
 
 **Note — the testing strategy (continuous, from M1):** automated testing is not a final phase, but a continuous practice. The testing foundation (**Vitest + React Testing Library + jsdom + config**) is installed at **M1**, and from there on **every new feature comes with its own tests**, written together with the code — not retroactively. M7 only adds **end-to-end coverage on the critical flows**, as a final regression check before launch, not as the first moment of testing. The principle: **new code = tested code**. (M0 remains without tests — the testing foundation lands at M1, together with the first product code.)
 

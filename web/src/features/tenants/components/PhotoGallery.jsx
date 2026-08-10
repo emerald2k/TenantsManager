@@ -1,16 +1,12 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useUpdateUser } from '@/features/tenants/hooks'
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 /**
  * The tenant Profile tab's ID-photo gallery (M3-B, FR-TEN-09/11): view with
@@ -37,6 +33,72 @@ import { useUpdateUser } from '@/features/tenants/hooks'
  * @param minCount        the fewest photos allowed after a delete (1 for the
  *                        tenant's own ID photos, 0 for the optional guarantor ones)
  */
+
+/**
+ * One photo, resolved from its stored `path` (debt #5) to a real download URL
+ * via `useAttachmentUrl` at render time. A sub-component per element: the
+ * hook cannot be called from inside the parent's `.map()`.
+ */
+function PhotoThumbnail({ photo, canDelete, onDelete, onClick, t }) {
+  const { url, isLoading } = useAttachmentUrl(photo.path)
+
+  return (
+    <div className="relative">
+      {url ? (
+        <img
+          src={url}
+          alt={photo.name}
+          role="img"
+          className="aspect-square w-full cursor-pointer rounded-md border border-border object-cover"
+          onClick={onClick}
+        />
+      ) : (
+        <div className="flex aspect-square w-full items-center justify-center rounded-md border border-border bg-muted text-center text-xs text-muted-foreground">
+          {isLoading ? t('common.loading') : t('common.attachmentUnavailable')}
+        </div>
+      )}
+      {canDelete && (
+        <Button
+          type="button"
+          variant="destructive"
+          size="xs"
+          className="absolute top-1 right-1"
+          onClick={onDelete}
+        >
+          {t('tenants.detail.photos.delete')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/** The lightbox's own resolved image — `lightboxPhoto` is `null` while the
+ * dialog is closed, so `path` is `undefined` and `useAttachmentUrl` simply
+ * stays disabled (hooks must run unconditionally; the early `return null`
+ * happens AFTER the hook call, not instead of it). */
+function LightboxImage({ photo, t }) {
+  const { url, isLoading } = useAttachmentUrl(photo?.path)
+
+  if (!photo) return null
+
+  if (!url) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {isLoading ? t('common.loading') : t('common.attachmentUnavailable')}
+      </p>
+    )
+  }
+
+  return (
+    <img
+      src={url}
+      alt={photo.name}
+      role="img"
+      className="max-h-[80vh] w-full object-contain"
+    />
+  )
+}
+
 export function PhotoGallery({
   userId,
   photos,
@@ -77,16 +139,18 @@ export function PhotoGallery({
     const path = `users/${userId}/${storageFolder}/${crypto.randomUUID()}-${file.name}`
     const objectRef = ref(storage, path)
     await uploadBytes(objectRef, compressed)
-    const url = await getDownloadURL(objectRef)
 
-    persist([...photos, { url, name: file.name, type: 'image' }])
+    persist([
+      ...photos,
+      { path: objectRef.fullPath, name: file.name, type: 'image' },
+    ])
   }
 
   async function handleDelete(index) {
     if (photos.length <= minCount) return
     const target = photos[index]
     try {
-      await deleteObject(ref(storage, target.url))
+      await deleteObject(ref(storage, target.path))
     } catch {
       // Best-effort, same as PhotoCapture: the reference must be removable
       // regardless of whether the Storage object could be deleted.
@@ -122,26 +186,14 @@ export function PhotoGallery({
       {photos.length > 0 && (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
           {photos.map((photo, index) => (
-            <div key={photo.url} className="relative">
-              <img
-                src={photo.url}
-                alt={photo.name}
-                role="img"
-                className="aspect-square w-full cursor-pointer rounded-md border border-border object-cover"
-                onClick={() => setLightboxPhoto(photo)}
-              />
-              {canDelete && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="xs"
-                  className="absolute top-1 right-1"
-                  onClick={() => handleDelete(index)}
-                >
-                  {t('tenants.detail.photos.delete')}
-                </Button>
-              )}
-            </div>
+            <PhotoThumbnail
+              key={photo.path}
+              photo={photo}
+              canDelete={canDelete}
+              onDelete={() => handleDelete(index)}
+              onClick={() => setLightboxPhoto(photo)}
+              t={t}
+            />
           ))}
         </div>
       )}
@@ -152,14 +204,7 @@ export function PhotoGallery({
       >
         <DialogContent className="max-w-2xl">
           <DialogTitle className="sr-only">{lightboxPhoto?.name}</DialogTitle>
-          {lightboxPhoto && (
-            <img
-              src={lightboxPhoto.url}
-              alt={lightboxPhoto.name}
-              role="img"
-              className="max-h-[80vh] w-full object-contain"
-            />
-          )}
+          <LightboxImage photo={lightboxPhoto} t={t} />
         </DialogContent>
       </Dialog>
     </div>

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { MAX_UPLOAD_SIZE_BYTES, classifyFileType } from '@/lib/fileUpload'
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 /**
  * The per-cost-line attachments zone (FR-DOC-01…05, M4 sub-stage 3). Shared
@@ -14,16 +15,63 @@ import { MAX_UPLOAD_SIZE_BYTES, classifyFileType } from '@/lib/fileUpload'
  * hook call scoped to that exact path; it cannot be driven from a single
  * top-level `useFieldArray` in the parent.
  *
- * Each entry is uniform: `{ url, name, type, file }` — exactly one of `url`
- * (already uploaded) or `file` (a raw `File`, picked but not yet uploaded) is
+ * Each entry is uniform: `{ path, name, type, file }` — exactly one of `path`
+ * (already uploaded, a bucket-relative Storage path — debt #5, never a
+ * download URL) or `file` (a raw `File`, picked but not yet uploaded) is
  * present. Removing EITHER kind is the same `remove(index)` call — nothing
  * here tracks "what got removed" for Storage cleanup; `useSaveReportDraft`
- * figures that out on its own, by diffing URL sets before/after save.
+ * figures that out on its own, by diffing path sets before/after save.
  *
  * No thumbnail for a pending (not-yet-uploaded) file — that would need
  * `URL.createObjectURL` + cleanup-on-unmount bookkeeping for no requested
  * benefit; a name + "pending" badge is enough until it's actually uploaded.
  */
+
+/**
+ * One already-uploaded attachment, resolved from its stored `path` (debt #5)
+ * to a real download URL via `useAttachmentUrl` at render time. Only ever
+ * mounted for a `path`-bearing field — a PENDING (`file`-only) field renders
+ * its own plain "pending" text instead, with no hook call needed.
+ */
+function PersistedAttachment({ field, t }) {
+  const { url, isError } = useAttachmentUrl(field.path)
+
+  return (
+    <>
+      {url ? (
+        field.type === 'image' ? (
+          <img
+            src={url}
+            alt={field.name}
+            className="h-8 w-8 rounded border border-border object-cover"
+          />
+        ) : (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border text-[0.6rem] font-medium text-muted-foreground">
+            {field.type.toUpperCase()}
+          </span>
+        )
+      ) : (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border bg-muted" />
+      )}
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="truncate text-foreground underline"
+        >
+          {field.name}
+        </a>
+      ) : (
+        <span className="truncate text-muted-foreground">
+          {field.name}
+          {isError ? ` (${t('common.attachmentUnavailable')})` : ''}
+        </span>
+      )}
+    </>
+  )
+}
+
 export function LineAttachments({ control, prefix, t, disabled = false }) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -46,7 +94,7 @@ export function LineAttachments({ control, prefix, t, disabled = false }) {
         name: file.name,
         type: classifyFileType(file),
         file,
-        url: undefined,
+        path: undefined,
       })
     }
   }
@@ -79,28 +127,8 @@ export function LineAttachments({ control, prefix, t, disabled = false }) {
         <ul className="flex flex-col gap-1">
           {fields.map((field, index) => (
             <li key={field.id} className="flex items-center gap-2 text-xs">
-              {field.url ? (
-                field.type === 'image' ? (
-                  <img
-                    src={field.url}
-                    alt={field.name}
-                    className="h-8 w-8 rounded border border-border object-cover"
-                  />
-                ) : (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border text-[0.6rem] font-medium text-muted-foreground">
-                    {field.type.toUpperCase()}
-                  </span>
-                )
-              ) : null}
-              {field.url ? (
-                <a
-                  href={field.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate text-foreground underline"
-                >
-                  {field.name}
-                </a>
+              {field.path ? (
+                <PersistedAttachment field={field} t={t} />
               ) : (
                 <span className="truncate text-muted-foreground">
                   {field.name} ({t('reports.attachments.pending')})

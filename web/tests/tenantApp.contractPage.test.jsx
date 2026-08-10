@@ -13,6 +13,12 @@ import { TenantContractPage } from '@/features/tenantApp/pages/TenantContractPag
 
 vi.mock('@/features/auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/features/tenantApp/hooks', () => ({ useMyTenancy: vi.fn() }))
+// `AttachmentLink` (debt #5) resolves `path` -> url via `useAttachmentUrl` —
+// mocked at this boundary (not `firebase/storage`) since this page otherwise
+// has no Storage dependency of its own; same convention as reports.page.test.jsx.
+vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
+
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 // `monthlyRent` (2500) and `securityDeposit` (1800) are DELIBERATELY
 // different values here. Every seeded tenancy has them equal, which would
@@ -50,6 +56,13 @@ function valueFor(labelText) {
 beforeEach(() => {
   vi.clearAllMocks()
   useAuth.mockReturnValue({ user: { uid: 'tenant-1' } })
+  // Echoes the path back as a resolved url — lets each test predict the
+  // rendered href from the fixture's own `path`.
+  useAttachmentUrl.mockImplementation((path) => ({
+    url: path ? `https://storage.example/resolved/${path}` : undefined,
+    isLoading: false,
+    isError: false,
+  }))
 })
 
 describe('TenantContractPage', () => {
@@ -109,18 +122,18 @@ describe('TenantContractPage', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it("CT6 — two documents render as two links, each href = that document's own url", async () => {
+  it("CT6 — two documents render as two links, each href resolved from that document's own path", async () => {
     useMyTenancy.mockReturnValue(
       query({
         data: tenancyFixture({
           attachedDocuments: [
             {
-              url: 'https://storage.example/contract.pdf',
+              path: 'tenancies/tenancy-1/contract/contract.pdf',
               name: 'contract.pdf',
               type: 'pdf',
             },
             {
-              url: 'https://storage.example/addendum.pdf',
+              path: 'tenancies/tenancy-1/contract/addendum.pdf',
               name: 'addendum.pdf',
               type: 'pdf',
             },
@@ -133,12 +146,40 @@ describe('TenantContractPage', () => {
 
     expect(screen.getByRole('link', { name: /contract\.pdf/ })).toHaveAttribute(
       'href',
-      'https://storage.example/contract.pdf',
+      'https://storage.example/resolved/tenancies/tenancy-1/contract/contract.pdf',
     )
     expect(screen.getByRole('link', { name: /addendum\.pdf/ })).toHaveAttribute(
       'href',
-      'https://storage.example/addendum.pdf',
+      'https://storage.example/resolved/tenancies/tenancy-1/contract/addendum.pdf',
     )
+  })
+
+  it('CT11 — a document whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never a clickable dead link', async () => {
+    useAttachmentUrl.mockReturnValue({
+      url: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    useMyTenancy.mockReturnValue(
+      query({
+        data: tenancyFixture({
+          attachedDocuments: [
+            {
+              path: 'tenancies/tenancy-1/contract/contract.pdf',
+              name: 'contract.pdf',
+              type: 'pdf',
+            },
+          ],
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantContractPage />)
+
+    expect(screen.getByText(/Indisponibil/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /contract\.pdf/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('CT7 — securityDeposit key absent renders "—" under its own label, NOT "0,00 lei"', async () => {

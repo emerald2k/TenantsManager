@@ -70,6 +70,13 @@ vi.mock('@/lib/fileUpload', () => ({
   uploadAttachment: vi.fn(),
   deleteAttachmentBestEffort: vi.fn(),
 }))
+// `LineAttachments`'s `PersistedAttachment` (debt #5) resolves `path` -> url
+// via `useAttachmentUrl` — mocked at this boundary (not `firebase/storage`),
+// consistent with this file's own established convention of mocking just
+// above the Storage boundary rather than the SDK itself.
+vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
+
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 const PROPERTY = {
   id: 'p1',
@@ -157,6 +164,11 @@ beforeEach(() => {
     mutateAsync: revokeMutateAsync,
     isPending: false,
   })
+  useAttachmentUrl.mockImplementation((path) => ({
+    url: path ? `https://storage.example/resolved/${path}` : undefined,
+    isLoading: false,
+    isError: false,
+  }))
 })
 
 describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
@@ -452,7 +464,7 @@ const REPORT_WITH_RENT_ATTACHMENT = {
     notes: '',
     attachments: [
       {
-        url: 'https://storage.example/lease.pdf',
+        path: 'reports/p1_2026-07/invoices/lease.pdf',
         name: 'lease.pdf',
         type: 'pdf',
       },
@@ -494,6 +506,25 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
     expect(screen.getByText(/extra\.pdf/)).toBeVisible()
   })
 
+  it('an attachment whose URL fails to resolve (Storage rule denial) renders inert "unavailable" text, never an <a> tag at all', async () => {
+    useAttachmentUrl.mockReturnValue({
+      url: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
+    const { container } = await renderWithProviders(<MonthlyReportPage />)
+
+    expect(await screen.findByText(/lease\.pdf/)).toBeInTheDocument()
+    // Checked by tag, not by ARIA role: an `<a>` with no `href` renders with
+    // NO link role at all (jsdom/ARIA semantics) — `queryByRole('link', ...)`
+    // would pass vacuously here even if the guard were removed and a bare
+    // `<a href={undefined}>` were rendered. Confirmed empirically: this
+    // exact test still passed when the `url ? <a>...` guard was replaced
+    // with `true ? <a>...`, until switched to this tag-level check.
+    expect(container.querySelector('a')).toBeNull()
+  })
+
   it('rejects a file over 10MB — not added, clear error shown', async () => {
     const user = userEvent.setup()
     mockData()
@@ -509,7 +540,7 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
     expect(screen.queryByText(/în așteptare/)).toBeNull()
   })
 
-  it('submits previousAttachmentUrls collected from the existing report', async () => {
+  it('submits previousAttachmentUrls collected from the existing report (now paths, debt #5)', async () => {
     const user = userEvent.setup()
     mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
     await renderWithProviders(<MonthlyReportPage />)
@@ -519,7 +550,7 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
     expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([
-      'https://storage.example/lease.pdf',
+      'reports/p1_2026-07/invoices/lease.pdf',
     ])
   })
 

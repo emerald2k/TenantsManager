@@ -10,6 +10,7 @@ import {
   useArchiveProperty,
   useProperty,
   useRemoveService,
+  useSignedReportsForProperty,
   useUpdateProperty,
 } from '@/features/properties/hooks'
 
@@ -24,6 +25,7 @@ vi.mock('@/features/properties/hooks', () => ({
   useRemoveService: vi.fn(),
   useArchiveProperty: vi.fn(),
   useActiveTenancyForProperty: vi.fn(),
+  useSignedReportsForProperty: vi.fn(),
 }))
 
 /** The shape a real `useMutation` returns, reduced to what the page touches. */
@@ -75,6 +77,10 @@ beforeEach(() => {
   useArchiveProperty.mockReturnValue(archiveMutation)
   useActiveTenancyForProperty.mockReturnValue({
     data: undefined,
+    isPending: false,
+  })
+  useSignedReportsForProperty.mockReturnValue({
+    data: [],
     isPending: false,
   })
 })
@@ -280,8 +286,8 @@ describe('PropertyDetailPage', () => {
     })
   })
 
-  describe('cost history placeholder', () => {
-    it('shows the empty state (the real table lands at M6)', async () => {
+  describe('cost history (FR-PROP-09)', () => {
+    it('shows the empty state when there are no signed reports yet', async () => {
       await renderPage()
 
       expect(
@@ -289,6 +295,33 @@ describe('PropertyDetailPage', () => {
           'Istoricul costurilor va fi disponibil după ce există rapoarte lunare.',
         ),
       ).toBeVisible()
+    })
+
+    it('renders the table once signed reports exist', async () => {
+      useSignedReportsForProperty.mockReturnValue({
+        data: [
+          {
+            id: 'p1_2026-01',
+            month: 1,
+            year: 2026,
+            rent: { amount: 1000 },
+            maintenance: { amount: 100 },
+            serviceCosts: [],
+            otherExpenses: [],
+            finalTotal: 1100,
+          },
+        ],
+        isPending: false,
+      })
+
+      await renderPage()
+
+      expect(screen.getByRole('table')).toBeVisible()
+      expect(
+        screen.queryByText(
+          'Istoricul costurilor va fi disponibil după ce există rapoarte lunare.',
+        ),
+      ).not.toBeInTheDocument()
     })
   })
 

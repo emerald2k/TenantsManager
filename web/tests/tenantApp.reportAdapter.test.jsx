@@ -56,7 +56,11 @@ describe('adaptTenantReportSummary', () => {
         amount: 2500,
         notes: 'nota chirie',
         attachments: [
-          { name: 'rent.pdf', type: 'pdf', url: 'https://x/rent.pdf' },
+          {
+            name: 'rent.pdf',
+            type: 'pdf',
+            path: 'reports/prop-1_2026-07/invoices/rent.pdf',
+          },
         ],
       },
     })
@@ -68,7 +72,11 @@ describe('adaptTenantReportSummary', () => {
         amount: 2500,
         notes: 'nota chirie',
         attachments: [
-          { name: 'rent.pdf', type: 'pdf', url: 'https://x/rent.pdf' },
+          {
+            name: 'rent.pdf',
+            type: 'pdf',
+            path: 'reports/prop-1_2026-07/invoices/rent.pdf',
+          },
         ],
       },
       maintenance: { amount: 0, notes: '', attachments: [] },
@@ -107,7 +115,7 @@ describe('adaptTenantReportSummary', () => {
     )
   })
 
-  it('A3 — attachment url passes through unmodified (string equality)', () => {
+  it('A3 — attachment path passes through unmodified (string equality, debt #5 — never a download url)', () => {
     const report = seedShapedReport({
       rent: {
         amount: 2500,
@@ -116,15 +124,16 @@ describe('adaptTenantReportSummary', () => {
           {
             name: 'invoice.pdf',
             type: 'pdf',
-            url: 'https://real.download/url/invoice.pdf',
+            path: 'reports/prop-1_2026-07/invoices/invoice.pdf',
           },
         ],
       },
     })
     const output = adaptTenantReportSummary(report)
-    expect(output.rent.attachments[0].url).toBe(
-      'https://real.download/url/invoice.pdf',
+    expect(output.rent.attachments[0].path).toBe(
+      'reports/prop-1_2026-07/invoices/invoice.pdf',
     )
+    expect(output.rent.attachments[0]).not.toHaveProperty('url')
   })
 
   it('A4 — graceful defaults when optional fields are absent (deliberately-unpaid fixture)', () => {
@@ -147,7 +156,7 @@ describe('adaptTenantReportSummary', () => {
           {
             name: 'rent-invoice.pdf',
             type: 'pdf',
-            url: 'https://x/rent-invoice.pdf',
+            path: 'reports/prop-1_2026-07/invoices/rent-invoice.pdf',
           },
         ],
       },

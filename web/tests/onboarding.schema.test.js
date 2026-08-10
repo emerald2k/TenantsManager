@@ -23,7 +23,7 @@ const COMPLETE = {
   pets: { has: false },
   vehicle: { has: false },
   idDocumentPhotos: [
-    { url: 'gs://bucket/1.jpg', name: 'front.jpg', type: 'image' },
+    { path: 'drafts/draft-1/front.jpg', name: 'front.jpg', type: 'image' },
   ],
   employer: 'ACME SRL',
   occupation: 'Engineer',
@@ -398,17 +398,17 @@ describe('onboarding schema — numeric fields (Sub-stage E, type correction)', 
 
 describe('onboarding schema — photo reference shape', () => {
   it('accepts a well-formed reference', () => {
-    const ref = { url: 'gs://bucket/x.jpg', name: 'x.jpg', type: 'image' }
+    const ref = { path: 'drafts/draft-1/x.jpg', name: 'x.jpg', type: 'image' }
     expect(storageReferenceSchema.safeParse(ref).success).toBe(true)
   })
 
-  it('rejects a malformed reference (missing url)', () => {
+  it('rejects a malformed reference (missing path — debt #5, never a download url)', () => {
     const ref = { name: 'x.jpg', type: 'image' }
     expect(storageReferenceSchema.safeParse(ref).success).toBe(false)
   })
 
   it('rejects a reference with an invalid type', () => {
-    const ref = { url: 'gs://bucket/x.jpg', name: 'x.jpg', type: 'video' }
+    const ref = { path: 'drafts/draft-1/x.jpg', name: 'x.jpg', type: 'video' }
     expect(storageReferenceSchema.safeParse(ref).success).toBe(false)
   })
 
@@ -417,7 +417,7 @@ describe('onboarding schema — photo reference shape', () => {
     expect(
       step2Schema.safeParse({
         idDocumentPhotos: [
-          { url: 'gs://bucket/1.jpg', name: '1.jpg', type: 'image' },
+          { path: 'drafts/draft-1/1.jpg', name: '1.jpg', type: 'image' },
         ],
       }).success,
     ).toBe(true)

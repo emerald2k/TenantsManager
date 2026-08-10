@@ -2,15 +2,11 @@ import { useRef, useState } from 'react'
 import { useFormContext } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import imageCompression from 'browser-image-compression'
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { useUpdateDraft } from '@/features/onboarding/hooks'
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -28,6 +24,41 @@ function getNestedError(errors, path) {
 }
 
 /**
+ * One captured photo, resolved from its stored `path` (debt #5) to a real
+ * download URL via `useAttachmentUrl` at render time — never a persisted URL.
+ * A sub-component per element: `useAttachmentUrl` is a hook, so it cannot be
+ * called from inside the parent's `.map()`.
+ */
+function PhotoThumbnail({ photo, onDelete, t }) {
+  const { url, isLoading } = useAttachmentUrl(photo.path)
+
+  return (
+    <div className="relative">
+      {url ? (
+        <img
+          src={url}
+          alt={photo.name}
+          className="aspect-square w-full rounded-md border border-border object-cover"
+        />
+      ) : (
+        <div className="flex aspect-square w-full items-center justify-center rounded-md border border-border bg-muted text-center text-xs text-muted-foreground">
+          {isLoading ? t('common.loading') : t('common.attachmentUnavailable')}
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="destructive"
+        size="xs"
+        className="absolute top-1 right-1"
+        onClick={onDelete}
+      >
+        {t('onboarding.wizard.photoCapture.delete')}
+      </Button>
+    </div>
+  )
+}
+
+/**
  * Step 2 (tenant ID photos, FR-TEN-03) and Step 3 (guarantor ID photos, FR-TEN-06)
  * share this component — the field it writes to is the only thing that differs
  * (`fieldPath`), passed in by the caller.
@@ -38,7 +69,7 @@ function getNestedError(errors, path) {
  *
  * Photos upload to Storage IMMEDIATELY on capture, to a flat `/drafts/{draftId}/`
  * folder (SRS §6) — not staged in memory for a later batch save. The draft only
- * ever holds the Storage references (`{ url, name, type }`, `storageReferenceSchema`
+ * ever holds the Storage references (`{ path, name, type }`, `storageReferenceSchema`
  * in schema.js), so it autosaves via `useUpdateDraft` right after each add/delete,
  * independently of the wizard's Back/Continue autosave.
  *
@@ -80,15 +111,17 @@ export function PhotoCapture({ draftId, fieldPath, required }) {
     const path = `drafts/${draftId}/${crypto.randomUUID()}-${file.name}`
     const objectRef = ref(storage, path)
     await uploadBytes(objectRef, compressed)
-    const url = await getDownloadURL(objectRef)
 
-    persist([...photos, { url, name: file.name, type: 'image' }])
+    persist([
+      ...photos,
+      { path: objectRef.fullPath, name: file.name, type: 'image' },
+    ])
   }
 
   async function handleDelete(index) {
     const target = photos[index]
     try {
-      await deleteObject(ref(storage, target.url))
+      await deleteObject(ref(storage, target.path))
     } catch {
       // Best-effort, mirrors useDeleteDraft: the reference must be removable
       // regardless of whether the Storage object could be deleted.
@@ -118,22 +151,12 @@ export function PhotoCapture({ draftId, fieldPath, required }) {
       {photos.length > 0 && (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
           {photos.map((photo, index) => (
-            <div key={photo.url} className="relative">
-              <img
-                src={photo.url}
-                alt={photo.name}
-                className="aspect-square w-full rounded-md border border-border object-cover"
-              />
-              <Button
-                type="button"
-                variant="destructive"
-                size="xs"
-                className="absolute top-1 right-1"
-                onClick={() => handleDelete(index)}
-              >
-                {t('onboarding.wizard.photoCapture.delete')}
-              </Button>
-            </div>
+            <PhotoThumbnail
+              key={photo.path}
+              photo={photo}
+              onDelete={() => handleDelete(index)}
+              t={t}
+            />
           ))}
         </div>
       )}

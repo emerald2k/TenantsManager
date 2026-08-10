@@ -7,6 +7,7 @@ import {
   deleteAttachmentBestEffort,
   uploadAttachment,
 } from '@/lib/fileUpload'
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 /**
  * The signed-contract uploader for the Tenancy tab (FR-CON-07, M3-C).
@@ -27,6 +28,51 @@ import {
  * @param userId     mutate-time context only, for useUpdateTenancy's cache invalidation
  * @param documents  the current `attachedDocuments` array, as loaded on the tenancy
  */
+
+/**
+ * One contract document, resolved from its stored `path` (debt #5) to a real
+ * download URL via `useAttachmentUrl` at render time. A sub-component per
+ * element: the hook cannot be called from inside the parent's `.map()`.
+ */
+function DocumentRow({ item, onDelete, t }) {
+  const { url, isLoading } = useAttachmentUrl(item.path)
+
+  return (
+    <li className="flex items-center gap-3">
+      {url && item.type === 'image' ? (
+        <img
+          src={url}
+          alt={item.name}
+          className="h-12 w-12 rounded border border-border object-cover"
+        />
+      ) : item.type !== 'image' ? (
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded border border-border text-xs font-medium text-muted-foreground">
+          {item.type.toUpperCase()}
+        </span>
+      ) : (
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded border border-border bg-muted" />
+      )}
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm text-foreground underline"
+        >
+          {item.name}
+        </a>
+      ) : (
+        <span className="text-sm text-muted-foreground">
+          {item.name} {!isLoading && `(${t('common.attachmentUnavailable')})`}
+        </span>
+      )}
+      <Button type="button" variant="destructive" size="xs" onClick={onDelete}>
+        {t('tenants.detail.tenancy.contract.delete')}
+      </Button>
+    </li>
+  )
+}
+
 export function ContractUpload({ tenancyId, userId, documents }) {
   const { t } = useTranslation()
   const updateTenancy = useUpdateTenancy()
@@ -61,7 +107,7 @@ export function ContractUpload({ tenancyId, userId, documents }) {
 
   async function handleDelete(index) {
     const target = documents[index]
-    await deleteAttachmentBestEffort(target.url)
+    await deleteAttachmentBestEffort(target.path)
     persist(documents.filter((_, i) => i !== index))
   }
 
@@ -85,35 +131,12 @@ export function ContractUpload({ tenancyId, userId, documents }) {
       {documents.length > 0 && (
         <ul className="flex flex-col gap-2">
           {documents.map((item, index) => (
-            <li key={item.url} className="flex items-center gap-3">
-              {item.type === 'image' ? (
-                <img
-                  src={item.url}
-                  alt={item.name}
-                  className="h-12 w-12 rounded border border-border object-cover"
-                />
-              ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded border border-border text-xs font-medium text-muted-foreground">
-                  {item.type.toUpperCase()}
-                </span>
-              )}
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-foreground underline"
-              >
-                {item.name}
-              </a>
-              <Button
-                type="button"
-                variant="destructive"
-                size="xs"
-                onClick={() => handleDelete(index)}
-              >
-                {t('tenants.detail.tenancy.contract.delete')}
-              </Button>
-            </li>
+            <DocumentRow
+              key={item.path}
+              item={item}
+              onDelete={() => handleDelete(index)}
+              t={t}
+            />
           ))}
         </ul>
       )}

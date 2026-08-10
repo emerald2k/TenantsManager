@@ -3,7 +3,8 @@
     "language": "Language",
     "logout": "Log out",
     "loading": "Loading...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "attachmentUnavailable": "Unavailable"
   },
   "login": {
     "title": "Sign in",
@@ -108,6 +109,8 @@
       "archiveTitle": "Archiving",
       "historyTitle": "Cost history",
       "historyEmpty": "The cost history will be available once monthly reports exist.",
+      "historyMonth": "Month",
+      "historyShowAll": "Show all",
       "dueDay": "Due",
       "daysUntilDue": "{{count}} days left"
     },

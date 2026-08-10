@@ -1,5 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { AttachmentLink } from '@/components/shared/AttachmentLink'
 import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy, useTenantReport } from '@/features/tenantApp/hooks'
@@ -99,16 +100,11 @@ export function TenantReportDetailPage() {
             {t('tenantApp.reportDetail.attachments.title')}
           </h3>
           {attachments.map((attachment, index) => (
-            <a
+            <AttachmentLink
               key={index}
-              href={attachment.url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${t('tenantApp.reportDetail.attachments.download')}: ${attachment.name}`}
-              className="text-sm text-foreground underline"
-            >
-              {attachment.name} ({attachment.type})
-            </a>
+              attachment={attachment}
+              downloadLabel={t('tenantApp.reportDetail.attachments.download')}
+            />
           ))}
         </div>
       )}

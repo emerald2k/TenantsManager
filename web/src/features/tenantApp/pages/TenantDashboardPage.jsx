@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { AttachmentLink } from '@/components/shared/AttachmentLink'
 import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { formatMonthYearLabel } from '@/features/dashboard/calculations'
 import { useAuth } from '@/features/auth/useAuth'
@@ -130,16 +131,11 @@ export function TenantDashboardPage() {
             {t('tenantApp.dashboard.attachments.title')}
           </h3>
           {attachments.map((attachment, index) => (
-            <a
+            <AttachmentLink
               key={index}
-              href={attachment.url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${t('tenantApp.dashboard.attachments.download')}: ${attachment.name}`}
-              className="text-sm text-foreground underline"
-            >
-              {attachment.name} ({attachment.type})
-            </a>
+              attachment={attachment}
+              downloadLabel={t('tenantApp.dashboard.attachments.download')}
+            />
           ))}
         </div>
       )}

@@ -35,17 +35,18 @@ const amountField = () => z.preprocess(blankToZero, z.number())
 
 /**
  * One cost-line attachment, in FORM state (M4 sub-stage 3, FR-DOC-01…05).
- * Exactly one of `url` (already persisted — SRS §6's `{url,name,type}`) or
- * `file` (a raw `File`, picked but not yet uploaded) is populated at any
- * time; `uploadPendingAttachments` (`../attachments.js`) is what turns a
- * `file` entry into a `url` one at save time. Deliberately permissive (no
+ * Exactly one of `path` (already persisted — SRS §6's `{path,name,type}`, a
+ * bucket-relative Storage path, never a download URL — debt #5) or `file` (a
+ * raw `File`, picked but not yet uploaded) is populated at any time;
+ * `uploadPendingAttachments` (`../attachments.js`) is what turns a `file`
+ * entry into a `path` one at save time. Deliberately permissive (no
  * `.refine()` enforcing the "exactly one" invariant) — this is a transient
  * client shape, not the persisted document; NFR-VAL-01's spirit.
  */
 const attachmentSchema = z.object({
   name: required(),
   type: z.enum(['image', 'pdf', 'doc'], { error: REQUIRED }),
-  url: z.string().optional(),
+  path: z.string().optional(),
   file: z.instanceof(File).optional(),
 })
 

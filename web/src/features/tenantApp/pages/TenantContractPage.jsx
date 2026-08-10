@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { AttachmentLink } from '@/components/shared/AttachmentLink'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
 import { formatCurrency } from '@/lib/formatCurrency'
@@ -109,16 +110,11 @@ export function TenantContractPage() {
         </h3>
         {documents.length > 0 ? (
           documents.map((doc, index) => (
-            <a
+            <AttachmentLink
               key={index}
-              href={doc.url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${t('tenantApp.contract.documents.download')}: ${doc.name}`}
-              className="text-sm text-foreground underline"
-            >
-              {doc.name} ({doc.type})
-            </a>
+              attachment={doc}
+              downloadLabel={t('tenantApp.contract.documents.download')}
+            />
           ))
         ) : (
           <p className="text-sm text-muted-foreground">

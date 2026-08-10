@@ -27,6 +27,7 @@ import { auth, db } from '@/lib/firebase'
  */
 
 const COLLECTION = 'properties'
+const REPORTS_COLLECTION = 'monthlyReports'
 
 /**
  * The cache keys, hierarchically. Invalidating on `lists()` catches every list
@@ -219,6 +220,33 @@ export function useActiveTenancyForProperty(propertyId) {
       if (snap.empty) return null
       const match = snap.docs[0]
       return { id: match.id, ...match.data() }
+    },
+  })
+}
+
+/**
+ * A property's SIGNED reports, across every month (FR-PROP-09's cost-history
+ * table). Two-equality query (`propertyId`, `status`) with NO `orderBy` —
+ * same "no-composite-index convention" as `useMySignedReports`
+ * (tenantApp/hooks.js): `firestore.indexes.json` defines zero composite
+ * indexes, and adding `orderBy` on top of two equality filters is exactly
+ * the shape that would require one — passing on emulator, failing in
+ * production with `FAILED_PRECONDITION`. Chronological ordering is the
+ * pivot's job (`buildCostHistory`), not this query's.
+ */
+export function useSignedReportsForProperty(propertyId) {
+  return useQuery({
+    queryKey: ['monthlyReports', 'signedForProperty', propertyId],
+    enabled: Boolean(propertyId),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(
+          collection(db, REPORTS_COLLECTION),
+          where('propertyId', '==', propertyId),
+          where('status', '==', 'signed'),
+        ),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
     },
   })
 }

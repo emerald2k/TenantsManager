@@ -47,7 +47,7 @@ const blankToUndefined = (value) =>
 const numberField = (inner) => z.preprocess(blankToUndefined, inner)
 
 const storageReference = z.object({
-  url: required(),
+  path: required(),
   name: required(),
   type: z.enum(['image', 'pdf', 'doc']),
 })

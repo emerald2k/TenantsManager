@@ -6,9 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/firebase', () => ({ storage: { __fake: 'storage' } }))
 
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
-  getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
 }))
 
@@ -16,12 +15,7 @@ vi.mock('browser-image-compression', () => ({
   default: vi.fn(),
 }))
 
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from 'firebase/storage'
+import { deleteObject, ref, uploadBytes } from 'firebase/storage'
 import imageCompression from 'browser-image-compression'
 import {
   MAX_UPLOAD_SIZE_BYTES,
@@ -40,9 +34,6 @@ beforeEach(() => {
     new File(['compressed'], 'photo.jpg', { type: 'image/jpeg' }),
   )
   uploadBytes.mockResolvedValue({})
-  getDownloadURL.mockResolvedValue(
-    'https://storage.example/reports/r1/invoices/photo.jpg',
-  )
   deleteObject.mockResolvedValue(undefined)
 })
 
@@ -85,11 +76,14 @@ describe('uploadAttachment — conditional compression (FR-DOC-05)', () => {
       expect.objectContaining({ maxWidthOrHeight: 2000 }),
     )
     expect(uploadBytes).toHaveBeenCalledWith(
-      { __ref: 'reports/r1/invoices/photo.jpg' },
+      {
+        __ref: 'reports/r1/invoices/photo.jpg',
+        fullPath: 'reports/r1/invoices/photo.jpg',
+      },
       expect.any(File), // the COMPRESSED file, not the original
     )
     expect(result).toEqual({
-      url: 'https://storage.example/reports/r1/invoices/photo.jpg',
+      path: 'reports/r1/invoices/photo.jpg',
       name: 'photo.jpg', // the ORIGINAL file's name, not the compressed stand-in's
       type: 'image',
     })
@@ -102,7 +96,10 @@ describe('uploadAttachment — conditional compression (FR-DOC-05)', () => {
 
     expect(imageCompression).not.toHaveBeenCalled()
     expect(uploadBytes).toHaveBeenCalledWith(
-      { __ref: 'reports/r1/invoices/invoice.pdf' },
+      {
+        __ref: 'reports/r1/invoices/invoice.pdf',
+        fullPath: 'reports/r1/invoices/invoice.pdf',
+      },
       file,
     )
   })
@@ -117,7 +114,10 @@ describe('uploadAttachment — conditional compression (FR-DOC-05)', () => {
 
     expect(imageCompression).not.toHaveBeenCalled()
     expect(uploadBytes).toHaveBeenCalledWith(
-      { __ref: 'reports/r1/invoices/invoice.docx' },
+      {
+        __ref: 'reports/r1/invoices/invoice.docx',
+        fullPath: 'reports/r1/invoices/invoice.docx',
+      },
       file,
     )
   })
@@ -133,6 +133,7 @@ describe('deleteAttachmentBestEffort', () => {
     )
     expect(deleteObject).toHaveBeenCalledWith({
       __ref: 'https://storage.example/some/object.jpg',
+      fullPath: 'https://storage.example/some/object.jpg',
     })
   })
 

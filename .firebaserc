@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "tenants-manager-2026"
-  }
+  },
+  "targets": {
+    "tenants-manager-2026": {
+      "hosting": {
+        "app": [
+          "chirie"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

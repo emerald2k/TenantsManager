@@ -38,13 +38,15 @@ vi.mock('@/lib/firebase', () => ({
   functions: { __fake: 'functions' },
 }))
 vi.mock('firebase/storage', () => ({
-  ref: vi.fn(),
+  ref: vi.fn((_storage, path) => ({ __ref: path, fullPath: path })),
   uploadBytes: vi.fn(),
   getDownloadURL: vi.fn(),
   deleteObject: vi.fn(),
 }))
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }))
 vi.mock('browser-image-compression', () => ({ default: vi.fn() }))
+
+import { getDownloadURL } from 'firebase/storage'
 
 const navigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -105,6 +107,7 @@ beforeEach(() => {
   useUserById.mockReturnValue({ data: undefined, isPending: false })
   useProperties.mockReturnValue({ data: [], isPending: false })
   httpsCallable.mockReturnValue(finalizeKycMock)
+  getDownloadURL.mockResolvedValue('https://storage.example/mock.jpg')
   finalizeKycMock.mockResolvedValue({
     data: { tenancyId: 't1', accountCreated: false },
   })
@@ -241,7 +244,7 @@ describe('OnboardingWizardPage — Step 4 wiring: Finalizează persists first (a
       currentStep: 4,
       idDocumentPhotos: [
         {
-          url: 'https://storage.example/id.jpg',
+          path: 'drafts/draft-1/id.jpg',
           name: 'id.jpg',
           type: 'image',
         },
@@ -399,7 +402,7 @@ describe('OnboardingWizardPage — Step 2 ID document photos (FR-TEN-03)', () =>
       currentStep: 2,
       idDocumentPhotos: [
         {
-          url: 'https://storage.example/id.jpg',
+          path: 'drafts/draft-1/id.jpg',
           name: 'id.jpg',
           type: 'image',
         },
