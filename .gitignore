@@ -11,8 +11,8 @@ pubsub-debug.log
 firebase-export-*/
 
 # Environment variables
-.env
-.env.local
+.env*
+!.env.example
 
 # Build
 web/dist/
