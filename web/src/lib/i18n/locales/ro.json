@@ -109,6 +109,8 @@
       "archiveTitle": "Arhivare",
       "historyTitle": "Istoric costuri",
       "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare.",
+      "historyMonth": "Lună",
+      "historyShowAll": "Arată tot",
       "dueDay": "Scadență",
       "daysUntilDue": "{{count}} zile rămase"
     },

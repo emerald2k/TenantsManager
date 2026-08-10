@@ -109,6 +109,8 @@
       "archiveTitle": "Archiving",
       "historyTitle": "Cost history",
       "historyEmpty": "The cost history will be available once monthly reports exist.",
+      "historyMonth": "Month",
+      "historyShowAll": "Show all",
       "dueDay": "Due",
       "daysUntilDue": "{{count}} days left"
     },

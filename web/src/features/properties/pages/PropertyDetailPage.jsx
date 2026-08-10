@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PropertyForm } from '@/features/properties/components/PropertyForm'
 import { AddServiceDialog } from '@/features/properties/components/AddServiceDialog'
+import { CostHistoryTable } from '@/features/properties/components/CostHistoryTable'
 import {
   SERVICE_CATALOG,
   SERVICE_SOURCE,
@@ -15,20 +16,18 @@ import {
   useArchiveProperty,
   useProperty,
   useRemoveService,
+  useSignedReportsForProperty,
   useUpdateProperty,
 } from '@/features/properties/hooks'
 import { computeDaysUntilDueDay } from '@/features/properties/dueDayCountdown'
 
 /**
- * Property detail (SRS §5.3): Data, Services, Archiving, plus the cost-history
- * placeholder. Covers FR-PROP-01, FR-PROP-02, FR-PROP-04, FR-PROP-06.
+ * Property detail (SRS §5.3): Data, Services, Archiving, Cost history. Covers
+ * FR-PROP-01, FR-PROP-02, FR-PROP-04, FR-PROP-06, FR-PROP-09.
  *
  * The mutations live in `../hooks` (sub-stage B) and the fields in
  * `../components/PropertyForm` (shared with creation). This page only orchestrates:
  * which section is in edit mode, which dialog is open, which service is targeted.
- *
- * The cost-history table (SRS §5.3 section 3) arrives at M6, together with the
- * monthly reports it reads — an empty state is the honest placeholder until then.
  */
 
 const CATALOG_BY_ID = new Map(
@@ -99,6 +98,11 @@ export function PropertyDetailPage() {
   const { data: activeTenancy } = useActiveTenancyForProperty(
     isOccupied ? id : undefined,
   )
+  // FR-PROP-09: unconditional on `id` alone — the cost history covers every
+  // past tenancy on this property, not just a currently active one, so it is
+  // NOT gated on `isOccupied` the way `activeTenancy` above is.
+  const { data: signedReports, isPending: isReportsPending } =
+    useSignedReportsForProperty(id)
   const updateProperty = useUpdateProperty()
   const addService = useAddService()
   const removeService = useRemoveService()
@@ -299,9 +303,10 @@ export function PropertyDetailPage() {
       </Section>
 
       <Section title={t('properties.detail.historyTitle')}>
-        <p className="text-sm text-muted-foreground">
-          {t('properties.detail.historyEmpty')}
-        </p>
+        <CostHistoryTable
+          reports={signedReports}
+          isPending={isReportsPending}
+        />
       </Section>
 
       <AddServiceDialog

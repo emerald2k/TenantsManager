@@ -19,6 +19,7 @@ import {
   useProperties,
   useProperty,
   useRemoveService,
+  useSignedReportsForProperty,
   useUpdateProperty,
 } from '@/features/properties/hooks'
 
@@ -353,6 +354,61 @@ describe('useActiveTenancyForProperty (Sub-stage E, FR-PROP-11)', () => {
   it('reads nothing without a propertyId', async () => {
     const { result } = await renderHookWithProviders(() =>
       useActiveTenancyForProperty(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
+  })
+})
+
+describe('useSignedReportsForProperty (FR-PROP-09)', () => {
+  it('queries by propertyId and status==signed, with NO orderBy', async () => {
+    getDocs.mockResolvedValue(listSnapshot([]))
+
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForProperty('p1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('propertyId', '==', 'p1')
+    expect(where).toHaveBeenCalledWith('status', '==', 'signed')
+    // No composite index exists (firestore.indexes.json is empty) — an
+    // orderBy here would require one and fail in production.
+    expect(where).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns the matching reports with their id', async () => {
+    getDocs.mockResolvedValue(
+      listSnapshot([
+        {
+          id: 'p1_2026-01',
+          propertyId: 'p1',
+          status: 'signed',
+          month: 1,
+          year: 2026,
+        },
+      ]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForProperty('p1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([
+      {
+        id: 'p1_2026-01',
+        propertyId: 'p1',
+        status: 'signed',
+        month: 1,
+        year: 2026,
+      },
+    ])
+  })
+
+  it('reads nothing without a propertyId', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForProperty(undefined),
     )
 
     expect(result.current.fetchStatus).toBe('idle')
