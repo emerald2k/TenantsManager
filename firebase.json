@@ -11,6 +11,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
+    "target": "app",
     "public": "web/dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "predeploy": "npm --prefix web run build",
