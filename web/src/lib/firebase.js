@@ -24,7 +24,8 @@ const missing = REQUIRED_ENV_VARS.filter((name) => !import.meta.env[name])
 if (missing.length > 0) {
   throw new Error(
     `Incomplete Firebase configuration. Missing variables: ${missing.join(', ')}.\n` +
-      'Copy web/.env.example to web/.env and fill in the values.',
+      'Copy web/.env.example to web/.env.development (or .env.production) ' +
+      'and fill in the values.',
   )
 }
 
