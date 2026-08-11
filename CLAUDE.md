@@ -124,6 +124,7 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
   start, and the code had drifted, unnoticed by two audits because the field was
   named `url`. When a spec says one thing and the field name suggests another,
   the field name wins in practice: name it unambiguously.
+- **Day-count differences are computed by converting both dates through `Date.UTC` and dividing by 86400000 — never by subtracting local `Date` objects in milliseconds.** UTC has no daylight-saving transitions, so the result is always an exact integer; a local-time millisecond diff lands on a fractional day (e.g. 2.958) across the one night a year Europe/Bucharest's clocks change. `functions/src/schedulerLogic.js` (M6) follows this rule; `web/src/features/properties/dueDayCountdown.js:27` (`computeDaysUntilDueDay`, FR-PROP-11, pre-M6) does not — it subtracts local `Date` objects and rounds with `Math.round`. Not an active bug today: `Math.round` absorbs the ~1-hour error from a single DST transition. But it is the same structural risk the M6 code was written specifically to avoid, left unaddressed because the two files don't share code — correctly so: `functions/` deploys without `web/`, the same reason the KYC schema is duplicated rather than shared (above). Each side must apply this rule independently. Converting `dueDayCountdown.js` to the same pattern is M7 debt, found at the M6 audit.
 - **Explain the decisions:** the user is learning. When you make a non-trivial implementation decision, briefly explain the reasoning.
 
 ---
