@@ -14,6 +14,7 @@ const {
   getSharedReport,
   getSharedReportAttachment,
 } = require('./src/sharedReport')
+const { dailyScheduler } = require('./src/scheduler')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -26,3 +27,4 @@ exports.sendReportNotification = sendReportNotification
 exports.onPropertyUpdate = onPropertyUpdate
 exports.getSharedReport = getSharedReport
 exports.getSharedReportAttachment = getSharedReportAttachment
+exports.dailyScheduler = dailyScheduler

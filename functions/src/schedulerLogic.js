@@ -56,6 +56,48 @@ function toIso(year, month, day) {
 }
 
 /**
+ * `dueDay` clamped into a SPECIFIC `year`/`month` (1-based), as an ISO date.
+ * `dueDay` is a plain 1-31 integer (SRS §6), but not every month has 31, 30,
+ * or even 29 days — a `dueDay` that doesn't exist in the target month is
+ * clamped to that month's LAST day: `dueDay=31` in April means April 30;
+ * `dueDay=29` in February means the 28th outside a leap year, the 29th
+ * inside one. IMPLEMENTATION DECISION, not in the SRS — flagged here
+ * deliberately. Shared by `nextOccurrenceOfDueDay` (below) and
+ * `dailyScheduler` (scheduler.js), which needs THIS SAME clamp for the
+ * current month's due date in the arrears reminder (A4) — never
+ * reimplemented at the call site.
+ */
+function dueDateInMonth(year, month, dueDay) {
+  const clampedDay = Math.min(dueDay, daysInMonth(year, month))
+  return toIso(year, month, clampedDay)
+}
+
+/**
+ * The next calendar occurrence of `dueDay` on/after `today`: still this
+ * month if `dueDay >= today`'s day-of-month, otherwise next month. That
+ * current/next-month decision compares the RAW `dueDay` against today's
+ * day-of-month — `dueDateInMonth`'s clamp only applies once the target
+ * month is already chosen, to build the actual calendar date. Shared by
+ * `shouldSendReportReminder` (below) and `dailyScheduler` (scheduler.js),
+ * which needs the SAME date for the A6 email body.
+ */
+function nextOccurrenceOfDueDay(today, dueDay) {
+  const [year, month, day] = today.split('-').map(Number)
+
+  let targetYear = year
+  let targetMonth = month
+  if (dueDay < day) {
+    targetMonth += 1
+    if (targetMonth > 12) {
+      targetMonth = 1
+      targetYear += 1
+    }
+  }
+
+  return dueDateInMonth(targetYear, targetMonth, dueDay)
+}
+
+/**
  * FAMILY 1 — arrears reminder (FR-PAY-04, template A4, to the tenant).
  * Fires every 3 days starting on day 3 after the due date, for as long as
  * arrears remain: elapsed 3, 6, 9, ... `currentBalance` must be strictly
@@ -81,17 +123,8 @@ function shouldSendExpiryReminder({ today, endDate }) {
 /**
  * FAMILY 3 — report preparation reminder (FR-REP-15, template A6, to the
  * admin). Fires `reportReminderDaysBefore` days before the NEXT occurrence
- * of `dueDay`: still ahead this month if `dueDay >= today`'s day-of-month,
- * otherwise next month. That current/next-month decision compares the RAW
- * `dueDay` against today's day-of-month — clamping (below) only applies once
- * the target month is already chosen, to build the actual calendar date.
- *
- * MONTH-END CLAMPING (implementation decision, not in the SRS — flagged
- * here deliberately): `dueDay` is a plain 1-31 integer (SRS §6), but not
- * every month has 31, 30, or even 29 days. A `dueDay` that doesn't exist in
- * the target month is clamped to that month's LAST day — `dueDay=31` in
- * April means April 30; `dueDay=29` in February means the 28th outside a
- * leap year, the 29th inside one.
+ * of `dueDay` (`nextOccurrenceOfDueDay`, above — month-end clamping lives
+ * there, not duplicated here).
  */
 function shouldSendReportReminder({
   today,
@@ -101,27 +134,15 @@ function shouldSendReportReminder({
 }) {
   if (hasSignedReportThisMonth) return false
 
-  const [year, month, day] = today.split('-').map(Number)
-
-  let targetYear = year
-  let targetMonth = month
-  if (dueDay < day) {
-    targetMonth += 1
-    if (targetMonth > 12) {
-      targetMonth = 1
-      targetYear += 1
-    }
-  }
-
-  const clampedDay = Math.min(dueDay, daysInMonth(targetYear, targetMonth))
-  const nextOccurrence = toIso(targetYear, targetMonth, clampedDay)
-
+  const nextOccurrence = nextOccurrenceOfDueDay(today, dueDay)
   return daysBetween(today, nextOccurrence) === reportReminderDaysBefore
 }
 
 module.exports = {
   todayInBucharest,
   daysBetween,
+  dueDateInMonth,
+  nextOccurrenceOfDueDay,
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
