@@ -210,7 +210,7 @@ No fiscal invoicing; no online payments; a single admin; currency exclusively RO
 | FR-PAY-01 | Payment is marked manually by the admin: amount, method (cash/bank transfer/other), date. |
 | FR-PAY-02 | Partial payments allowed; the difference becomes arrears. |
 | FR-PAY-03 | Arrears are carried forward automatically into the next report ("Previous month's arrears"). |
-| FR-PAY-04 | Email reminder 3 days after the due date, repeated every 3 days until full settlement (sent at 09:00, Europe/Bucharest). |
+| FR-PAY-04 | Email reminder 3 days after the due date, repeated every 3 days until full settlement (sent at 09:00, Europe/Bucharest). The due date is the tenancy's `dueDay` for the CURRENT calendar month — not the due date of the most recently signed report — clamped to the last day of a shorter month. Anchored to the current month, the cycle pauses at the month boundary: days 1-4 of a new month yield a negative distance to that month's due date, so nothing fires until the new due date arrives, and for a high `dueDay` the usable window before month-end is only a few days. "Repeated every 3 days until settlement" is, in practice, "with monthly gaps". |
 | FR-PAY-05 | Overpayment allowed; the excess becomes **credit**, applied automatically in the next report ("Previous month's credit"). |
 | FR-PAY-06 | Payments can be cancelled/corrected; the report returns to the previous status. The effects on future months follow FR-REP-12. |
 
@@ -402,6 +402,8 @@ Photo capture: file input with the capture attribute (native camera) — without
 ### 5.7 Software interfaces
 Firebase: Authentication, Firestore, Storage, Cloud Functions, "Trigger Email" Extension (SendGrid/Mailgun). Emails: the functions write into the `mail` collection, the extension delivers.
 
+**Dependency with a deadline:** Firebase Extensions (the marketplace "Trigger Email" is installed from) shuts down on March 31, 2027, per the Firebase Console announcement; a migration guide is announced for September 2026. This is not an immediate concern and the stack is NOT being changed now — recorded so it is not rediscovered cold later. The impact of replacing it is small by construction: every function already writes its email into the `mail` collection first, in the exact `{ to, message: { subject, text } }` shape the extension itself consumes — a self-written Firestore trigger on that same collection would keep the same templates and the same contract, only the delivery mechanism changes.
+
 ### 5.8 Communication interfaces
 HTTPS/TLS through the Firebase SDKs.
 
@@ -560,7 +562,7 @@ bytes are served server-side by `getSharedReportAttachment` (§7.2).
 
 | Category | Choice |
 |---|---|
-| Backend | Firebase: Firestore, Authentication, Storage, Cloud Functions, "Trigger Email" Ext. |
+| Backend | Firebase: Firestore, Authentication, Storage, Cloud Functions, "Trigger Email" Ext. *(dependency with a deadline — see §5.7)* |
 | Frontend language | JavaScript |
 | Framework | Vite + React (SPA), React Router |
 | UI | Tailwind CSS + shadcn/ui |
@@ -589,7 +591,7 @@ bytes are served server-side by `getSharedReportAttachment` (§7.2).
 | `signReport` | callable (admin) | Transaction: checks `status=='draft'` (rejects with `failed-precondition` if already `'signed'`), sets `status='signed'` + `signedAt` (server timestamp). The report becomes visible to the tenant (via Security Rules, `status=='signed'`) and locked for editing. NOTE: the edit lock is enforced by this callable + the UI, NOT by Security Rules — the admin keeps full write access per §7.3 (single-trusted-admin model). (FR-REP-07) |
 | `unlockReport` | callable (admin) | Transaction: checks `status=='signed'` (rejects if `'draft'`), sets `status='draft'` — the report becomes editable again and disappears from tenant visibility until re-signed (via `signReport`). (FR-REP-07a) |
 | `onPropertyUpdate` | Firestore trigger | Synchronizes `property { name, address }` in the active tenancy. |
-| `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin) + report-preparation reminders (`reportReminderDaysBefore` before the due day, admin-facing, only if unsigned for the current month). |
+| `dailyScheduler` | scheduled 09:00 Europe/Bucharest | Arrears reminders (3-day cycle from the due date, until settlement) + contract expiry reminders (90/60/30, to the admin) + report-preparation reminders (`reportReminderDaysBefore` before the due day, admin-facing, only if unsigned for the current month). Admin-facing reminders (contract expiry, report preparation) are sent to `ADMIN_EMAIL` (env var, §7.5). |
 | `getSharedReport` | callable (public, no auth) | Serves a shared report based on the `shareToken`. Validates the token, checks `shareTokenRevoked == false` and `status == 'signed'`, returns the report's fields plus the property's `name` (context only) — **excluding** the tenant's personal data (name, `cnp`). Attachments are returned as **metadata only** (name, type, reference) — never a Storage URL; their bytes are served exclusively by `getSharedReportAttachment`, below. The only path of anonymous access to report data; the collection stays closed in Security Rules (FR-REP-07c). |
 | `getSharedReportAttachment` | callable (public, no auth) | Serves the BYTES of one report attachment (base64) to an anonymous shared-report visitor. Re-validates the SAME preconditions as `getSharedReport` (`shareToken` valid, `shareTokenRevoked == false`, `status == 'signed'`) — a token revoked after the report was opened stops working here too. Takes the `shareToken` plus an attachment reference, and VERIFIES that reference actually belongs to the report identified by that token (rejects any other Storage path) — so a valid token cannot be used to fetch an unrelated file. The only path of anonymous access to attachment bytes; Storage itself stays closed to anonymous requests in its own rules, exactly like `monthlyReports` in Firestore. |
 | `setAdminClaim` | setup script (once) | Sets the custom claim `admin: true` on the account created in the Console. |
@@ -628,7 +630,9 @@ If the draft's `existingUserId` is set (FR-TEN-07), the function skips Auth/`use
 ### 7.5 Environments
 A single Firebase project (production) + the **Firebase Emulator Suite** for local development (Auth, Firestore, Storage, Functions). Manual deploy: `firebase deploy`.
 
-**Firebase plan strategy (assumed decision):** development (M0-M6) is done entirely on the **free Spark plan + local emulators** — no card attached, no costs. The emulators include Storage and Functions in full, so all flows (photo/document upload, backend functions) are developable and testable locally. Moving to the **Blaze** plan (pay-as-you-go, card required) becomes mandatory only at **production deploy (M7)**, because from 2026 Cloud Storage and Cloud Functions deployment require Blaze. At this project's volume (5-20 properties) usage will almost certainly remain within the free quotas included in Blaze (1 GiB storage, 10 GB egress/month, 2M function invocations/month) → estimated bill ~0. **Mandatory mitigation when activating Blaze:** a Cloud Billing budget alert (e.g. threshold 5 RON/month) to be notified of any unexpected consumption.
+**Environment variable — `ADMIN_EMAIL`:** the recipient of the admin-facing automated emails (Appendix A5, A6) — a Cloud Functions environment variable, the same pattern as `APP_URL` (already used in `kyc.js`/`reports.js`), but with NO default value: unlike `APP_URL`, where a `localhost` fallback is harmless outside local testing, a fallback here would make contract-expiry and report-preparation reminders disappear silently in production. When `ADMIN_EMAIL` is unset, A5 and A6 are skipped with `console.error`; A4 (arrears, to the tenant) continues unaffected — one channel degrades, not two.
+
+**Firebase plan strategy (assumed decision):** development (M0-M6) is done entirely on the **free Spark plan + local emulators** — no card attached, no costs. The emulators include Storage and Functions in full, so all flows (photo/document upload, backend functions) are developable and testable locally. Moving to the **Blaze** plan (pay-as-you-go, card required) becomes mandatory once the app is actually deployed for real, because from 2026 Cloud Storage and Cloud Functions deployment require Blaze — see the "Deviation" paragraph below for exactly when that deploy happened (alpha, ahead of M6, not M7 as this paragraph originally planned); this is the only place that states the timing, so it is not repeated here. At this project's volume (5-20 properties) usage will almost certainly remain within the free quotas included in Blaze (1 GiB storage, 10 GB egress/month, 2M function invocations/month) → estimated bill ~0. **Mandatory mitigation when activating Blaze:** a Cloud Billing budget alert (e.g. threshold 5 RON/month) to be notified of any unexpected consumption.
 
 **Deviation — alpha deploy after M5 (assumed decision):** the plan above places
 the move to Blaze and the first production deploy at M7. An alpha deploy is
@@ -750,13 +754,13 @@ All emails to the tenant are sent in their preferred language. Emails to the adm
 > Please contact the landlord to settle the payment.
 > Details: {url}
 
-### A5 — Contract expiry reminder (to the admin; 90/60/30 days; RO only)
+### A5 — Contract expiry reminder (to `ADMIN_EMAIL`; 90/60/30 days; RO only — NFR-LOC-04)
 **Subject:** Contract în expirare: {property} — {endDate}
 > Contractul chiriașului {name} pentru proprietatea {property} expiră la {endDate}.
 > Acțiuni posibile: prelungește contractul (editează data de sfârșit) sau planifică încheierea și offboarding-ul.
 > Deschide tenanța: {url}
 
-### A6 — Report preparation reminder (to the admin; RO only)
+### A6 — Report preparation reminder (to `ADMIN_EMAIL`; RO only — NFR-LOC-04)
 **Subject:** Pregătește lista de plată — {property}
 > Contul pentru {property} are scadența pe {dueDate}. Raportul lunii încă nu e semnat — pregătește costurile și emite lista.
 

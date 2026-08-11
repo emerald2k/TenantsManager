@@ -18,7 +18,7 @@ const COMPLETE = {
   pets: { has: false },
   vehicle: { has: false },
   idDocumentPhotos: [
-    { url: 'gs://bucket/1.jpg', name: 'front.jpg', type: 'image' },
+    { path: 'drafts/draft-1/front.jpg', name: 'front.jpg', type: 'image' },
   ],
   employer: 'ACME SRL',
   occupation: 'Engineer',

@@ -24,12 +24,7 @@ const PROJECT_ID = 'tenants-manager-2026'
  * override cannot leak into any other test file's app instance.
  */
 describe('finalizeKyc — bucket resolution under the real Functions ambient default (M3 regression)', () => {
-  let finalizeKycCore,
-    STORAGE_BUCKET,
-    buildDownloadUrl,
-    parseStoragePath,
-    bucket,
-    db
+  let finalizeKycCore, STORAGE_BUCKET, bucket, db
 
   beforeAll(async () => {
     process.env.FIREBASE_CONFIG = JSON.stringify({
@@ -40,11 +35,8 @@ describe('finalizeKyc — bucket resolution under the real Functions ambient def
     })
 
     const kyc = await import('../src/kyc.js')
-    const photoMigration = await import('../src/photoMigration.js')
     finalizeKycCore = kyc.finalizeKycCore
     STORAGE_BUCKET = kyc.STORAGE_BUCKET
-    buildDownloadUrl = photoMigration.buildDownloadUrl
-    parseStoragePath = photoMigration.parseStoragePath
 
     db = getFirestore()
     bucket = getStorage().bucket(STORAGE_BUCKET)
@@ -130,15 +122,10 @@ describe('finalizeKyc — bucket resolution under the real Functions ambient def
     // set to the WRONG bucket above) resolves to.
     const draftId = 'draft-bucket-mismatch'
     const path = `drafts/${draftId}/front.jpg`
-    const token = 'test-token'
     await bucket.file(path).save(Buffer.from('real-photo-bytes'), {
-      metadata: { firebaseStorageDownloadTokens: token },
+      metadata: { firebaseStorageDownloadTokens: 'test-token' },
     })
-    const photo = {
-      url: buildDownloadUrl(STORAGE_BUCKET, path, token),
-      name: 'front.jpg',
-      type: 'image',
-    }
+    const photo = { path, name: 'front.jpg', type: 'image' }
     await db
       .collection('onboardingDrafts')
       .doc(draftId)
@@ -153,7 +140,7 @@ describe('finalizeKyc — bucket resolution under the real Functions ambient def
 
     const userSnap = await db.collection('users').doc(result.uid).get()
     const [migratedPhoto] = userSnap.data().idDocumentPhotos
-    const newPath = parseStoragePath(migratedPhoto.url)
+    const newPath = migratedPhoto.path
     expect(newPath).toBe(`users/${result.uid}/documents/front.jpg`)
 
     const [existsAtNewPath] = await bucket.file(newPath).exists()

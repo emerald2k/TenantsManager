@@ -199,8 +199,10 @@ function demoProperties(ownerId) {
 }
 
 /** The occupied property (SRS §6 properties shape). `status: 'occupied'` is set by
- * hand: normally it is computed from active tenancies, but there is no trigger yet,
- * so the seed reproduces the end state directly. */
+ * hand: normally it is computed from active tenancies, but no trigger computes
+ * `status` (onPropertyUpdate only syncs name/address, M6, FR-PROP-10) — it is
+ * still written inline by finalizeKyc — so the seed reproduces the end state
+ * directly. */
 function occupiedProperty(ownerId) {
   return {
     name: 'Apartament Zorilor',

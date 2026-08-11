@@ -9,10 +9,12 @@ const {
   onReportWrite,
   sendReportNotification,
 } = require('./src/reports')
+const { onPropertyUpdate } = require('./src/properties')
 const {
   getSharedReport,
   getSharedReportAttachment,
 } = require('./src/sharedReport')
+const { dailyScheduler } = require('./src/scheduler')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -22,5 +24,7 @@ exports.signReport = signReport
 exports.unlockReport = unlockReport
 exports.onReportWrite = onReportWrite
 exports.sendReportNotification = sendReportNotification
+exports.onPropertyUpdate = onPropertyUpdate
 exports.getSharedReport = getSharedReport
 exports.getSharedReportAttachment = getSharedReportAttachment
+exports.dailyScheduler = dailyScheduler

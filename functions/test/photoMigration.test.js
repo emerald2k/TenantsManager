@@ -5,7 +5,6 @@ import {
   buildDownloadUrl,
   copyPhotosToUser,
   deleteObjects,
-  parseStoragePath,
 } from '../src/photoMigration.js'
 
 // This file runs standalone (does not import kyc.js), so — unlike
@@ -15,28 +14,10 @@ if (!getApps().length) {
   initializeApp()
 }
 
-// Pure-function tests — no Storage emulator needed for these two: they are
-// plain string parsing/building, the same URL shape PhotoCapture.jsx produces
-// via the client SDK's getDownloadURL().
-
-describe('parseStoragePath', () => {
-  it('extracts the object path from a Firebase Storage download URL', () => {
-    const url =
-      'https://firebasestorage.googleapis.com/v0/b/demo-bucket/o/drafts%2Fdraft-1%2Fabc-front.jpg?alt=media&token=xyz'
-    expect(parseStoragePath(url)).toBe('drafts/draft-1/abc-front.jpg')
-  })
-
-  it('decodes nested path segments correctly', () => {
-    const url =
-      'https://firebasestorage.googleapis.com/v0/b/demo-bucket/o/users%2Fuid-1%2Fdocuments%2Fabc-front.jpg?alt=media&token=xyz'
-    expect(parseStoragePath(url)).toBe('users/uid-1/documents/abc-front.jpg')
-  })
-
-  it('throws on a URL that is not a Firebase Storage download URL', () => {
-    expect(() => parseStoragePath('gs://bucket/1.jpg')).toThrow()
-    expect(() => parseStoragePath('not a url at all')).toThrow()
-  })
-})
+// Pure-function test — no Storage emulator needed: plain string building,
+// the same URL shape PhotoCapture.jsx renders via getDownloadURL() (debt #5:
+// references now persist `path`, so there is no URL to parse back out of —
+// buildDownloadUrl is a one-way, display-time-only derivation).
 
 describe('buildDownloadUrl', () => {
   // `firebase emulators:exec` (which runs this whole file) sets
@@ -81,12 +62,6 @@ describe('buildDownloadUrl', () => {
       process.env.FIREBASE_STORAGE_EMULATOR_HOST = ambientEmulatorHost
     }
   })
-
-  it('round-trips with parseStoragePath regardless of host', () => {
-    const path = 'users/uid-1/guarantor/xyz-back.jpg'
-    const url = buildDownloadUrl('demo-bucket', path, 'tok')
-    expect(parseStoragePath(url)).toBe(path)
-  })
 })
 
 // The rest of this file needs the REAL Storage emulator (functions
@@ -111,6 +86,15 @@ async function objectExists(path) {
   return exists
 }
 
+// copyPhotosToUser does not return the fresh token it issues (debt #5: never
+// persisted, never handed back — only derived at display time). Reading it
+// straight from the object's own metadata lets a test still prove the copy
+// is actually web-servable, without the production code changing shape.
+async function readDownloadToken(path) {
+  const [metadata] = await bucket.file(path).getMetadata()
+  return metadata.metadata.firebaseStorageDownloadTokens
+}
+
 beforeEach(async () => {
   // Best-effort cleanup between tests — the Storage emulator does not reset
   // per-test the way Firestore's DELETE-all endpoint does.
@@ -125,11 +109,7 @@ describe('copyPhotosToUser', () => {
   it('copies each photo to users/{userId}/{destFolder}/, leaves the source intact, and issues a fresh download token', async () => {
     await seedObject('drafts/draft-1/abc-front.jpg', 'front-bytes')
     const photo = {
-      url: buildDownloadUrl(
-        bucket.name,
-        'drafts/draft-1/abc-front.jpg',
-        'seed-token',
-      ),
+      path: 'drafts/draft-1/abc-front.jpg',
       name: 'front.jpg',
       type: 'image',
     }
@@ -145,9 +125,11 @@ describe('copyPhotosToUser', () => {
     const [ref] = result.references
     expect(ref.name).toBe('front.jpg')
     expect(ref.type).toBe('image')
-    expect(parseStoragePath(ref.url)).toBe(
-      'users/user-1/documents/abc-front.jpg',
-    )
+    expect(ref.path).toBe('users/user-1/documents/abc-front.jpg')
+    // A fresh token was issued at the destination — not the seed's.
+    expect(
+      await readDownloadToken('users/user-1/documents/abc-front.jpg'),
+    ).not.toBe('seed-token')
     // Physically present at the new path, correct bytes.
     expect(await objectExists('users/user-1/documents/abc-front.jpg')).toBe(
       true,
@@ -165,15 +147,14 @@ describe('copyPhotosToUser', () => {
   // The strongest proof: not just "the object exists" (Admin SDK level) but
   // "the URL an <img src> would actually use serves the right bytes" — this
   // is what Bogdan's browser validation checks, and the only thing in this
-  // suite that would catch a wrong host/protocol/token in the built URL.
-  it('the returned url is fetchable over HTTP and serves the migrated bytes', async () => {
+  // suite that would catch a wrong host/protocol/token. The URL itself is
+  // never persisted (debt #5) — it's derived here from the destination path
+  // (as the caller returns it) plus the fresh token (read back from the
+  // object's own metadata, since copyPhotosToUser doesn't hand it back).
+  it('the copied object is fetchable over HTTP via a freshly-derived URL and serves the migrated bytes', async () => {
     await seedObject('drafts/draft-1/abc-front.jpg', 'front-bytes')
     const photo = {
-      url: buildDownloadUrl(
-        bucket.name,
-        'drafts/draft-1/abc-front.jpg',
-        'seed-token',
-      ),
+      path: 'drafts/draft-1/abc-front.jpg',
       name: 'front.jpg',
       type: 'image',
     }
@@ -185,7 +166,11 @@ describe('copyPhotosToUser', () => {
       'documents',
     )
 
-    const response = await fetch(result.references[0].url)
+    const destPath = result.references[0].path
+    const token = await readDownloadToken(destPath)
+    const url = buildDownloadUrl(bucket.name, destPath, token)
+
+    const response = await fetch(url)
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('front-bytes')
   })
@@ -194,16 +179,8 @@ describe('copyPhotosToUser', () => {
     await seedObject('drafts/draft-1/a.jpg', 'a')
     await seedObject('drafts/draft-1/b.jpg', 'b')
     const photos = [
-      {
-        url: buildDownloadUrl(bucket.name, 'drafts/draft-1/a.jpg', 'tok'),
-        name: 'a.jpg',
-        type: 'image',
-      },
-      {
-        url: buildDownloadUrl(bucket.name, 'drafts/draft-1/b.jpg', 'tok'),
-        name: 'b.jpg',
-        type: 'image',
-      },
+      { path: 'drafts/draft-1/a.jpg', name: 'a.jpg', type: 'image' },
+      { path: 'drafts/draft-1/b.jpg', name: 'b.jpg', type: 'image' },
     ]
 
     const result = await copyPhotosToUser(bucket, photos, 'user-1', 'guarantor')
@@ -219,16 +196,8 @@ describe('copyPhotosToUser', () => {
     await seedObject('drafts/draft-1/a.jpg', 'a')
     // 'b.jpg' is DELIBERATELY not seeded — its copy will fail (source missing).
     const photos = [
-      {
-        url: buildDownloadUrl(bucket.name, 'drafts/draft-1/a.jpg', 'tok'),
-        name: 'a.jpg',
-        type: 'image',
-      },
-      {
-        url: buildDownloadUrl(bucket.name, 'drafts/draft-1/b.jpg', 'tok'),
-        name: 'b.jpg',
-        type: 'image',
-      },
+      { path: 'drafts/draft-1/a.jpg', name: 'a.jpg', type: 'image' },
+      { path: 'drafts/draft-1/b.jpg', name: 'b.jpg', type: 'image' },
     ]
 
     await expect(

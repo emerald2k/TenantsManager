@@ -69,13 +69,16 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 
 ## 5. Local development
 
-- Development (M0–M6) runs on the **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions) + the free Spark plan. **No card, no cloud, no costs.**
-- Moving to the Blaze plan + production deploy happens only at **M7**.
+- Local development runs on the **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions).
+- Blaze is active and the application has been in production since the alpha stage (deploy after M5, ahead of M6 — SRS §7.5). Local development stays on the emulators regardless.
 - Firebase project: `tenants-manager-2026`.
 
 **Test bands** (foundation installed at M1):
 - `npm run test:run --prefix web` — the fast band: components/hooks in jsdom, with the backend boundary mocked.
 - `npm run test:rules --prefix web` — the rules band: `firestore.rules` against the Firestore emulator. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free.
+- `npm run test:emulator --prefix functions` — the functions band: Cloud Functions against the Auth + Firestore emulators. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free — the same conflict as the rules band; the two cannot run at the same time.
+
+**All three bands are gates.** A band absent from this list is a band nobody runs.
 
 ---
 
@@ -121,6 +124,7 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
   start, and the code had drifted, unnoticed by two audits because the field was
   named `url`. When a spec says one thing and the field name suggests another,
   the field name wins in practice: name it unambiguously.
+- **Day-count differences are computed by converting both dates through `Date.UTC` and dividing by 86400000 — never by subtracting local `Date` objects in milliseconds.** UTC has no daylight-saving transitions, so the result is always an exact integer; a local-time millisecond diff lands on a fractional day (e.g. 2.958) across the one night a year Europe/Bucharest's clocks change. `functions/src/schedulerLogic.js` (M6) follows this rule; `web/src/features/properties/dueDayCountdown.js:27` (`computeDaysUntilDueDay`, FR-PROP-11, pre-M6) does not — it subtracts local `Date` objects and rounds with `Math.round`. Not an active bug today: `Math.round` absorbs the ~1-hour error from a single DST transition. But it is the same structural risk the M6 code was written specifically to avoid, left unaddressed because the two files don't share code — correctly so: `functions/` deploys without `web/`, the same reason the KYC schema is duplicated rather than shared (above). Each side must apply this rule independently. Converting `dueDayCountdown.js` to the same pattern is M7 debt, found at the M6 audit.
 - **Explain the decisions:** the user is learning. When you make a non-trivial implementation decision, briefly explain the reasoning.
 
 ---
@@ -147,7 +151,8 @@ The audit covers **five zones**:
 
 - **A. Functional completeness** — every in-scope FR mapped to code, OR explicitly marked deferred (where/when). Checked **against the SRS, not against the code** — this is what catches what is missing, not merely what exists.
 - **B. "Done" criterion** — quoted verbatim from SRS §9, confirmed point by point.
-- **C. Testing** — a complete code↔test pairing; both bands green (**run, not inferred**); anti-vacuity confirmed (a test that would pass with the behavior removed proves nothing — see §7).
+- **C. Testing** — a complete code↔test pairing; all three bands green (**run, not inferred**); anti-vacuity confirmed (a test that would pass with the behavior removed proves nothing — see §7).
+- **The functions band was missing from §5 until M6.** The alpha-stage audit passed zone C with 30 failing tests sitting in that band — the audit correctly checked everything the rule asked of it; the rule itself was incomplete. The band was documented in `functions/README.md` the whole time: knowledge present in documentation but absent from the gate's own definition behaves as if it does not exist.
 - **D. Code↔SRS consistency** — every decision that touched the SRS is actually written down, **in ALL the relevant places**. One SRS edit can touch one spot and miss another (e.g. a requirement marked deferred in §5.3 but left unmarked in §9 — the real case from the M1 audit). The audit actively looks for such residual divergences.
 - **E. Repo hygiene** — correct branch, `main` untouched until the merge, working tree clean, zero committed artifacts, i18n parity, tooling config in place.
 - **Zone A must verify execution, not just existence.** Mapping a requirement to `file:line` proves the code exists; it does not prove the code works. A test suite with mocked boundaries (e.g. `html2canvas` mocked at module level) can pass green over a feature that fails 100% in a real browser. The M4 audit declared FR-REP-07b delivered while the export had never produced a valid file — the mock-total test proved correct wiring, but could not structurally detect a real library incompatibility (`oklch`). Zone A's standard must include at least one execution-level check per FR: either a passing integration/E2E test against the real dependency, or an explicit browser-validation step whose result is recorded in the audit report. "Code exists + unit tests pass" is necessary but not sufficient.
