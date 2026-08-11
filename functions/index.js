@@ -9,6 +9,7 @@ const {
   onReportWrite,
   sendReportNotification,
 } = require('./src/reports')
+const { onPropertyUpdate } = require('./src/properties')
 const {
   getSharedReport,
   getSharedReportAttachment,
@@ -22,5 +23,6 @@ exports.signReport = signReport
 exports.unlockReport = unlockReport
 exports.onReportWrite = onReportWrite
 exports.sendReportNotification = sendReportNotification
+exports.onPropertyUpdate = onPropertyUpdate
 exports.getSharedReport = getSharedReport
 exports.getSharedReportAttachment = getSharedReportAttachment
