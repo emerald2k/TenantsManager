@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
-import { buildDownloadUrl } from '../src/photoMigration.js'
 import {
   getSharedReportCore,
   getSharedReportAttachmentCore,
@@ -96,9 +95,10 @@ async function seedProperty(id, overrides = {}) {
 }
 
 /** Seeds a real Storage object and returns a realistic attachment ref
- * ({ name, type, url }) — the exact shape a real upload produces, so
- * parseStoragePath/getSharedReportAttachmentCore exercise the real code
- * path, not a shortcut. */
+ * ({ name, type, path }) — the exact shape a real upload produces (debt #5:
+ * the persisted reference is the Storage path, never a download URL), so
+ * getSharedReportAttachmentCore exercises the real code path, not a
+ * shortcut. */
 async function seedAttachment(path, content, overrides = {}) {
   await bucket.file(path).save(Buffer.from(content), {
     contentType: 'application/pdf',
@@ -107,7 +107,7 @@ async function seedAttachment(path, content, overrides = {}) {
   return {
     name: 'invoice.pdf',
     type: 'pdf',
-    url: buildDownloadUrl(bucket.name, path, 'tok-storage'),
+    path,
     ...overrides,
   }
 }
@@ -122,7 +122,7 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
       rent: {
         amount: 1000,
         attachments: [
-          { name: 'rent.pdf', type: 'pdf', url: 'https://x/rent.pdf' },
+          { name: 'rent.pdf', type: 'pdf', path: 'reports/x/rent.pdf' },
         ],
       },
       maintenance: { amount: 50, attachments: [] },
@@ -132,7 +132,7 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
           name: 'Electricity',
           amount: 120,
           attachments: [
-            { name: 'e1.jpg', type: 'image', url: 'https://x/e1.jpg' },
+            { name: 'e1.jpg', type: 'image', path: 'reports/x/e1.jpg' },
           ],
         },
         {
@@ -140,8 +140,8 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
           name: 'Water',
           amount: 80,
           attachments: [
-            { name: 'w1.jpg', type: 'image', url: 'https://x/w1.jpg' },
-            { name: 'w2.pdf', type: 'pdf', url: 'https://x/w2.pdf' },
+            { name: 'w1.jpg', type: 'image', path: 'reports/x/w1.jpg' },
+            { name: 'w2.pdf', type: 'pdf', path: 'reports/x/w2.pdf' },
           ],
         },
       ],
@@ -150,7 +150,7 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
           description: 'Repair',
           amount: 200,
           attachments: [
-            { name: 'r.jpg', type: 'image', url: 'https://x/r.jpg' },
+            { name: 'r.jpg', type: 'image', path: 'reports/x/r.jpg' },
           ],
         },
       ],
@@ -173,7 +173,7 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
       const resolved = resolveAttachment(rawReport, att.reference)
       expect(resolved).not.toBeNull()
       expect(resolved.name).toBe(att.name)
-      expect(resolved.url).toBeDefined()
+      expect(resolved.path).toBeDefined()
     }
   })
 

@@ -7,7 +7,7 @@ import {
   finalizeKycHandler,
   STORAGE_BUCKET,
 } from '../src/kyc.js'
-import { buildDownloadUrl, parseStoragePath } from '../src/photoMigration.js'
+import { buildDownloadUrl } from '../src/photoMigration.js'
 
 // Functions tests — the REAL boundary (Auth + Firestore + Storage emulators), no
 // mocks of the data layer. Started via `npm run test:emulator` (firebase
@@ -45,7 +45,11 @@ function completeDraft(overrides = {}) {
     pets: { has: false },
     vehicle: { has: false },
     idDocumentPhotos: [
-      { url: 'gs://bucket/1.jpg', name: 'front.jpg', type: 'image' },
+      {
+        path: 'drafts/placeholder-draft/1.jpg',
+        name: 'front.jpg',
+        type: 'image',
+      },
     ],
     employer: 'ACME SRL',
     occupation: 'Engineer',
@@ -168,15 +172,19 @@ async function seedExistingUser(id, data) {
  */
 async function seedDraftPhoto(draftId, filename = 'front.jpg') {
   const path = `drafts/${draftId}/${filename}`
-  const token = 'test-token'
   await bucket.file(path).save(Buffer.from('fake-photo-bytes'), {
-    metadata: { firebaseStorageDownloadTokens: token },
+    metadata: { firebaseStorageDownloadTokens: 'test-token' },
   })
-  return {
-    url: buildDownloadUrl(bucket.name, path, token),
-    name: filename,
-    type: 'image',
-  }
+  return { path, name: filename, type: 'image' }
+}
+
+// finalizeNewTenant does not return the fresh token copyPhotosToUser issues
+// at the destination (debt #5: never persisted — only derived at display
+// time via getDownloadURL()). Reading it back from the migrated object's own
+// metadata lets a test still prove the copy is actually web-servable.
+async function readDownloadToken(path) {
+  const [metadata] = await bucket.file(path).getMetadata()
+  return metadata.metadata.firebaseStorageDownloadTokens
 }
 
 /** `completeDraft()` + a real seeded photo, seeded as a draft under `draftId`.
@@ -276,7 +284,7 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
 
     const userSnap = await db.collection('users').doc(result.uid).get()
     const [photo] = userSnap.data().idDocumentPhotos
-    const newPath = parseStoragePath(photo.url)
+    const newPath = photo.path
     expect(newPath).toBe(`users/${result.uid}/documents/front.jpg`)
 
     // Physically present at the NEW path, with the original bytes.
@@ -291,10 +299,15 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
       .exists()
     expect(existsAtOldPath).toBe(false)
 
-    // The strongest proof, end-to-end: the URL now stored on `users` is
-    // actually fetchable and serves the migrated bytes — what the Profile
-    // tab's <img src> and Bogdan's browser validation both rely on.
-    const response = await fetch(photo.url)
+    // The strongest proof, end-to-end: the path now stored on `users`, with
+    // its freshly-issued token, resolves to a URL that is actually fetchable
+    // and serves the migrated bytes — what the Profile tab's <img src>
+    // (via getDownloadURL() at render time) and Bogdan's browser validation
+    // both rely on. The URL itself is never persisted (debt #5), so it's
+    // derived here the same way the client derives it.
+    const token = await readDownloadToken(newPath)
+    const url = buildDownloadUrl(bucket.name, newPath, token)
+    const response = await fetch(url)
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('fake-photo-bytes')
   })
@@ -316,8 +329,8 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
   // ORIGINAL upload filename ("11d21da1-....jpg"), while the Storage OBJECT
   // itself is "{uploadUUID}-{originalName}" (PhotoCapture.jsx's naming
   // convention, functions/../web/src/features/onboarding/components/
-  // PhotoCapture.jsx:80) — migration must derive the object path from the
-  // URL (parseStoragePath), never from `name`.
+  // PhotoCapture.jsx:80) — migration must derive the destination basename
+  // from `photo.path` (the object's actual location), never from `name`.
   //
   // Seeds EXPLICITLY into STORAGE_BUCKET (the real client bucket) regardless
   // of whatever the Admin SDK's ambient default happens to be — this is what
@@ -329,13 +342,12 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
     const originalName = '11d21da1-15f7-40df-ac4d-4be53b8eccfb.jpg'
     const storageObjectName = `ebba8fc2-4ffc-44a0-9763-6c5f090a7a88-${originalName}`
     const sourcePath = `drafts/${draftId}/${storageObjectName}`
-    const token = '6b2b034d-7a57-4393-ad61-38b5a2f5eb34'
 
     await bucket.file(sourcePath).save(Buffer.from('real-photo-bytes'), {
-      metadata: { firebaseStorageDownloadTokens: token },
+      metadata: { firebaseStorageDownloadTokens: 'seed-token' },
     })
     const photo = {
-      url: buildDownloadUrl(STORAGE_BUCKET, sourcePath, token),
+      path: sourcePath,
       name: originalName,
       type: 'image',
     }
@@ -345,12 +357,14 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
 
     const userSnap = await db.collection('users').doc(result.uid).get()
     const [migratedPhoto] = userSnap.data().idDocumentPhotos
-    const newPath = parseStoragePath(migratedPhoto.url)
+    const newPath = migratedPhoto.path
     expect(newPath).toBe(`users/${result.uid}/documents/${storageObjectName}`)
 
     const [existsAtNewPath] = await bucket.file(newPath).exists()
     expect(existsAtNewPath).toBe(true)
-    const response = await fetch(migratedPhoto.url)
+    const token = await readDownloadToken(newPath)
+    const url = buildDownloadUrl(STORAGE_BUCKET, newPath, token)
+    const response = await fetch(url)
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('real-photo-bytes')
   })
