@@ -28,8 +28,22 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
+    // Each callback invocation is stamped with an id; before writing state it
+    // checks whether a LATER invocation has already taken over. Without this,
+    // two live invocations can resolve out of order (e.g. a logout callback
+    // completing while an earlier callback's getIdTokenResult() is still in
+    // flight) and the earlier one's setState calls overwrite the later,
+    // correct state with stale data. The cleanup sets latestCallId to a value
+    // no real callId (always >= 1) can match, so a token result that resolves
+    // after unmount also writes nothing.
+    let latestCallId = 0
+
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      const callId = ++latestCallId
+      const isStale = () => callId !== latestCallId
+
       if (!firebaseUser) {
+        if (isStale()) return
         setUser(null)
         setRole(null)
         setStatus('unauthenticated')
@@ -41,6 +55,7 @@ export function AuthProvider({ children }) {
         // We do not read it from Firestore: the `users` collection is admin-only
         // (NFR-SEC-02), so a tenant could not even read their own role.
         const { claims } = await firebaseUser.getIdTokenResult()
+        if (isStale()) return
 
         setUser({ uid: firebaseUser.uid, email: firebaseUser.email })
         setRole(claims.admin === true ? 'admin' : 'tenant')
@@ -48,13 +63,17 @@ export function AuthProvider({ children }) {
       } catch {
         // The token could not be obtained/refreshed — the session is no longer
         // valid (disabled account, revoked tokens). We eject them.
+        if (isStale()) return
         setUser(null)
         setRole(null)
         setStatus('unauthenticated')
       }
     })
 
-    return unsubscribe
+    return () => {
+      latestCallId = -1
+      unsubscribe()
+    }
   }, [])
 
   /** Rethrows the Firebase error; LoginPage maps it to a message (§5.2). */
