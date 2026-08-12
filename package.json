@@ -12,7 +12,8 @@
     "prepare": "husky",
     "dev": "npm run dev --prefix web",
     "emulators": "firebase emulators:start",
-    "dev:all": "concurrently -n web,emu -c cyan,magenta \"npm run dev\" \"npm run emulators\""
+    "dev:all": "concurrently -n web,emu -c cyan,magenta \"npm run dev\" \"npm run emulators\"",
+    "test:e2e": "firebase emulators:exec --only auth,firestore,storage,functions --project tenants-manager-2026 \"npx playwright test\""
   },
   "lint-staged": {
     "*.{js,jsx}": [
@@ -27,6 +28,7 @@
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
     "@eslint/js": "^9.18.0",
+    "@playwright/test": "^1.62.1",
     "concurrently": "^10.0.4",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^9.1.0",
