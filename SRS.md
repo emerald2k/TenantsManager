@@ -572,7 +572,7 @@ bytes are served server-side by `getSharedReportAttachment` (§7.2).
 | PDF/PNG export | Client-side — jsPDF (PDF), html2canvas (DOM→canvas capture, shared by both the PDF and PNG exports) |
 | Photo | input capture (native camera); client compression (~2000px, ~80%) |
 | i18n | react-i18next (RO/EN) |
-| Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)* |
+| Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)*; Playwright *(E2E on the six critical flows, from M7 — see §9)* |
 | Code quality | ESLint (analysis), Prettier (formatting), Husky + lint-staged (git hooks: lint+format on commit), commitlint (Conventional Commits), .editorconfig |
 | Config & secrets | Environment variables through `.env` (Vite); the Firebase keys are not hardcoded; `.env` in `.gitignore` |
 | Deploy | Manual, Firebase CLI |
@@ -674,7 +674,7 @@ M7 keeps the rest of its scope unchanged.
 | M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF, read-only access after contract end (persistent banner) | The tenant sees and downloads everything |
 | A | Alpha deploy *(deviation from §7.5 — see the note below the table)* | Storage-path migration (§6), seed adapted for a real environment (no automatic deletion, generated passwords, wrong-project guard), Blaze + Cloud Billing budget alert, "Trigger Email" extension (SendGrid/Mailgun), `firebase deploy`, post-deploy validation | The application runs in production; a fictitious tenant completes the full flow end to end — receives the credentials email, logs in, sees the report, downloads an attachment and the PDF |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
-| M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, deploy (Blaze already active since stage A) | Live, tested application |
+| M7 | Polish & launch | Empty/error states, complete i18n, **Playwright end-to-end tests on the six critical flows (final regression coverage — testing has been running continuously since M1, it does not start here; see the note below the table)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, deploy (Blaze already active since stage A) | Live, tested application |
 
 **M7 note — bundle optimization (code splitting):** lazy loading achieved with the native React mechanism (`React.lazy` + `Suspense`), applied at two granularities:
 1. **At route level** — each major area (the admin portal, the tenant portal, the public `/r/` route) becomes a separate chunk of JavaScript, loaded on demand. Priority: the public route `/r/:shareToken` must load **without the admin area's code** — a minimal bundle for the anonymous visitor opening a shared report.
@@ -691,6 +691,20 @@ only after the Storage-path migration is complete; until then the alpha runs on
 fictitious data.
 
 **Note — the testing strategy (continuous, from M1):** automated testing is not a final phase, but a continuous practice. The testing foundation (**Vitest + React Testing Library + jsdom + config**) is installed at **M1**, and from there on **every new feature comes with its own tests**, written together with the code — not retroactively. M7 only adds **end-to-end coverage on the critical flows**, as a final regression check before launch, not as the first moment of testing. The principle: **new code = tested code**. (M0 remains without tests — the testing foundation lands at M1, together with the first product code.)
+
+**M7 note — Playwright end-to-end flows:** the six critical flows covered are:
+1. Login + role redirect (admin vs tenant).
+2. Full KYC onboarding → account created → credentials returned.
+3. Monthly report: draft → sign → visible in the tenant portal.
+4. Tenant portal: dashboard → history → report detail → PDF downloaded.
+5. Shared link `/r/:shareToken` opened anonymously, then revoked and re-checked.
+6. `endTenancy`: property returns to free, account becomes inactive-readonly.
+
+Flows 4 and 5 exist specifically to close a gap the M4 audit found: it
+declared FR-REP-07b delivered while the export had never produced a valid
+file in a real browser, because `html2canvas` was mocked at module level in
+the unit tests (CLAUDE.md §9 zone A). Playwright runs against the real
+export/share pipeline, not a mocked one.
 
 Each milestone: generation → local testing (emulators) → validation by the administrator → the next milestone.
 

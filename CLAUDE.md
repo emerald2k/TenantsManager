@@ -57,7 +57,7 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 - **Charts:** Recharts (Phase 2 only)
 - **Backend (BaaS):** Firebase — Firestore, Authentication, Storage, Cloud Functions, the "Trigger Email" extension
 - **i18n:** react-i18next (RO/EN)
-- **Tests:** Vitest + React Testing Library
+- **Tests:** Vitest + React Testing Library; Playwright (E2E, from M7 — SRS §9)
 - **Code quality:** ESLint, Prettier, Husky + lint-staged, commitlint, .editorconfig
 - **Config:** environment variables through `.env` (Vite); the Firebase keys are NOT hardcoded; `.env` in `.gitignore`
 - **Structure:** monorepo — `web/` (frontend) and `functions/` (Cloud Functions) in separate folders
@@ -73,12 +73,13 @@ The project is built on **milestones** (section 9 of the SRS: M0–M7).
 - Blaze is active and the application has been in production since the alpha stage (deploy after M5, ahead of M6 — SRS §7.5). Local development stays on the emulators regardless.
 - Firebase project: `tenants-manager-2026`.
 
-**Test bands** (foundation installed at M1):
+**Test bands** (foundation installed at M1; the fourth lands at M7):
 - `npm run test:run --prefix web` — the fast band: components/hooks in jsdom, with the backend boundary mocked.
 - `npm run test:rules --prefix web` — the rules band: `firestore.rules` against the Firestore emulator. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free.
 - `npm run test:emulator --prefix functions` — the functions band: Cloud Functions against the Auth + Firestore emulators. It starts its own emulator (`firebase emulators:exec`), so port 8080 must be free — the same conflict as the rules band; the two cannot run at the same time.
+- `npm run test:e2e` (repo root, not `--prefix web` — the flows exercise `functions/` too, e.g. `finalizeKyc` and `getSharedReport`) — the E2E band: Playwright against the six critical flows (SRS §9), driving a real browser through the app. Self-contained like the other three bands, not dependent on `dev:all` already running: `firebase emulators:exec` starts the Firebase Emulator Suite (Auth + Firestore + Storage + Functions) and seeds it (`npm run seed`) before Playwright's own `webServer` config boots the web app and runs the flows; everything tears down when the command exits. Seeding is part of the band's definition, not a manual precondition — the flows need deterministic data. The config wiring lands at the Playwright-install sub-stage; this entry fixes the command name and the self-containment requirement ahead of it. Same port-8080 conflict as the rules and functions bands, now three-way: none of the three `emulators:exec`-based bands (rules, functions, e2e) can run at the same time, and none can run while the persistent dev emulator (`npm run dev:all`) is up.
 
-**All three bands are gates.** A band absent from this list is a band nobody runs.
+**All four bands are gates.** A band absent from this list is a band nobody runs.
 
 ---
 
@@ -151,7 +152,7 @@ The audit covers **five zones**:
 
 - **A. Functional completeness** — every in-scope FR mapped to code, OR explicitly marked deferred (where/when). Checked **against the SRS, not against the code** — this is what catches what is missing, not merely what exists.
 - **B. "Done" criterion** — quoted verbatim from SRS §9, confirmed point by point.
-- **C. Testing** — a complete code↔test pairing; all three bands green (**run, not inferred**); anti-vacuity confirmed (a test that would pass with the behavior removed proves nothing — see §7).
+- **C. Testing** — a complete code↔test pairing; all four bands green (**run, not inferred**); anti-vacuity confirmed (a test that would pass with the behavior removed proves nothing — see §7).
 - **The functions band was missing from §5 until M6.** The alpha-stage audit passed zone C with 30 failing tests sitting in that band — the audit correctly checked everything the rule asked of it; the rule itself was incomplete. The band was documented in `functions/README.md` the whole time: knowledge present in documentation but absent from the gate's own definition behaves as if it does not exist.
 - **D. Code↔SRS consistency** — every decision that touched the SRS is actually written down, **in ALL the relevant places**. One SRS edit can touch one spot and miss another (e.g. a requirement marked deferred in §5.3 but left unmarked in §9 — the real case from the M1 audit). The audit actively looks for such residual divergences.
 - **E. Repo hygiene** — correct branch, `main` untouched until the merge, working tree clean, zero committed artifacts, i18n parity, tooling config in place.
