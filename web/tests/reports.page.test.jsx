@@ -251,6 +251,30 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
     ).toBeVisible()
   })
 
+  it('shows the not-found message and a Retry button when the property query errors, and Retry re-runs it', async () => {
+    const refetch = vi.fn()
+    useProperty.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch,
+    })
+    useActiveTenancyForProperty.mockReturnValue({
+      data: null,
+      isPending: false,
+    })
+    useMonthlyReport.mockReturnValue({ data: null, isPending: false })
+    const user = userEvent.setup()
+
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(screen.getByText('Această proprietate nu există.')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('adds and removes an "other expense" line', async () => {
     const user = userEvent.setup()
     mockData()

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { useDraft, useUpdateDraft } from '@/features/onboarding/hooks'
 import {
   draftFormDefaults,
@@ -157,9 +158,15 @@ export function OnboardingWizardPage() {
         </ol>
 
         {updateDraft.isError && (
-          <p role="alert" className="text-sm text-destructive">
-            {t('onboarding.wizard.autosaveFailed')}
-          </p>
+          <div className="flex items-center gap-2">
+            <p role="alert" className="text-sm text-destructive">
+              {t('onboarding.wizard.autosaveFailed')}
+            </p>
+            <RetryButton
+              onRetry={() => updateDraft.mutate(updateDraft.variables)}
+              disabled={updateDraft.isPending}
+            />
+          </div>
         )}
 
         <div>

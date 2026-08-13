@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { filterByText } from '@/lib/filterByText'
 import { useProperties } from '@/features/properties/hooks'
 
@@ -62,6 +63,8 @@ export function PropertiesListPage() {
     data: properties,
     isPending,
     isError,
+    isFetching,
+    refetch,
   } = useProperties({ includeArchived: showArchived })
 
   // A COPY before sorting: `sort` mutates in place, and the array belongs to the
@@ -124,7 +127,12 @@ export function PropertiesListPage() {
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : isError ? (
-        <p className="text-sm text-destructive">{t('properties.list.error')}</p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-destructive">
+            {t('properties.list.error')}
+          </p>
+          <RetryButton onRetry={refetch} disabled={isFetching} />
+        </div>
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-start gap-4 rounded-lg border border-border p-8">
           <p className="text-sm text-muted-foreground">

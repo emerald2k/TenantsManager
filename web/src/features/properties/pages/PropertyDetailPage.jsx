@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PropertyForm } from '@/features/properties/components/PropertyForm'
 import { AddServiceDialog } from '@/features/properties/components/AddServiceDialog'
@@ -89,7 +90,7 @@ export function PropertyDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams()
 
-  const { data: property, isPending, isError } = useProperty(id)
+  const { data: property, isPending, isError, refetch } = useProperty(id)
   // FR-PROP-06/11: archiving is blocked, and the due-day countdown is shown, only
   // while occupied. The active-tenancy read is skipped entirely for a free
   // property (hooks stay unconditional — only the ARGUMENT is; React's rule is
@@ -123,9 +124,12 @@ export function PropertyDetailPage() {
 
   if (isError || !property) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('properties.detail.notFound')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">
+          {t('properties.detail.notFound')}
+        </p>
+        <RetryButton onRetry={refetch} />
+      </div>
     )
   }
 

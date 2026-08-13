@@ -678,7 +678,7 @@ M7 keeps the rest of its scope unchanged.
 
 **M7 note — targeted quality fixes:** `dueDayCountdown` DST-safe day-count
 arithmetic (parity with `functions/`'s `Date.UTC` pattern, CLAUDE.md §7),
-the "Retry" button on error states (§5.5), a date-formatting helper
+the "Retry" button on error states (SRS §5.5), a date-formatting helper
 (everything the tenant sees is ISO except the persistent banner), and
 naming residue cleanup (`collectAttachmentUrls`, `newUrls`,
 `deleteAttachmentBestEffort` — named "url", carry paths).

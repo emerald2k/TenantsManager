@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import {
   Dialog,
   DialogContent,
@@ -201,7 +202,13 @@ function ContractSummary({ tenancy, userId, isActive }) {
 
 export function TenancyTab({ userId }) {
   const { t } = useTranslation()
-  const { data: tenancies, isPending, isError } = useUserTenancies(userId)
+  const {
+    data: tenancies,
+    isPending,
+    isError,
+    isFetching,
+    refetch,
+  } = useUserTenancies(userId)
 
   if (isPending) {
     return (
@@ -210,9 +217,12 @@ export function TenancyTab({ userId }) {
   }
   if (isError) {
     return (
-      <p className="text-sm text-muted-foreground">
-        {t('tenants.detail.saveError')}
-      </p>
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-sm text-muted-foreground">
+          {t('tenants.detail.saveError')}
+        </p>
+        <RetryButton onRetry={refetch} disabled={isFetching} />
+      </div>
     )
   }
 

@@ -5,6 +5,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy, useMySignedReports } from '@/features/tenantApp/hooks'
 import { groupReportsByYear } from '@/features/tenantApp/groupReportsByYear'
@@ -39,9 +40,18 @@ export function TenantHistoryPage() {
 
   if (tenancyQuery.isError || reportsQuery.isError) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('tenantApp.history.error')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">
+          {t('tenantApp.history.error')}
+        </p>
+        <RetryButton
+          onRetry={() => {
+            tenancyQuery.refetch()
+            reportsQuery.refetch()
+          }}
+          disabled={tenancyQuery.isFetching || reportsQuery.isFetching}
+        />
+      </div>
     )
   }
 

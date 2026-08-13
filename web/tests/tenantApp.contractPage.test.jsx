@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
@@ -83,6 +84,19 @@ describe('TenantContractPage', () => {
     expect(
       screen.getByText('Nu am putut încărca contractul. Încearcă din nou.'),
     ).toBeVisible()
+  })
+
+  it('CT12 — clicking Retry on the error state re-runs the tenancy query', async () => {
+    const refetch = vi.fn()
+    useMyTenancy.mockReturnValue(
+      query({ isError: true, isFetching: false, refetch }),
+    )
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantContractPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('CT3 — no tenancy shows the noTenancy message only', async () => {

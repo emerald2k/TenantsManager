@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useUserById } from '@/features/onboarding/hooks'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { AccountTab } from '@/features/tenants/components/AccountTab'
 import { FinancialTab } from '@/features/tenants/components/FinancialTab'
 import { ProfileTab } from '@/features/tenants/components/ProfileTab'
@@ -36,7 +37,7 @@ const TABS = [
 export function TenantDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams()
-  const { data: user, isPending, isError } = useUserById(id)
+  const { data: user, isPending, isError, refetch } = useUserById(id)
   const [activeTab, setActiveTab] = useState('profile')
 
   if (isPending) {
@@ -47,9 +48,12 @@ export function TenantDetailPage() {
 
   if (isError || !user) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('tenants.detail.notFound')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">
+          {t('tenants.detail.notFound')}
+        </p>
+        <RetryButton onRetry={refetch} />
+      </div>
     )
   }
 

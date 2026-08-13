@@ -35,11 +35,15 @@ function mockData({ tenancies = [], reports = [] } = {}) {
     data: tenancies,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
   useReportsForMonth.mockReturnValue({
     data: reports,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
 }
 
@@ -195,6 +199,24 @@ describe('CurrentMonthPage', () => {
     expect(
       screen.getByText('Luna curentă nu a putut fi încărcată.'),
     ).toBeVisible()
+  })
+
+  it('clicking Retry re-runs both source queries', async () => {
+    mockData()
+    const reportsRefetch = vi.fn()
+    useReportsForMonth.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch: reportsRefetch,
+    })
+    const user = userEvent.setup()
+    await renderWithProviders(<CurrentMonthPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(reportsRefetch).toHaveBeenCalledTimes(1)
   })
 
   it('sorts rows alphabetically by property name', async () => {

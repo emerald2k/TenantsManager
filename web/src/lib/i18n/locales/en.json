@@ -4,7 +4,8 @@
     "logout": "Log out",
     "loading": "Loading...",
     "cancel": "Cancel",
-    "attachmentUnavailable": "Unavailable"
+    "attachmentUnavailable": "Unavailable",
+    "retry": "Retry"
   },
   "login": {
     "title": "Sign in",

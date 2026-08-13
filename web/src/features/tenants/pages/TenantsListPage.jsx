@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { filterByText } from '@/lib/filterByText'
 import { useActiveTenancies, useUsers } from '@/features/tenants/hooks'
 import {
@@ -200,17 +201,35 @@ export function TenantsListPage() {
       </div>
 
       {createFailed && (
-        <p role="alert" className="text-sm text-destructive">
-          {t('tenants.list.error')}
-        </p>
+        <div className="flex items-center gap-2">
+          <p role="alert" className="text-sm text-destructive">
+            {t('tenants.list.error')}
+          </p>
+          <RetryButton
+            onRetry={startOnboarding}
+            disabled={createDraft.isPending}
+          />
+        </div>
       )}
 
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : isError ? (
-        <p className="text-sm text-destructive">
-          {t('tenants.list.loadError')}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-destructive">
+            {t('tenants.list.loadError')}
+          </p>
+          <RetryButton
+            onRetry={() => {
+              users.refetch()
+              tenancies.refetch()
+              drafts.refetch()
+            }}
+            disabled={
+              users.isFetching || tenancies.isFetching || drafts.isFetching
+            }
+          />
+        </div>
       ) : visibleRows.length === 0 ? (
         <div className="flex flex-col items-start gap-4 rounded-lg border border-border p-8">
           <p className="text-sm text-muted-foreground">

@@ -4,7 +4,8 @@
     "logout": "Deconectare",
     "loading": "Se încarcă...",
     "cancel": "Anulează",
-    "attachmentUnavailable": "Indisponibil"
+    "attachmentUnavailable": "Indisponibil",
+    "retry": "Încearcă din nou"
   },
   "login": {
     "title": "Autentificare",

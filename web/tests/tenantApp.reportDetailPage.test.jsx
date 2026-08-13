@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy, useTenantReport } from '@/features/tenantApp/hooks'
@@ -102,6 +103,28 @@ describe('TenantReportDetailPage', () => {
     expect(
       screen.getByText('Nu am putut încărca acest raport. Încearcă din nou.'),
     ).toBeVisible()
+  })
+
+  it('clicking Retry re-runs both source queries', async () => {
+    const tenancyRefetch = vi.fn()
+    const reportRefetch = vi.fn()
+    useMyTenancy.mockReturnValue(
+      query({ isError: true, isFetching: false, refetch: tenancyRefetch }),
+    )
+    useTenantReport.mockReturnValue(
+      query({
+        data: reportFixture(),
+        isFetching: false,
+        refetch: reportRefetch,
+      }),
+    )
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantReportDetailPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(tenancyRefetch).toHaveBeenCalledTimes(1)
+    expect(reportRefetch).toHaveBeenCalledTimes(1)
   })
 
   it("RD3 — report resolves to null shows notFound AND a link back to /app/history (does not re-prove the hook's own null-collapse, cited B6-B8)", async () => {

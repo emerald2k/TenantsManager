@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { useActiveTenancies } from '@/features/tenants/hooks'
 import { useReportsForMonth } from '@/features/reports/hooks'
 import { formatCurrency } from '@/lib/formatCurrency'
@@ -127,9 +128,18 @@ export function CurrentMonthPage() {
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : isError ? (
-        <p className="text-sm text-destructive">
-          {t('dashboard.currentMonth.error')}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-destructive">
+            {t('dashboard.currentMonth.error')}
+          </p>
+          <RetryButton
+            onRetry={() => {
+              tenancies.refetch()
+              reports.refetch()
+            }}
+            disabled={tenancies.isFetching || reports.isFetching}
+          />
+        </div>
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('dashboard.currentMonth.noOccupiedProperties')}

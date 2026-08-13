@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AttachmentLink } from '@/components/shared/AttachmentLink'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy, useTenantReport } from '@/features/tenantApp/hooks'
@@ -53,9 +54,18 @@ export function TenantReportDetailPage() {
 
   if (tenancyQuery.isError || reportQuery.isError) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('tenantApp.reportDetail.error')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">
+          {t('tenantApp.reportDetail.error')}
+        </p>
+        <RetryButton
+          onRetry={() => {
+            tenancyQuery.refetch()
+            reportQuery.refetch()
+          }}
+          disabled={tenancyQuery.isFetching || reportQuery.isFetching}
+        />
+      </div>
     )
   }
 
