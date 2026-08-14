@@ -216,6 +216,38 @@ describe('TenantContractPage', () => {
     expect(valueFor('Garanție')).toHaveTextContent('1.800,00 lei')
   })
 
+  it('CT13 — startDate and endDate render as long-form dates, not raw ISO', async () => {
+    useMyTenancy.mockReturnValue(
+      query({
+        data: tenancyFixture({
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantContractPage />)
+
+    expect(valueFor('Dată început')).toHaveTextContent('1 ianuarie 2026')
+    expect(valueFor('Dată sfârșit')).toHaveTextContent('31 decembrie 2026')
+  })
+
+  it('CT14 — startDate and endDate follow the interface language, not a hardcoded locale', async () => {
+    useMyTenancy.mockReturnValue(
+      query({
+        data: tenancyFixture({
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantContractPage />, { language: 'en' })
+
+    expect(valueFor('Start date')).toHaveTextContent('January 1, 2026')
+    expect(valueFor('End date')).toHaveTextContent('December 31, 2026')
+  })
+
   it('CT9 — property address renders the full formatted string, not just the property name', async () => {
     useMyTenancy.mockReturnValue(query({ data: tenancyFixture() }))
 

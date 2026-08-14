@@ -4,6 +4,7 @@ import { RetryButton } from '@/components/shared/RetryButton'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
 import { formatCurrency } from '@/lib/formatCurrency'
+import { formatFullDate } from '@/lib/formatDate'
 
 /**
  * `/app/contract` — property/contract data + signed-contract download
@@ -37,7 +38,7 @@ function ContractField({ label, value }) {
 }
 
 export function TenantContractPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const tenancyQuery = useMyTenancy(user.uid)
 
@@ -86,11 +87,11 @@ export function TenantContractPage() {
         <div className="grid grid-cols-2 gap-3">
           <ContractField
             label={t('tenantApp.contract.fields.startDate')}
-            value={tenancy.startDate}
+            value={formatFullDate(tenancy.startDate, i18n.language)}
           />
           <ContractField
             label={t('tenantApp.contract.fields.endDate')}
-            value={tenancy.endDate}
+            value={formatFullDate(tenancy.endDate, i18n.language)}
           />
           <ContractField
             label={t('tenantApp.contract.fields.monthlyRent')}

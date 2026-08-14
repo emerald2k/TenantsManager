@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '@/lib/formatCurrency'
+import { formatFullDate } from '@/lib/formatDate'
 
 /**
  * Purely presentational, read-only summary of a signed report (M4 sub-stage
@@ -91,7 +92,7 @@ export function ReportSummaryView({
   showPaymentStatus = true,
   showHeader = true,
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const paymentStatusKey = PAYMENT_STATUS_KEY[data.paymentStatus ?? 'unpaid']
 
   return (
@@ -171,7 +172,7 @@ export function ReportSummaryView({
         </div>
         <div className="flex items-center justify-between">
           <span>{t('reports.fields.dueDate')}</span>
-          <span>{data.dueDate}</span>
+          <span>{formatFullDate(data.dueDate, i18n.language)}</span>
         </div>
         {showPaymentStatus && (
           <div className="flex items-center justify-between">

@@ -370,8 +370,12 @@ After publication — **payment** section: amount, method, date, "Mark payment",
 When the tenancy has ended, a **persistent banner** ("Contract ended on {date}",
 from `tenancies.endedAt`) sits under the navbar on **every** portal page
 (FR-TAPP-06). The date is formatted in the current interface language
-(e.g. "31 ianuarie 2026" / "January 31, 2026"). Other dates in the tenant
-portal remain unformatted.
+(e.g. "31 ianuarie 2026" / "January 31, 2026") — and so is every other
+date the tenant sees: the contract period on `/app/contract`, and the due
+date wherever a report summary renders. The report-summary due date uses
+the same shared component on the public `/r/:shareToken` page and in
+exported PDFs/PNGs, so it follows this rule there too, regardless of who
+is viewing it.
 
 **`/app`** — central card: the **most recent signed report**, with its month
 shown prominently; total + due date + status badge; full breakdown by line, each
