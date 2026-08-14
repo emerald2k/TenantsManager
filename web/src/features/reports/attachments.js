@@ -5,7 +5,7 @@ import { uploadAttachment } from '@/lib/fileUpload'
  * Kept separate from `schema.js` deliberately: that file is pure
  * validation/initial-values logic; this one does real Storage I/O
  * (`uploadPendingAttachments`) alongside one pure helper
- * (`collectAttachmentUrls`) used on both sides of the upload.
+ * (`collectAttachmentPaths`) used on both sides of the upload.
  *
  * Each cost line's `attachments[]` entry, in FORM state, is uniform:
  * `{ path, name, type, file }` — exactly one of `path` (already persisted,
@@ -36,7 +36,7 @@ function costLinesOf(report) {
  * report — nothing was ever saved) returns `[]`, not an error: there is
  * nothing to diff against yet.
  */
-export function collectAttachmentUrls(report) {
+export function collectAttachmentPaths(report) {
   return costLinesOf(report).flatMap((line) =>
     (line.attachments ?? [])
       .map((attachment) => attachment.path)
@@ -50,7 +50,7 @@ export function collectAttachmentUrls(report) {
  * the paths of whatever it just uploaded (for orphan cleanup on a later
  * failure). */
 async function uploadLineAttachments(line, basePath) {
-  const newUrls = []
+  const newPaths = []
   const attachments = await Promise.all(
     (line.attachments ?? []).map(async (attachment) => {
       if (!attachment.file) {
@@ -62,11 +62,11 @@ async function uploadLineAttachments(line, basePath) {
       }
       const path = `${basePath}/${crypto.randomUUID()}-${attachment.file.name}`
       const uploaded = await uploadAttachment(path, attachment.file)
-      newUrls.push(uploaded.path)
+      newPaths.push(uploaded.path)
       return uploaded
     }),
   )
-  return { line: { ...line, attachments }, newUrls }
+  return { line: { ...line, attachments }, newPaths }
 }
 
 /**
@@ -78,7 +78,7 @@ async function uploadLineAttachments(line, basePath) {
  * those orphans — see `useSaveReportDraft`).
  */
 export async function uploadPendingAttachments(values, basePath) {
-  const newUrls = []
+  const newPaths = []
 
   async function process(line) {
     // Tolerates a missing rent/maintenance (e.g. a minimal test fixture, or a
@@ -86,7 +86,7 @@ export async function uploadPendingAttachments(values, basePath) {
     // nothing to clean, pass it through exactly as received.
     if (!line) return line
     const result = await uploadLineAttachments(line, basePath)
-    newUrls.push(...result.newUrls)
+    newPaths.push(...result.newPaths)
     return result.line
   }
 
@@ -101,6 +101,6 @@ export async function uploadPendingAttachments(values, basePath) {
 
   return {
     values: { ...values, rent, maintenance, serviceCosts, otherExpenses },
-    newUrls,
+    newPaths,
   }
 }

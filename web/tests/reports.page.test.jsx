@@ -564,7 +564,7 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
     expect(screen.queryByText(/în așteptare/)).toBeNull()
   })
 
-  it('submits previousAttachmentUrls collected from the existing report (now paths, debt #5)', async () => {
+  it('submits previousAttachmentPaths collected from the existing report', async () => {
     const user = userEvent.setup()
     mockData({ report: REPORT_WITH_RENT_ATTACHMENT })
     await renderWithProviders(<MonthlyReportPage />)
@@ -573,12 +573,12 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
     await user.click(screen.getByText('Salvează draftul'))
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
-    expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([
+    expect(mutateAsync.mock.calls[0][0].previousAttachmentPaths).toEqual([
       'reports/p1_2026-07/invoices/lease.pdf',
     ])
   })
 
-  it('a brand new report submits an empty previousAttachmentUrls (anti-vacuity: not just "truthy")', async () => {
+  it('a brand new report submits an empty previousAttachmentPaths (anti-vacuity: not just "truthy")', async () => {
     const user = userEvent.setup()
     mockData()
     await renderWithProviders(<MonthlyReportPage />)
@@ -587,7 +587,7 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
     await user.click(screen.getByText('Salvează draftul'))
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
-    expect(mutateAsync.mock.calls[0][0].previousAttachmentUrls).toEqual([])
+    expect(mutateAsync.mock.calls[0][0].previousAttachmentPaths).toEqual([])
   })
 })
 
