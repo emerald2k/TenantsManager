@@ -19,6 +19,18 @@ import { computeDaysUntilDueDay } from '@/features/properties/dueDayCountdown'
 // non-number ever reaching it (bad data, a stale draft, etc.) rather than
 // crashing — `parseInt`-based string coercion is gone, but the null-on-invalid
 // contract is not.
+//
+// DST investigated, not added as a test case: exhaustively compared the
+// old (local-Date subtraction + Math.round) and new (Date.UTC-based)
+// implementations across both Europe/Bucharest DST transitions in 2026
+// (+/-45 days around each, every dueDay 1-31 — 5642 scenarios) and found
+// ZERO divergence. Both operands are already local-midnight-anchored, a
+// countdown spans at most ~31 days (at most one DST transition), and
+// Math.round's 0.5 threshold absorbs the <=1-hour DST error every time.
+// No test can be constructed that fails under the old arithmetic and
+// passes under the new — adding one anyway would be the exact vacuous-
+// test pattern CLAUDE.md §7 warns against. See
+// docs/superpowers/plans/2026-08-13-m7-substage4-duedaycountdown-antivacuity.md.
 
 describe('computeDaysUntilDueDay (FR-PROP-11)', () => {
   it('returns 0 when today IS the due day', () => {

@@ -34,16 +34,26 @@ const createMutateAsync = vi.fn()
 const deleteMutateAsync = vi.fn()
 
 function mockData({ users = [], tenancies = [], drafts = [] } = {}) {
-  useUsers.mockReturnValue({ data: users, isPending: false, isError: false })
+  useUsers.mockReturnValue({
+    data: users,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  })
   useActiveTenancies.mockReturnValue({
     data: tenancies,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
   useDraftsList.mockReturnValue({
     data: drafts,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
 }
 
@@ -400,5 +410,49 @@ describe('TenantsListPage (FR-TEN-13)', () => {
     expect(
       screen.getByText('Chiriașii nu au putut fi încărcați. Încearcă din nou.'),
     ).toBeVisible()
+  })
+
+  it('clicking Retry on the list-load error re-runs all three source queries', async () => {
+    mockData({})
+    const usersRefetch = vi.fn()
+    useUsers.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch: usersRefetch,
+    })
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantsListPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(usersRefetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a Retry button when draft creation fails, and clicking it retries onboarding', async () => {
+    mockData({})
+    createMutateAsync
+      .mockRejectedValueOnce(new Error('permission-denied'))
+      .mockResolvedValueOnce('draft-retry')
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantsListPage />)
+
+    const addButtons = screen.getAllByRole('button', {
+      name: 'Onboarding chiriaș nou',
+    })
+    await user.click(addButtons[0])
+    await waitFor(() => {
+      expect(
+        screen.getByText('Draftul nu a putut fi creat. Încearcă din nou.'),
+      ).toBeVisible()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    await waitFor(() => {
+      expect(createMutateAsync).toHaveBeenCalledTimes(2)
+    })
+    expect(navigate).toHaveBeenCalledWith('/admin/onboarding/draft-retry')
   })
 })

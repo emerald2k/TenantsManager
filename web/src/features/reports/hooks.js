@@ -14,7 +14,7 @@ import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/lib/firebase'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 import { deleteAttachmentBestEffort } from '@/lib/fileUpload'
-import { collectAttachmentUrls, uploadPendingAttachments } from './attachments'
+import { collectAttachmentPaths, uploadPendingAttachments } from './attachments'
 import { derivePaymentStatus } from './schema'
 
 /**
@@ -99,22 +99,22 @@ export function useReportsForMonth(month, year) {
 /**
  * Saves the draft (create or re-save — the deterministic id makes both the
  * same call). `values` is the FULL set of report fields, composed by the
- * caller (the page); `previousAttachmentUrls` is the snapshot of attachment
- * URLs the page loaded the report WITH (via `collectAttachmentUrls`),
+ * caller (the page); `previousAttachmentPaths` is the snapshot of attachment
+ * paths the page loaded the report WITH (via `collectAttachmentPaths`),
  * `[]` for a brand new report. The hook owns the Storage choreography
  * (sub-stage 3) on top of the two system fields that are invariant regardless
  * of who's saving:
  *
  *  1. Upload every PENDING (`file`-bearing) attachment across the whole report
  *     (`uploadPendingAttachments` — compresses images, uploads PDF/doc as-is),
- *     producing clean `{url,name,type}` refs — no `File` object survives.
+ *     producing clean `{path,name,type}` refs — no `File` object survives.
  *  2. `setDoc` the clean document.
  *  3. If step 2 THROWS: best-effort delete ONLY the objects step 1 just
  *     uploaded (orphan cleanup) and re-throw. Nothing the admin removed is
  *     touched — those objects are still referenced by the PREVIOUSLY saved
  *     document, which this failed write never replaced.
- *  4. On success: diff `previousAttachmentUrls` against the URLs surviving in
- *     the just-saved document — whatever disappeared is what the admin
+ *  4. On success: diff `previousAttachmentPaths` against the paths surviving
+ *     in the just-saved document — whatever disappeared is what the admin
  *     removed — and best-effort delete those, AFTER the commit. Never
  *     delete-before-commit (CLAUDE.md §7's copy-first/delete-after-commit,
  *     adapted here to a plain `setDoc` instead of a transaction).
@@ -138,8 +138,8 @@ export function useSaveReportDraft() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, values, previousAttachmentUrls = [], isNew }) => {
-      const { values: uploadedValues, newUrls } =
+    mutationFn: async ({ id, values, previousAttachmentPaths = [], isNew }) => {
+      const { values: uploadedValues, newPaths } =
         await uploadPendingAttachments(values, `reports/${id}/invoices`)
 
       const payload = stripUndefinedDeep({
@@ -159,17 +159,17 @@ export function useSaveReportDraft() {
         // Array#map also passes (index, array) to its callback, and
         // deleteAttachmentBestEffort would silently receive them as extra args.
         await Promise.allSettled(
-          newUrls.map((url) => deleteAttachmentBestEffort(url)),
+          newPaths.map((url) => deleteAttachmentBestEffort(url)),
         )
         throw error
       }
 
-      const survivingUrls = collectAttachmentUrls(uploadedValues)
-      const removedUrls = previousAttachmentUrls.filter(
-        (url) => !survivingUrls.includes(url),
+      const survivingPaths = collectAttachmentPaths(uploadedValues)
+      const removedPaths = previousAttachmentPaths.filter(
+        (url) => !survivingPaths.includes(url),
       )
       await Promise.allSettled(
-        removedUrls.map((url) => deleteAttachmentBestEffort(url)),
+        removedPaths.map((url) => deleteAttachmentBestEffort(url)),
       )
 
       return id

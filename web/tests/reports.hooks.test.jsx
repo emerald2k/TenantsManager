@@ -58,12 +58,12 @@ vi.mock('@/lib/fileUpload', () => ({
 
 vi.mock('@/features/reports/attachments', () => ({
   uploadPendingAttachments: vi.fn(),
-  collectAttachmentUrls: vi.fn(),
+  collectAttachmentPaths: vi.fn(),
 }))
 
 import { deleteAttachmentBestEffort } from '@/lib/fileUpload'
 import {
-  collectAttachmentUrls,
+  collectAttachmentPaths,
   uploadPendingAttachments,
 } from '@/features/reports/attachments'
 
@@ -76,9 +76,9 @@ beforeEach(() => {
   // nothing new uploaded. Individual tests override this.
   uploadPendingAttachments.mockImplementation(async (values) => ({
     values,
-    newUrls: [],
+    newPaths: [],
   }))
-  collectAttachmentUrls.mockReturnValue([])
+  collectAttachmentPaths.mockReturnValue([])
 })
 
 describe('buildReportId (FR-REP-14 — composite/unique id)', () => {
@@ -476,7 +476,7 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
       callOrder.push('upload')
       return {
         values: UPLOADED_VALUES,
-        newUrls: ['https://storage.example/new.pdf'],
+        newPaths: ['https://storage.example/new.pdf'],
       }
     })
     setDoc.mockImplementation(async () => {
@@ -505,12 +505,12 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
     const callOrder = []
     uploadPendingAttachments.mockResolvedValue({
       values: UPLOADED_VALUES,
-      newUrls: [],
+      newPaths: [],
     })
     // The just-saved document's surviving urls — only 'kept.pdf' is still
-    // there, so 'removed.pdf' (below, in previousAttachmentUrls) is what the
+    // there, so 'removed.pdf' (below, in previousAttachmentPaths) is what the
     // admin dropped from the form before saving.
-    collectAttachmentUrls.mockReturnValue(['https://storage.example/kept.pdf'])
+    collectAttachmentPaths.mockReturnValue(['https://storage.example/kept.pdf'])
     setDoc.mockImplementation(async () => {
       callOrder.push('setDoc')
     })
@@ -522,7 +522,7 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
     await result.current.mutateAsync({
       id: 'p1_2026-07',
       values: VALUES,
-      previousAttachmentUrls: [
+      previousAttachmentPaths: [
         'https://storage.example/kept.pdf',
         'https://storage.example/removed.pdf',
       ],
@@ -542,7 +542,7 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
   it('on setDoc failure: deletes ONLY the just-uploaded new objects, leaves removed/previous ones untouched', async () => {
     uploadPendingAttachments.mockResolvedValue({
       values: UPLOADED_VALUES,
-      newUrls: ['https://storage.example/new.pdf'],
+      newPaths: ['https://storage.example/new.pdf'],
     })
     setDoc.mockRejectedValue(new Error('permission-denied'))
 
@@ -552,7 +552,7 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
       result.current.mutateAsync({
         id: 'p1_2026-07',
         values: VALUES,
-        previousAttachmentUrls: [
+        previousAttachmentPaths: [
           'https://storage.example/old-still-referenced.pdf',
         ],
         isNew: true,
@@ -568,12 +568,12 @@ describe('useSaveReportDraft — attachment orchestration on CREATE (isNew: true
     )
   })
 
-  it('with no previousAttachmentUrls given (brand new report), deletes nothing on success', async () => {
+  it('with no previousAttachmentPaths given (brand new report), deletes nothing on success', async () => {
     uploadPendingAttachments.mockResolvedValue({
       values: UPLOADED_VALUES,
-      newUrls: [],
+      newPaths: [],
     })
-    collectAttachmentUrls.mockReturnValue([])
+    collectAttachmentPaths.mockReturnValue([])
 
     const { result } = await renderHookWithProviders(() => useSaveReportDraft())
     await result.current.mutateAsync({
@@ -617,7 +617,7 @@ describe('useSaveReportDraft — attachment orchestration on RE-SAVE (isNew: fal
       callOrder.push('upload')
       return {
         values: UPLOADED_VALUES,
-        newUrls: ['https://storage.example/new.pdf'],
+        newPaths: ['https://storage.example/new.pdf'],
       }
     })
     updateDoc.mockImplementation(async () => {
@@ -645,9 +645,9 @@ describe('useSaveReportDraft — attachment orchestration on RE-SAVE (isNew: fal
     const callOrder = []
     uploadPendingAttachments.mockResolvedValue({
       values: UPLOADED_VALUES,
-      newUrls: [],
+      newPaths: [],
     })
-    collectAttachmentUrls.mockReturnValue(['https://storage.example/kept.pdf'])
+    collectAttachmentPaths.mockReturnValue(['https://storage.example/kept.pdf'])
     updateDoc.mockImplementation(async () => {
       callOrder.push('updateDoc')
     })
@@ -659,7 +659,7 @@ describe('useSaveReportDraft — attachment orchestration on RE-SAVE (isNew: fal
     await result.current.mutateAsync({
       id: 'p1_2026-07',
       values: VALUES,
-      previousAttachmentUrls: [
+      previousAttachmentPaths: [
         'https://storage.example/kept.pdf',
         'https://storage.example/removed.pdf',
       ],
@@ -676,7 +676,7 @@ describe('useSaveReportDraft — attachment orchestration on RE-SAVE (isNew: fal
   it('on updateDoc failure: deletes ONLY the just-uploaded new objects, leaves everything else untouched', async () => {
     uploadPendingAttachments.mockResolvedValue({
       values: UPLOADED_VALUES,
-      newUrls: ['https://storage.example/new.pdf'],
+      newPaths: ['https://storage.example/new.pdf'],
     })
     updateDoc.mockRejectedValue(new Error('permission-denied'))
 
@@ -686,7 +686,7 @@ describe('useSaveReportDraft — attachment orchestration on RE-SAVE (isNew: fal
       result.current.mutateAsync({
         id: 'p1_2026-07',
         values: VALUES,
-        previousAttachmentUrls: [
+        previousAttachmentPaths: [
           'https://storage.example/old-still-referenced.pdf',
         ],
         isNew: false,

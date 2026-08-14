@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMySignedReports, useMyTenancy } from '@/features/tenantApp/hooks'
@@ -92,6 +93,24 @@ describe('TenantDashboardPage', () => {
     expect(
       screen.getByText('Nu am putut încărca panoul tău. Încearcă din nou.'),
     ).toBeVisible()
+  })
+
+  it('clicking Retry re-runs both source queries', async () => {
+    const tenancyRefetch = vi.fn()
+    const reportsRefetch = vi.fn()
+    useMyTenancy.mockReturnValue(
+      query({ isError: true, isFetching: false, refetch: tenancyRefetch }),
+    )
+    useMySignedReports.mockReturnValue(
+      query({ data: [], isFetching: false, refetch: reportsRefetch }),
+    )
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantDashboardPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(tenancyRefetch).toHaveBeenCalledTimes(1)
+    expect(reportsRefetch).toHaveBeenCalledTimes(1)
   })
 
   it('D3 — no tenancy at all shows the noTenancy message, ReportSummaryView is NOT rendered', async () => {

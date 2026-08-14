@@ -227,6 +227,23 @@ describe('OnboardingWizardPage — autosave failure surfaced (Sub-stage E safety
       screen.queryByText('Salvarea automată a eșuat — verifică conexiunea.'),
     ).toBeNull()
   })
+
+  it('clicking Retry re-invokes the autosave mutation with the same variables', async () => {
+    const variables = { id: 'draft-1', values: { name: 'Ion' }, currentStep: 3 }
+    useUpdateDraft.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+      isError: true,
+      error: new Error('permission-denied'),
+      variables,
+    })
+    const user = userEvent.setup()
+    await renderWizard(STEP3_DRAFT)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(updateMutate).toHaveBeenLastCalledWith(variables)
+  })
 })
 
 describe('OnboardingWizardPage — Step 4 wiring: Finalizează persists first (autosave gap fix)', () => {

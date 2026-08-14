@@ -370,8 +370,12 @@ After publication — **payment** section: amount, method, date, "Mark payment",
 When the tenancy has ended, a **persistent banner** ("Contract ended on {date}",
 from `tenancies.endedAt`) sits under the navbar on **every** portal page
 (FR-TAPP-06). The date is formatted in the current interface language
-(e.g. "31 ianuarie 2026" / "January 31, 2026"). Other dates in the tenant
-portal remain unformatted.
+(e.g. "31 ianuarie 2026" / "January 31, 2026") — and so is every other
+date the tenant sees: the contract period on `/app/contract`, and the due
+date wherever a report summary renders. The report-summary due date uses
+the same shared component on the public `/r/:shareToken` page and in
+exported PDFs/PNGs, so it follows this rule there too, regardless of who
+is viewing it.
 
 **`/app`** — central card: the **most recent signed report**, with its month
 shown prominently; total + due date + status badge; full breakdown by line, each
@@ -572,7 +576,7 @@ bytes are served server-side by `getSharedReportAttachment` (§7.2).
 | PDF/PNG export | Client-side — jsPDF (PDF), html2canvas (DOM→canvas capture, shared by both the PDF and PNG exports) |
 | Photo | input capture (native camera); client compression (~2000px, ~80%) |
 | i18n | react-i18next (RO/EN) |
-| Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)* |
+| Tests | Vitest + React Testing Library + jsdom *(foundation installed at M1; tests written continuously, from M1 onwards)*; Playwright *(E2E on the six critical flows, from M7 — see §9)* |
 | Code quality | ESLint (analysis), Prettier (formatting), Husky + lint-staged (git hooks: lint+format on commit), commitlint (Conventional Commits), .editorconfig |
 | Config & secrets | Environment variables through `.env` (Vite); the Firebase keys are not hardcoded; `.env` in `.gitignore` |
 | Deploy | Manual, Firebase CLI |
@@ -674,7 +678,23 @@ M7 keeps the rest of its scope unchanged.
 | M5 | The tenant application | Dashboard, history, contract, visible invoices, PDF, read-only access after contract end (persistent banner) | The tenant sees and downloads everything |
 | A | Alpha deploy *(deviation from §7.5 — see the note below the table)* | Storage-path migration (§6), seed adapted for a real environment (no automatic deletion, generated passwords, wrong-project guard), Blaze + Cloud Billing budget alert, "Trigger Email" extension (SendGrid/Mailgun), `firebase deploy`, post-deploy validation | The application runs in production; a fictitious tenant completes the full flow end to end — receives the credentials email, logs in, sees the report, downloads an attachment and the PDF |
 | M6 | Automations & history | `dailyScheduler` (reminders), cost history per service | The reminders go out correctly; the history is visible |
-| M7 | Polish & launch | Empty/error states, complete i18n, **end-to-end tests on the critical flows (final regression coverage — testing has been running continuously since M1, it does not start here)**, final Security Rules, **bundle optimization (code splitting — see the note below the table)**, deploy (Blaze already active since stage A) | Live, tested application |
+| M7 | Polish & launch *(PARTIAL — see the note below the table)* | Reactive-auth test coverage, the Playwright E2E scaffold, targeted quality fixes, final Security Rules, deploy (Blaze already active since stage A) | The application runs in production with reviewed Security Rules; reactive-auth coverage, the E2E scaffold, and the targeted quality fixes are delivered and verified. |
+
+**M7 note — targeted quality fixes:** `dueDayCountdown` DST-safe day-count
+arithmetic (parity with `functions/`'s `Date.UTC` pattern, CLAUDE.md §7),
+the "Retry" button on error states (SRS §5.5), a date-formatting helper
+(everything the tenant sees is ISO except the persistent banner), and
+naming residue cleanup (`collectAttachmentUrls`, `newUrls`,
+`deleteAttachmentBestEffort` — named "url", carry paths).
+
+**M7 note — scope becomes partial:** M7 ships only its cheap, structural
+sub-stages now, so Phase 2 work can start sooner; the rest is deferred to a
+post-launch polish pass, revisited once real usage on production data
+shows which of these items actually matter — not folded into Phase 2's own
+feature scope (§2.7), which is unrelated in kind. Deferred: the six
+Playwright E2E flows (the band itself is installed and wired; the flows
+are not written), a complete empty/error-state inventory across all pages,
+exhaustive i18n coverage, and bundle optimization (code splitting).
 
 **M7 note — bundle optimization (code splitting):** lazy loading achieved with the native React mechanism (`React.lazy` + `Suspense`), applied at two granularities:
 1. **At route level** — each major area (the admin portal, the tenant portal, the public `/r/` route) becomes a separate chunk of JavaScript, loaded on demand. Priority: the public route `/r/:shareToken` must load **without the admin area's code** — a minimal bundle for the anonymous visitor opening a shared report.
@@ -691,6 +711,20 @@ only after the Storage-path migration is complete; until then the alpha runs on
 fictitious data.
 
 **Note — the testing strategy (continuous, from M1):** automated testing is not a final phase, but a continuous practice. The testing foundation (**Vitest + React Testing Library + jsdom + config**) is installed at **M1**, and from there on **every new feature comes with its own tests**, written together with the code — not retroactively. M7 only adds **end-to-end coverage on the critical flows**, as a final regression check before launch, not as the first moment of testing. The principle: **new code = tested code**. (M0 remains without tests — the testing foundation lands at M1, together with the first product code.)
+
+**M7 note — Playwright end-to-end flows:** the six critical flows covered are:
+1. Login + role redirect (admin vs tenant).
+2. Full KYC onboarding → account created → credentials returned.
+3. Monthly report: draft → sign → visible in the tenant portal.
+4. Tenant portal: dashboard → history → report detail → PDF downloaded.
+5. Shared link `/r/:shareToken` opened anonymously, then revoked and re-checked.
+6. `endTenancy`: property returns to free, account becomes inactive-readonly.
+
+Flows 4 and 5 exist specifically to close a gap the M4 audit found: it
+declared FR-REP-07b delivered while the export had never produced a valid
+file in a real browser, because `html2canvas` was mocked at module level in
+the unit tests (CLAUDE.md §9 zone A). Playwright runs against the real
+export/share pipeline, not a mocked one.
 
 Each milestone: generation → local testing (emulators) → validation by the administrator → the next milestone.
 

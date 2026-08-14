@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
@@ -83,6 +84,19 @@ describe('TenantContractPage', () => {
     expect(
       screen.getByText('Nu am putut încărca contractul. Încearcă din nou.'),
     ).toBeVisible()
+  })
+
+  it('CT12 — clicking Retry on the error state re-runs the tenancy query', async () => {
+    const refetch = vi.fn()
+    useMyTenancy.mockReturnValue(
+      query({ isError: true, isFetching: false, refetch }),
+    )
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantContractPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('CT3 — no tenancy shows the noTenancy message only', async () => {
@@ -200,6 +214,38 @@ describe('TenantContractPage', () => {
 
     expect(valueFor('Chirie lunară')).toHaveTextContent('2.500,00 lei')
     expect(valueFor('Garanție')).toHaveTextContent('1.800,00 lei')
+  })
+
+  it('CT13 — startDate and endDate render as long-form dates, not raw ISO', async () => {
+    useMyTenancy.mockReturnValue(
+      query({
+        data: tenancyFixture({
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantContractPage />)
+
+    expect(valueFor('Dată început')).toHaveTextContent('1 ianuarie 2026')
+    expect(valueFor('Dată sfârșit')).toHaveTextContent('31 decembrie 2026')
+  })
+
+  it('CT14 — startDate and endDate follow the interface language, not a hardcoded locale', async () => {
+    useMyTenancy.mockReturnValue(
+      query({
+        data: tenancyFixture({
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+        }),
+      }),
+    )
+
+    await renderWithProviders(<TenantContractPage />, { language: 'en' })
+
+    expect(valueFor('Start date')).toHaveTextContent('January 1, 2026')
+    expect(valueFor('End date')).toHaveTextContent('December 31, 2026')
   })
 
   it('CT9 — property address renders the full formatted string, not just the property name', async () => {

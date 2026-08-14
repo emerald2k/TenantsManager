@@ -11,6 +11,33 @@ function clampedDateFor(year, monthIndex, day) {
   return new Date(year, monthIndex, clampedDay)
 }
 
+/** Whole days from local-calendar date `a` to local-calendar date `b`
+ * (negative if `b` is earlier). Both are converted through `Date.UTC` on
+ * their own (year, month, day) components before subtracting — never a
+ * raw local-`Date` subtraction — so the result is always an exact integer,
+ * immune to Europe/Bucharest's DST transitions (CLAUDE.md §7). Mirrors
+ * `functions/src/schedulerLogic.js`'s `daysBetween`; not shared as code —
+ * `functions/` deploys without `web/`, the same reason the KYC schema is
+ * duplicated rather than shared (CLAUDE.md §7).
+ *
+ * NOT a bug fix: exhaustively verified (5642 scenarios, both Europe/
+ * Bucharest DST transitions in 2026, every `dueDay` 1-31) that the old
+ * local-`Date` + `Math.round` arithmetic never actually diverged from
+ * this. That safety was coincidental, not structural: `Math.round`'s 0.5
+ * threshold happens to be wider than a single DST transition's <=1hr
+ * error, for THIS product's specific, narrow scope — RON-only currency
+ * (SRS §2.6), `cnp` as a mandatory field (a Romanian domain term, SRS
+ * §6), every scheduled job hardcoded to Europe/Bucharest (FR-SYS-04).
+ * Converted anyway so correctness no longer depends on that coincidence
+ * holding — a DST-rule change (the EU has repeatedly discussed abolishing
+ * it) or a future non-Romania timezone would not silently break this the
+ * way it could have broken the old version. */
+function daysBetweenLocalDates(a, b) {
+  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())
+  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+  return (utcB - utcA) / 86400000
+}
+
 /**
  * Days remaining until the NEXT occurrence of `dueDay` (FR-PROP-11) — a pure
  * calendar calculation, independent of monthly reports. `dueDay` is the
@@ -48,6 +75,5 @@ export function computeDaysUntilDueDay(dueDay, today = new Date()) {
     )
   }
 
-  const MS_PER_DAY = 1000 * 60 * 60 * 24
-  return Math.round((candidate - startOfToday) / MS_PER_DAY)
+  return daysBetweenLocalDates(startOfToday, candidate)
 }

@@ -91,6 +91,23 @@ describe('TenancyTab — rendering (SRS §5.3)', () => {
     expect(screen.getByText('Se încarcă...')).toBeVisible()
   })
 
+  it('shows a Retry button on the error state that re-runs the tenancies query', async () => {
+    const refetch = vi.fn()
+    useUserTenancies.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch,
+    })
+    const user = userEvent.setup()
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('shows a message when the tenant has no tenancy at all', async () => {
     useUserTenancies.mockReturnValue({
       data: [],

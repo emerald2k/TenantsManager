@@ -11,7 +11,7 @@ vi.mock('browser-image-compression', () => ({ default: vi.fn() }))
 import { uploadBytes } from 'firebase/storage'
 import imageCompression from 'browser-image-compression'
 import {
-  collectAttachmentUrls,
+  collectAttachmentPaths,
   uploadPendingAttachments,
 } from '@/features/reports/attachments'
 
@@ -25,10 +25,10 @@ beforeEach(() => {
   uploadBytes.mockResolvedValue({})
 })
 
-describe('collectAttachmentUrls', () => {
+describe('collectAttachmentPaths', () => {
   it('returns [] for a brand new report (no existingReport yet)', () => {
-    expect(collectAttachmentUrls(null)).toEqual([])
-    expect(collectAttachmentUrls(undefined)).toEqual([])
+    expect(collectAttachmentPaths(null)).toEqual([])
+    expect(collectAttachmentPaths(undefined)).toEqual([])
   })
 
   it('collects paths from rent, maintenance, services, and other expenses', () => {
@@ -54,12 +54,12 @@ describe('collectAttachmentUrls', () => {
       ],
     }
 
-    expect(collectAttachmentUrls(report)).toEqual(['p1', 'p2', 'p3'])
+    expect(collectAttachmentPaths(report)).toEqual(['p1', 'p2', 'p3'])
   })
 
   it('ignores lines with no attachments at all (undefined field)', () => {
     const report = { rent: { amount: 1500 }, maintenance: { amount: 0 } }
-    expect(collectAttachmentUrls(report)).toEqual([])
+    expect(collectAttachmentPaths(report)).toEqual([])
   })
 })
 
@@ -81,7 +81,7 @@ describe('uploadPendingAttachments', () => {
       otherExpenses: [],
     }
 
-    const { values: result, newUrls } = await uploadPendingAttachments(
+    const { values: result, newPaths } = await uploadPendingAttachments(
       values,
       'reports/r1/invoices',
     )
@@ -94,7 +94,7 @@ describe('uploadPendingAttachments', () => {
       },
     ])
     expect(result.rent.attachments[0]).not.toHaveProperty('file')
-    expect(newUrls).toEqual([
+    expect(newPaths).toEqual([
       expect.stringMatching(/^reports\/r1\/invoices\/.*-lease\.pdf$/),
     ])
   })
@@ -116,7 +116,7 @@ describe('uploadPendingAttachments', () => {
       otherExpenses: [],
     }
 
-    const { values: result, newUrls } = await uploadPendingAttachments(
+    const { values: result, newPaths } = await uploadPendingAttachments(
       values,
       'reports/r1/invoices',
     )
@@ -129,7 +129,7 @@ describe('uploadPendingAttachments', () => {
       },
     ])
     expect(uploadBytes).not.toHaveBeenCalled()
-    expect(newUrls).toEqual([])
+    expect(newPaths).toEqual([])
   })
 
   it('handles a mix of existing and pending on the same line, and across service/other-expense arrays', async () => {
@@ -169,7 +169,7 @@ describe('uploadPendingAttachments', () => {
       ],
     }
 
-    const { values: result, newUrls } = await uploadPendingAttachments(
+    const { values: result, newPaths } = await uploadPendingAttachments(
       values,
       'reports/r1/invoices',
     )
@@ -193,7 +193,7 @@ describe('uploadPendingAttachments', () => {
         type: 'image',
       },
     ])
-    expect(newUrls).toEqual([
+    expect(newPaths).toEqual([
       expect.stringMatching(/^reports\/r1\/invoices\/.*-new\.pdf$/),
       expect.stringMatching(/^reports\/r1\/invoices\/.*-receipt\.jpg$/),
     ])
@@ -209,12 +209,12 @@ describe('uploadPendingAttachments', () => {
       otherExpenses: [],
     }
 
-    const { values: result, newUrls } = await uploadPendingAttachments(
+    const { values: result, newPaths } = await uploadPendingAttachments(
       values,
       'reports/r1/invoices',
     )
 
-    expect(newUrls).toEqual([])
+    expect(newPaths).toEqual([])
     expect(uploadBytes).not.toHaveBeenCalled()
     expect(result.rent.attachments).toEqual([])
   })

@@ -18,6 +18,11 @@ firebase-export-*/
 web/dist/
 functions/lib/
 
+# E2E (Playwright) — browsers install to the OS-level cache by default,
+# never inside this repo; only these in-repo artifact dirs need ignoring.
+test-results/
+playwright-report/
+
 # OS
 .DS_Store
 Thumbs.db

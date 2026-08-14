@@ -4,6 +4,7 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/formatCurrency'
@@ -12,7 +13,7 @@ import {
   useProperty,
 } from '@/features/properties/hooks'
 import { useMonthlyReport, useSaveReportDraft } from '@/features/reports/hooks'
-import { collectAttachmentUrls } from '@/features/reports/attachments'
+import { collectAttachmentPaths } from '@/features/reports/attachments'
 import {
   buildInitialValues,
   calculateTotal,
@@ -46,7 +47,7 @@ import { ExportReportControls } from '@/features/reports/components/ExportReport
  *
  * Attachments (FR-DOC-01…05): the actual Storage upload/delete happens
  * INSIDE `useSaveReportDraft`, not here — this page only supplies
- * `previousAttachmentUrls` (the snapshot the report was loaded WITH), so the
+ * `previousAttachmentPaths` (the snapshot the report was loaded WITH), so the
  * hook can diff it against what's left after saving to know what was removed.
  *
  * Signing/locking (M4 sub-stage 4, FR-REP-07/07a): `isLocked` is the SINGLE
@@ -66,6 +67,7 @@ export function MonthlyReportPage() {
     data: property,
     isPending: isPropertyPending,
     isError: isPropertyError,
+    refetch: refetchProperty,
   } = useProperty(propertyId)
   const { data: tenancy, isPending: isTenancyPending } =
     useActiveTenancyForProperty(propertyId)
@@ -179,7 +181,7 @@ export function MonthlyReportPage() {
           calculatedTotal,
           finalTotal,
         },
-        previousAttachmentUrls: collectAttachmentUrls(existingReport),
+        previousAttachmentPaths: collectAttachmentPaths(existingReport),
         isNew: !existingReport,
       })
     } catch {
@@ -197,9 +199,10 @@ export function MonthlyReportPage() {
 
   if (isPropertyError || !property) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('reports.notFound')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">{t('reports.notFound')}</p>
+        <RetryButton onRetry={refetchProperty} />
+      </div>
     )
   }
 

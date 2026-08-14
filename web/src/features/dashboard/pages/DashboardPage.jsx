@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { useProperties } from '@/features/properties/hooks'
 import { useUsers, useActiveTenancies } from '@/features/tenants/hooks'
 import { useReportsForMonth } from '@/features/reports/hooks'
@@ -75,8 +76,22 @@ export function DashboardPage() {
 
   if (isError) {
     return (
-      <div className="p-6">
+      <div className="flex flex-col items-start gap-2 p-6">
         <p className="text-sm text-destructive">{t('dashboard.error')}</p>
+        <RetryButton
+          onRetry={() => {
+            properties.refetch()
+            users.refetch()
+            tenancies.refetch()
+            reports.refetch()
+          }}
+          disabled={
+            properties.isFetching ||
+            users.isFetching ||
+            tenancies.isFetching ||
+            reports.isFetching
+          }
+        />
       </div>
     )
   }

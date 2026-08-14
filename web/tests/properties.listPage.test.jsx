@@ -172,4 +172,36 @@ describe('PropertiesListPage', () => {
 
     expect(screen.getByText('Se încarcă...')).toBeVisible()
   })
+
+  describe('error state', () => {
+    it('shows the error message and a working Retry button', async () => {
+      const refetch = vi.fn()
+      mockList(undefined, { isError: true, isFetching: false, refetch })
+      const user = userEvent.setup()
+      await renderWithProviders(<PropertiesListPage />)
+
+      expect(
+        screen.getByText(
+          'Proprietățile nu au putut fi încărcate. Încearcă din nou.',
+        ),
+      ).toBeVisible()
+
+      await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+      expect(refetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('disables Retry while a refetch is already in flight', async () => {
+      mockList(undefined, {
+        isError: true,
+        isFetching: true,
+        refetch: vi.fn(),
+      })
+      await renderWithProviders(<PropertiesListPage />)
+
+      expect(
+        screen.getByRole('button', { name: 'Încearcă din nou' }),
+      ).toBeDisabled()
+    })
+  })
 })

@@ -125,6 +125,24 @@ describe('TenantHistoryPage', () => {
     ).toBeVisible()
   })
 
+  it('clicking Retry re-runs both source queries', async () => {
+    const tenancyRefetch = vi.fn()
+    const reportsRefetch = vi.fn()
+    useMyTenancy.mockReturnValue(
+      query({ isError: true, isFetching: false, refetch: tenancyRefetch }),
+    )
+    useMySignedReports.mockReturnValue(
+      query({ data: [], isFetching: false, refetch: reportsRefetch }),
+    )
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantHistoryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(tenancyRefetch).toHaveBeenCalledTimes(1)
+    expect(reportsRefetch).toHaveBeenCalledTimes(1)
+  })
+
   it('HP3 — no tenancy at all shows the noTenancy message, no accordion', async () => {
     useMyTenancy.mockReturnValue(query({ data: null }))
     useMySignedReports.mockReturnValue(query({ data: [] }))

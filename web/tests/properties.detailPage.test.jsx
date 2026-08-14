@@ -124,6 +124,27 @@ describe('PropertyDetailPage', () => {
     expect(screen.queryByRole('heading')).toBeNull()
   })
 
+  it('clicking Retry on the error state re-runs the property query', async () => {
+    const refetch = vi.fn()
+    useProperty.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch,
+    })
+    const user = userEvent.setup()
+
+    await renderWithProviders(
+      <Routes>
+        <Route path="/admin/properties/:id" element={<PropertyDetailPage />} />
+      </Routes>,
+      { route: '/admin/properties/p1' },
+    )
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   describe('data section (FR-PROP-04)', () => {
     it('shows the data read-only until Edit is clicked', async () => {
       const user = userEvent.setup()

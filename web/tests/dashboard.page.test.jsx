@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { useProperties } from '@/features/properties/hooks'
@@ -35,17 +36,29 @@ function mockData({
     data: properties,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
-  useUsers.mockReturnValue({ data: users, isPending: false, isError: false })
+  useUsers.mockReturnValue({
+    data: users,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  })
   useActiveTenancies.mockReturnValue({
     data: tenancies,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
   useReportsForMonth.mockReturnValue({
     data: reports,
     isPending: false,
     isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
   })
   useCreateDraft.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
 }
@@ -159,6 +172,24 @@ describe('DashboardPage', () => {
     expect(
       screen.getByText('Dashboard-ul nu a putut fi încărcat.'),
     ).toBeVisible()
+  })
+
+  it('clicking Retry re-runs every source query that fed the error', async () => {
+    mockData()
+    const reportsRefetch = vi.fn()
+    useReportsForMonth.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch: reportsRefetch,
+    })
+    const user = userEvent.setup()
+    await renderWithProviders(<DashboardPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(reportsRefetch).toHaveBeenCalledTimes(1)
   })
 
   it('"Enroll tenant" creates a draft and navigates to the onboarding wizard', async () => {

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
+import { formatFullDate } from '@/lib/formatDate'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
@@ -11,23 +12,6 @@ const NAV_ITEMS = [
   { to: '/app/history', label: 'nav.history' },
   { to: '/app/contract', label: 'nav.contract' },
 ]
-
-/**
- * "31 ianuarie 2026" / "January 31, 2026" — private, unexported. NOT a
- * cross-feature import of `features/dashboard/calculations.js`'s own
- * `formatMonthYearLabel` (admin-side, wrong import direction) — same
- * reasoning as `TenantContractPage`'s own private `formatAddress` (sub-
- * stage 7): a small, deliberate duplication of the same `localeFor`
- * mapping, kept local to the ONE place that needs it.
- */
-function formatEndedDate(endedAt, language) {
-  const locale = language === 'ro' ? 'ro-RO' : 'en-US'
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(endedAt.toDate())
-}
 
 /**
  * `TenantLayout` calls `useMyTenancy(user.uid)` itself (M5 sub-stage 9
@@ -81,7 +65,7 @@ export function TenantLayout() {
           className="border-b border-border bg-muted px-4 py-2 text-center text-sm text-foreground"
         >
           {t('tenantApp.endedBanner.message', {
-            date: formatEndedDate(tenancy.endedAt, i18n.language),
+            date: formatFullDate(tenancy.endedAt, i18n.language),
           })}
         </div>
       )}

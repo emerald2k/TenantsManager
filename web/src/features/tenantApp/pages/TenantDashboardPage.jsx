@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { AttachmentLink } from '@/components/shared/AttachmentLink'
+import { RetryButton } from '@/components/shared/RetryButton'
 import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 import { formatMonthYearLabel } from '@/features/dashboard/calculations'
 import { useAuth } from '@/features/auth/useAuth'
@@ -66,9 +67,18 @@ export function TenantDashboardPage() {
 
   if (tenancyQuery.isError || reportsQuery.isError) {
     return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('tenantApp.dashboard.error')}
-      </p>
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">
+          {t('tenantApp.dashboard.error')}
+        </p>
+        <RetryButton
+          onRetry={() => {
+            tenancyQuery.refetch()
+            reportsQuery.refetch()
+          }}
+          disabled={tenancyQuery.isFetching || reportsQuery.isFetching}
+        />
+      </div>
     )
   }
 

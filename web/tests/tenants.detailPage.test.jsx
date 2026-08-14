@@ -108,4 +108,20 @@ describe('TenantDetailPage — shell', () => {
 
     expect(screen.getByText('Acest chiriaș nu există.')).toBeVisible()
   })
+
+  it('clicking Retry on the error state re-runs the user query', async () => {
+    const refetch = vi.fn()
+    useUserById.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch,
+    })
+    const user = userEvent.setup()
+    await renderWithProviders(<TenantDetailPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
 })

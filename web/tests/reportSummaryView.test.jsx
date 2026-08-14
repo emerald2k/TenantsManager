@@ -95,7 +95,20 @@ describe('ReportSummaryView', () => {
     expect(screen.getByText('2.730,00 lei')).toBeVisible()
     expect(screen.getByText('100,00 lei')).toBeVisible()
     expect(screen.getByText('50,00 lei')).toBeVisible()
-    expect(screen.getByText('2026-07-10')).toBeVisible()
+    expect(screen.getByText('10 iulie 2026')).toBeVisible()
+  })
+
+  it('renders the due date in the current interface language, not a hardcoded locale', async () => {
+    const ro = await renderWithProviders(
+      <ReportSummaryView data={summaryData()} />,
+    )
+    expect(screen.getByText('10 iulie 2026')).toBeVisible()
+    ro.unmount()
+
+    await renderWithProviders(<ReportSummaryView data={summaryData()} />, {
+      language: 'en',
+    })
+    expect(screen.getByText('July 10, 2026')).toBeVisible()
   })
 
   it('shows "unpaid" when paymentStatus is absent (null) — the discriminating case, never crashes', async () => {
