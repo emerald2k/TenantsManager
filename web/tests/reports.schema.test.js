@@ -3,8 +3,10 @@ import {
   buildDueDate,
   buildInitialValues,
   calculateTotal,
+  computeRoundedTotal,
   derivePaymentStatus,
   isFinalTotalDiverged,
+  isMaterialFinalTotalOverride,
   reportSchema,
 } from '@/features/reports/schema'
 
@@ -84,6 +86,7 @@ describe('reportSchema — amount coercion (decision: blank -> 0, not required)'
     previousMonthArrears: 0,
     previousMonthCredit: 0,
     finalTotal: 1000,
+    roundingSurplus: 0,
     dueDate: '2026-07-05',
   }
 
@@ -572,6 +575,116 @@ describe('buildInitialValues — carry-forward arrears/credit (SRS §6, pinned a
 
     expect(values.previousMonthArrears).toBe(500)
     expect(values.previousMonthCredit).toBe(0)
+  })
+})
+
+describe('computeRoundedTotal (FR-REP-04a)', () => {
+  it('rounds up to the next multiple of 10', () => {
+    expect(computeRoundedTotal(2382.17)).toBe(2390)
+  })
+
+  it('leaves an exact multiple of 10 unchanged', () => {
+    expect(computeRoundedTotal(2500)).toBe(2500)
+  })
+
+  it('rounds 1 lei above a multiple of 10 up a full 9 lei', () => {
+    expect(computeRoundedTotal(2501)).toBe(2510)
+  })
+})
+
+describe('isMaterialFinalTotalOverride (FR-REP-04e)', () => {
+  it('is false when finalTotal mirrors calculatedTotal', () => {
+    expect(isMaterialFinalTotalOverride(1500, 1500, 0)).toBe(false)
+  })
+
+  it('is false for a small divergence under the 5-lei floor', () => {
+    expect(isMaterialFinalTotalOverride(1503, 1500, 0)).toBe(false)
+  })
+
+  it('is true once the divergence exceeds max(5, 1%)', () => {
+    // calculatedTotal 1500 -> threshold max(5, 15) = 15
+    expect(isMaterialFinalTotalOverride(1480, 1500, 0)).toBe(true)
+  })
+
+  it('is true for a large divergence on a small calculatedTotal (the 5-lei floor governs)', () => {
+    // calculatedTotal 100 -> threshold max(5, 1) = 5
+    expect(isMaterialFinalTotalOverride(93, 100, 0)).toBe(true)
+  })
+
+  it('is EXEMPT when the divergence exactly equals the stored roundingSurplus', () => {
+    expect(isMaterialFinalTotalOverride(2390, 2382.17, 7.83)).toBe(false)
+  })
+
+  it('re-activates once a cost-line edit after rounding makes the surplus stop explaining the gap (closes the loophole)', () => {
+    // Rounded to 1520 from a calculatedTotal of 1513 (surplus 7) — then the
+    // admin edited a cost line, moving calculatedTotal to 1550. finalTotal
+    // stays frozen at 1520 (the mirror effect only runs while un-dirty), so
+    // the real gap is now -30, NOT the 7 the stored surplus claims to cover.
+    // A blanket "roundingSurplus > 0 -> exempt" would let this sail past
+    // silently; the surplus must still explain the WHOLE current gap.
+    expect(isMaterialFinalTotalOverride(1520, 1550, 7)).toBe(true)
+  })
+
+  it('stays exempt for a tiny residual gap under the epsilon (float rounding, not a real drift)', () => {
+    expect(isMaterialFinalTotalOverride(1520, 1513.001, 7)).toBe(false)
+  })
+
+  it('uses the absolute value of a negative calculatedTotal for the 1% threshold', () => {
+    // calculatedTotal -1000 -> threshold max(5, 10) = 10
+    expect(isMaterialFinalTotalOverride(-985, -1000, 0)).toBe(true)
+    expect(isMaterialFinalTotalOverride(-995, -1000, 0)).toBe(false)
+  })
+})
+
+describe('buildInitialValues — roundingSurplus (FR-REP-04a/04c)', () => {
+  const property = { services: [] }
+  const tenancy = { monthlyRent: 1500, dueDay: 5 }
+
+  it('a fresh draft starts at 0', () => {
+    const values = buildInitialValues({
+      tenancy,
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: null,
+    })
+    expect(values.roundingSurplus).toBe(0)
+  })
+
+  it('a reopened draft carries over the saved roundingSurplus (not re-derived)', () => {
+    const values = buildInitialValues({
+      tenancy,
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: {
+        status: 'draft',
+        rent: { amount: 1500 },
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        roundingSurplus: 7.83,
+        dueDate: '2026-07-05',
+      },
+    })
+    expect(values.roundingSurplus).toBe(7.83)
+  })
+
+  it('a SIGNED report freezes its own saved roundingSurplus', () => {
+    const values = buildInitialValues({
+      tenancy,
+      property,
+      month: 7,
+      year: 2026,
+      existingReport: {
+        status: 'signed',
+        rent: { amount: 1500 },
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        roundingSurplus: 7.83,
+        dueDate: '2026-07-05',
+      },
+    })
+    expect(values.roundingSurplus).toBe(7.83)
   })
 })
 

@@ -97,14 +97,37 @@ function nextOccurrenceOfDueDay(today, dueDay) {
   return dueDateInMonth(targetYear, targetMonth, dueDay)
 }
 
+// NFR-VAL-03: money is never compared exactly. Same tolerance as the
+// web-side FINAL_TOTAL_EPSILON (web/src/features/reports/schema.js) —
+// duplicated, not shared, for the same cross-package reason as every other
+// functions/web pair this codebase keeps in sync by hand (CLAUDE.md §7).
+const FINAL_TOTAL_EPSILON = 0.005
+
 /**
  * FAMILY 1 — arrears reminder (FR-PAY-04, template A4, to the tenant).
  * Fires every 3 days starting on day 3 after the due date, for as long as
- * arrears remain: elapsed 3, 6, 9, ... `currentBalance` must be strictly
- * positive — zero or negative (credit) means nothing is owed.
+ * arrears remain: elapsed 3, 6, 9, ...
+ *
+ * Preconditions, defined at M8: `currentBalance > FINAL_TOTAL_EPSILON`
+ * (never a plain `> 0`, per NFR-VAL-03), and `hasSignedReport` — at least
+ * one signed report must exist on the tenancy, because a reminder about a
+ * balance the tenant has never actually been billed for (no report yet
+ * signed) has no bill to point at. The THIRD precondition — the tenancy
+ * must be `active` — is structural, not checked here: `dailyScheduler`
+ * (scheduler.js) only ever queries `tenancies` where `status == 'active'`
+ * before calling this at all, the same precondition FR-PAY-10c states
+ * explicitly for its own family. Automated reminders stopping at
+ * termination is therefore a consequence of that query, not a branch in
+ * this function.
  */
-function shouldSendArrearsReminder({ today, dueDate, currentBalance }) {
-  if (!(currentBalance > 0)) return false
+function shouldSendArrearsReminder({
+  today,
+  dueDate,
+  currentBalance,
+  hasSignedReport,
+}) {
+  if (!(currentBalance > FINAL_TOTAL_EPSILON)) return false
+  if (!hasSignedReport) return false
   const elapsed = daysBetween(dueDate, today)
   return elapsed >= 3 && elapsed % 3 === 0
 }

@@ -19,6 +19,7 @@ import {
   Section,
 } from '@/features/tenants/components/ProfileTab'
 import { ContractUpload } from '@/features/tenants/components/ContractUpload'
+import { formatCurrency } from '@/lib/formatCurrency'
 import {
   useEndTenancy,
   useUpdateTenancy,
@@ -53,15 +54,30 @@ function selectDisplayedTenancy(tenancies) {
   )[0]
 }
 
+/**
+ * The closing-balance line shown before termination (FR-CON-04, reversed at
+ * M8): "the screen states the closing balance plainly and requires an
+ * explicit acknowledgement, then proceeds". Three states, never conflated —
+ * NFR-VAL-03's money-is-never-exact discipline is moot here (this is a
+ * three-way sign check, not an equality comparison against a computed
+ * total), so a plain `> 0`/`< 0`/`=== 0` split is correct as written.
+ */
+function closingBalanceKey(currentBalance) {
+  if (currentBalance > 0) return 'tenants.detail.tenancy.endBalanceOwed'
+  if (currentBalance < 0) return 'tenants.detail.tenancy.endBalanceCredit'
+  return 'tenants.detail.tenancy.endBalanceSettled'
+}
+
 function ContractSummary({ tenancy, userId, isActive }) {
   const { t } = useTranslation()
   const updateTenancy = useUpdateTenancy()
   const endTenancy = useEndTenancy()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [endError, setEndError] = useState(null)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [endError, setEndError] = useState(false)
 
   async function handleEnd() {
-    setEndError(null)
+    setEndError(false)
     try {
       await endTenancy.mutateAsync({
         tenancyId: tenancy.id,
@@ -69,12 +85,12 @@ function ContractSummary({ tenancy, userId, isActive }) {
         propertyId: tenancy.propertyId,
       })
       setConfirmOpen(false)
-    } catch (error) {
-      setEndError(error)
+    } catch {
+      setEndError(true)
     }
   }
 
-  const arrears = endError?.details?.reason === 'arrears'
+  const currentBalance = tenancy.currentBalance ?? 0
 
   return (
     <>
@@ -154,7 +170,10 @@ function ContractSummary({ tenancy, userId, isActive }) {
         open={confirmOpen}
         onOpenChange={(open) => {
           setConfirmOpen(open)
-          if (open) setEndError(null)
+          if (open) {
+            setEndError(false)
+            setAcknowledged(false)
+          }
         }}
       >
         <DialogContent>
@@ -166,13 +185,26 @@ function ContractSummary({ tenancy, userId, isActive }) {
               {t('tenants.detail.tenancy.endConfirmBody')}
             </DialogDescription>
           </DialogHeader>
+
+          <p className="text-sm font-medium text-foreground">
+            {t(closingBalanceKey(currentBalance), {
+              balance: formatCurrency(Math.abs(currentBalance)),
+            })}
+          </p>
+
+          <label className="flex items-start gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(event) => setAcknowledged(event.target.checked)}
+              className="mt-0.5"
+            />
+            {t('tenants.detail.tenancy.endAcknowledge')}
+          </label>
+
           {endError && (
             <p role="alert" className="text-sm text-destructive">
-              {arrears
-                ? t('tenants.detail.tenancy.endArrearsError', {
-                    balance: endError.details.currentBalance,
-                  })
-                : t('tenants.detail.tenancy.endGenericError')}
+              {t('tenants.detail.tenancy.endGenericError')}
             </p>
           )}
           <DialogFooter>
@@ -187,7 +219,7 @@ function ContractSummary({ tenancy, userId, isActive }) {
               type="button"
               variant="destructive"
               onClick={handleEnd}
-              disabled={endTenancy.isPending}
+              disabled={endTenancy.isPending || !acknowledged}
             >
               {endTenancy.isPending
                 ? t('common.loading')

@@ -19,6 +19,8 @@ import { collectAttachmentPaths } from '@/features/reports/attachments'
 import {
   buildInitialValues,
   calculateTotal,
+  computeRoundedTotal,
+  FINAL_TOTAL_EPSILON,
   isFinalTotalDiverged,
   reportFormDefaults,
   reportSchema,
@@ -156,6 +158,16 @@ export function MonthlyReportPage() {
 
   const watchedValues = useWatch({ control })
   const total = calculateTotal(watchedValues)
+
+  // FR-REP-04a: the rounding action. Only meaningful above zero — rounding a
+  // credit month "up" moves it toward zero, quietly shrinking money the
+  // product owes the tenant (FR-REP-04a's own wording).
+  function handleRoundUp() {
+    const rounded = computeRoundedTotal(total)
+    setValue('finalTotal', rounded, { shouldValidate: false })
+    setValue('roundingSurplus', rounded - total, { shouldValidate: false })
+    setIsFinalTotalDirty(true)
+  }
 
   // Mirrors the live total into finalTotal while untouched. `setValue` does
   // NOT fire the `onChange` registered below (RHF doesn't simulate a DOM
@@ -338,29 +350,71 @@ export function MonthlyReportPage() {
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-background p-4 shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">
-              {t('reports.fields.calculatedTotal')}
-            </span>
-            <span className="text-base font-medium text-foreground">
-              {formatCurrency(total)}
-            </span>
+        <div className="sticky bottom-0 flex flex-col gap-3 rounded-lg border border-border bg-background p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">
+                {t('reports.fields.calculatedTotal')}
+              </span>
+              <span className="text-base font-medium text-foreground">
+                {formatCurrency(total)}
+              </span>
+            </div>
+            {!isLocked && total > 0 && (
+              <Button type="button" variant="outline" onClick={handleRoundUp}>
+                {t('reports.fields.roundUp', {
+                  value: formatCurrency(computeRoundedTotal(total)),
+                })}
+              </Button>
+            )}
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="finalTotal">
+                {t('reports.fields.finalTotal')}
+              </Label>
+              <Input
+                id="finalTotal"
+                type="number"
+                step="any"
+                className="w-32 text-right text-lg font-semibold"
+                disabled={isLocked}
+                {...register('finalTotal', {
+                  valueAsNumber: true,
+                  onChange: () => {
+                    // FR-REP-04c: a MANUAL edit clears any surplus the
+                    // rounding action set — the two must never be conflated.
+                    // Independent of isFinalTotalDirty (which only decides
+                    // whether the mirror effect keeps running) — only an
+                    // actual edit of this input clears the surplus.
+                    setIsFinalTotalDirty(true)
+                    setValue('roundingSurplus', 0, { shouldValidate: false })
+                  },
+                })}
+              />
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="finalTotal">{t('reports.fields.finalTotal')}</Label>
-            <Input
-              id="finalTotal"
-              type="number"
-              step="any"
-              className="w-32 text-right text-lg font-semibold"
-              disabled={isLocked}
-              {...register('finalTotal', {
-                valueAsNumber: true,
-                onChange: () => setIsFinalTotalDirty(true),
+
+          {/* FR-REP-04d: the difference line, on the admin form. Two
+              mutually exclusive cases — a stored rounding surplus (STORED
+              value, never re-derived) or a live manual-adjustment diff
+              (DERIVED at render, nothing stored). */}
+          {watchedValues.roundingSurplus > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t('reports.fields.roundingLine', {
+                value: formatCurrency(watchedValues.roundingSurplus),
               })}
-            />
-          </div>
+            </p>
+          ) : (
+            Math.abs((watchedValues.finalTotal ?? 0) - total) >=
+              FINAL_TOTAL_EPSILON && (
+              <p className="text-sm text-muted-foreground">
+                {t('reports.fields.adjustmentLine', {
+                  value: formatCurrency(
+                    (watchedValues.finalTotal ?? 0) - total,
+                  ),
+                })}
+              </p>
+            )
+          )}
         </div>
 
         {saveError && (

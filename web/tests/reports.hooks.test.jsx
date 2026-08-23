@@ -721,6 +721,24 @@ describe('useSignReport (FR-REP-07)', () => {
     expect(signReportMock).toHaveBeenCalledWith({ reportId: 'r1' })
   })
 
+  it('passes overrideReason through to the callable when provided (FR-REP-04e)', async () => {
+    const signReportMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1' } })
+    httpsCallable.mockReturnValue(signReportMock)
+
+    const { result } = await renderHookWithProviders(() => useSignReport())
+    await result.current.mutateAsync({
+      id: 'r1',
+      overrideReason: 'Reducere negociată',
+    })
+
+    expect(signReportMock).toHaveBeenCalledWith({
+      reportId: 'r1',
+      overrideReason: 'Reducere negociată',
+    })
+  })
+
   it('invalidates the report detail query on success', async () => {
     const signReportMock = vi
       .fn()

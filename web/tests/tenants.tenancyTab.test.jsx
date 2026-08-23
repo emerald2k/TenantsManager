@@ -211,10 +211,10 @@ describe('TenancyTab — Extend (FR-CON-06)', () => {
   })
 })
 
-describe('TenancyTab — End Contract (FR-CON-03/04/05)', () => {
-  async function openConfirmDialog(user) {
+describe('TenancyTab — End Contract (FR-CON-03/05)', () => {
+  async function openConfirmDialog(user, overrides) {
     useUserTenancies.mockReturnValue({
-      data: [activeTenancy()],
+      data: [activeTenancy(overrides)],
       isPending: false,
       isError: false,
     })
@@ -230,10 +230,25 @@ describe('TenancyTab — End Contract (FR-CON-03/04/05)', () => {
     expect(endTenancyMutateAsync).not.toHaveBeenCalled()
   })
 
-  it('calls endTenancy with the tenancy/user/property ids on confirm', async () => {
+  it('disables the confirm button until the closing balance is acknowledged', async () => {
     const user = userEvent.setup()
     await openConfirmDialog(user)
 
+    const dialogButtons = screen.getAllByRole('button', {
+      name: 'Termină contractul',
+    })
+    const confirmButton = dialogButtons[dialogButtons.length - 1]
+    expect(confirmButton).toBeDisabled()
+
+    await user.click(screen.getByRole('checkbox'))
+    expect(confirmButton).not.toBeDisabled()
+  })
+
+  it('calls endTenancy with the tenancy/user/property ids once acknowledged', async () => {
+    const user = userEvent.setup()
+    await openConfirmDialog(user)
+
+    await user.click(screen.getByRole('checkbox'))
     const dialogButtons = screen.getAllByRole('button', {
       name: 'Termină contractul',
     })
@@ -248,22 +263,25 @@ describe('TenancyTab — End Contract (FR-CON-03/04/05)', () => {
     )
   })
 
-  it('shows the arrears message (not a crash) on a failed-precondition/arrears error', async () => {
-    endTenancyMutateAsync.mockRejectedValue(
-      Object.assign(new Error('failed'), {
-        code: 'functions/failed-precondition',
-        details: { reason: 'arrears', currentBalance: 150 },
-      }),
-    )
+  it('states arrears plainly (FR-CON-04, reversed at M8) — termination is no longer blocked', async () => {
     const user = userEvent.setup()
-    await openConfirmDialog(user)
+    await openConfirmDialog(user, { currentBalance: 150 })
 
-    const dialogButtons = screen.getAllByRole('button', {
-      name: 'Termină contractul',
-    })
-    await user.click(dialogButtons[dialogButtons.length - 1])
+    expect(screen.getByText(/mai are de plătit 150,00 lei/)).toBeVisible()
+  })
 
-    expect(await screen.findByText(/restanțe neachitate \(150\)/)).toBeVisible()
+  it('states a tenant credit plainly when currentBalance is negative (FR-CON-04/FR-DASH-14)', async () => {
+    const user = userEvent.setup()
+    await openConfirmDialog(user, { currentBalance: -50 })
+
+    expect(screen.getByText(/are un credit de 50,00 lei/)).toBeVisible()
+  })
+
+  it('states the balance is settled when currentBalance is zero', async () => {
+    const user = userEvent.setup()
+    await openConfirmDialog(user, { currentBalance: 0 })
+
+    expect(screen.getByText('Soldul este achitat integral.')).toBeVisible()
   })
 
   it('shows a generic error message on an unexpected failure', async () => {
@@ -271,6 +289,7 @@ describe('TenancyTab — End Contract (FR-CON-03/04/05)', () => {
     const user = userEvent.setup()
     await openConfirmDialog(user)
 
+    await user.click(screen.getByRole('checkbox'))
     const dialogButtons = screen.getAllByRole('button', {
       name: 'Termină contractul',
     })

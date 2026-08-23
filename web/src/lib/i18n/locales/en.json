@@ -111,6 +111,9 @@
       "historyTitle": "Cost history",
       "historyEmpty": "The cost history will be available once monthly reports exist.",
       "historyMonth": "Month",
+      "historyBilled": "Billed",
+      "historyRounding": "Rounding",
+      "historyYearTotal": "{{year}} total",
       "historyShowAll": "Show all",
       "dueDay": "Due",
       "daysUntilDue": "{{count}} days left"
@@ -291,7 +294,10 @@
         "endConfirmBody": "The property will become free and the account will move to inactive-readonly. This cannot be undone.",
         "endConfirmButton": "End contract",
         "endGenericError": "The contract could not be ended. Please try again.",
-        "endArrearsError": "This tenancy has unpaid arrears ({{balance}}) and cannot be ended until the balance is settled.",
+        "endBalanceOwed": "The tenant still owes {{balance}}. This amount stays visible after the contract ends.",
+        "endBalanceCredit": "The tenant has a credit of {{balance}}, which will remain unconsumed after the contract ends.",
+        "endBalanceSettled": "The balance is fully settled.",
+        "endAcknowledge": "I acknowledge the balance above and confirm ending the contract.",
         "notActiveNotice": "This tenancy has already ended.",
         "historyItem": "{{property}} — {{startDate}} to {{endDate}}",
         "contract": {
@@ -350,7 +356,11 @@
       "previousArrears": "Previous month's arrears",
       "previousCredit": "Previous month's credit",
       "calculatedTotal": "Calculated total",
-      "finalTotal": "Final total"
+      "finalTotal": "Final total",
+      "roundUp": "Round up to {{value}}",
+      "roundingLine": "Rounding up: +{{value}} — carried as credit to next month",
+      "adjustmentLine": "Adjustment: {{value}}",
+      "creditLabel": "Credit"
     },
     "otherExpenses": {
       "add": "Add expense",
@@ -373,7 +383,10 @@
       "confirmTitle": "Sign the list",
       "confirmBody": "The list becomes final and locked for editing.",
       "confirmButton": "Sign",
-      "error": "The list could not be signed. Please try again."
+      "error": "The list could not be signed. Please try again.",
+      "chronologicalOrderError": "A later month is already signed on this tenancy — unlock every signed report later than this one, sign this month, then re-sign the unlocked months in ascending order.",
+      "overrideWarning": "You are adjusting the total by {{value}} compared to the calculated total.",
+      "overrideReasonLabel": "Reason for the adjustment"
     },
     "unlock": {
       "button": "Unlock for correction",

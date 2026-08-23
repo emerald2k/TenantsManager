@@ -5,8 +5,12 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 /**
  * endTenancy (SRS §7.2, FR-CON-03/04/05).
  *
- * Manually terminates an active tenancy, including early (FR-CON-03), unless
- * blocked by unpaid arrears (FR-CON-04). Atomic — a single Firestore
+ * Manually terminates an active tenancy, including early (FR-CON-03).
+ * **Never blocked by unpaid arrears** (FR-CON-04, reversed at M8): the debt
+ * survives termination, frozen into `closingBalance`, and stays visible under
+ * FR-DASH-13/14 — the UI states it plainly and requires acknowledgement
+ * before calling this (TenancyTab.jsx), but this function itself never
+ * refuses on balance. Atomic — a single Firestore
  * transaction, the exact MIRROR of finalizeKyc's tenancy-creation transaction
  * (kyc.js): where finalizeKyc sets `properties.status = 'occupied'` alongside
  * creating `tenancies` (+ `users` on the new-tenant branch), endTenancy sets
@@ -67,23 +71,21 @@ async function endTenancyCore(tenancyId, adminUid) {
       throw new HttpsError('not-found', 'The tenancy’s account does not exist.')
     }
 
-    // GUARD — FR-CON-04: blocked ONLY while there are unpaid arrears
-    // (currentBalance > 0). Zero or negative (a credit in the tenant's favor)
-    // both permit termination — Bogdan's explicit call, faithful to FR-CON-04's
-    // wording ("unpaid arrears"), not a stricter "must be exactly zero" rule.
-    if (tenancyData.currentBalance > 0) {
-      throw new HttpsError(
-        'failed-precondition',
-        'This tenancy has unpaid arrears; settle the balance before terminating.',
-        { reason: 'arrears', currentBalance: tenancyData.currentBalance },
-      )
-    }
-
     // WRITES — symmetric with finalizeKyc's `tx.update(propertyRef, { status:
     // 'occupied' })`: one transaction, three documents, no separate trigger.
+    //
+    // FR-CON-04 (reversed at M8): termination is NO LONGER blocked by unpaid
+    // arrears — the block only hid an unlettable flat, it never collected the
+    // debt. `closingBalance` freezes `currentBalance` at the exact moment of
+    // termination: `currentBalance` keeps being recomputed off signed reports
+    // for as long as the tenancy document exists (e.g. a correction via
+    // FR-REP-07a/11a on an already-ended tenancy), but "owed by/to former
+    // renters" (FR-DASH-13/14) must read the balance AS OF termination, not
+    // whatever it happens to be later — `closingBalance` is that snapshot.
     tx.update(tenancyRef, {
       status: 'ended',
       endedAt: FieldValue.serverTimestamp(),
+      closingBalance: tenancyData.currentBalance ?? 0,
     })
     tx.update(propertyRef, { status: 'free' })
     tx.update(userRef, { status: 'inactive-readonly' })

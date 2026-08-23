@@ -30,7 +30,30 @@ if (!getApps().length) {
 // the same generic portal URL A1/A7 already use.
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 
-async function signReportCore(reportId) {
+/**
+ * signReportCore (FR-REP-07, FR-REP-11/11a, FR-REP-04e).
+ *
+ * CHRONOLOGICAL GUARD (FR-REP-11): rejects signing a report whose (year,
+ * month) is earlier than that of any ALREADY-signed report on the same
+ * tenancy. `currentBalance` is derived from the single most recent signed
+ * report (`recomputeCurrentBalance`, above) — signing an earlier month after
+ * a later one has no effect on any balance whatsoever (FR-REP-11a). The
+ * report being signed here is still `status: 'draft'` at read time, so it
+ * never appears in its own sibling query — no `<=` needed, `<` alone is
+ * correct and a same-month re-sign after unlock is never blocked by itself.
+ * Query, not a fetch-all: same two-equality-filter, sort-in-memory shape as
+ * `recomputeCurrentBalance` (no composite index, SRS §6). Read BEFORE any
+ * write — the Admin SDK forbids a read after a write in a transaction.
+ *
+ * `overrideReason` (FR-REP-04e, optional): when the admin's confirmation
+ * dialog collected a reason for a finalTotal that materially diverges from
+ * calculatedTotal, it is stored verbatim with a timestamp. Not enforced
+ * here — the divergence check and the second-confirmation gate are UI
+ * (MonthlyReportPage/SignReportControl), consistent with this codebase's
+ * single-trusted-admin model (SRS §7.3): the field is an audit trail, not an
+ * access boundary a Cloud Function needs to police.
+ */
+async function signReportCore(reportId, overrideReason) {
   const db = getFirestore()
   const reportRef = db.collection('monthlyReports').doc(reportId)
 
@@ -39,16 +62,55 @@ async function signReportCore(reportId) {
     if (!reportSnap.exists) {
       throw new HttpsError('not-found', `Report ${reportId} does not exist.`)
     }
-    if (reportSnap.data().status !== 'draft') {
+    const report = reportSnap.data()
+    if (report.status !== 'draft') {
       throw new HttpsError(
         'failed-precondition',
         'Only a draft report can be signed.',
         { reason: 'not-draft' },
       )
     }
+
+    const priorSignedSnap = await tx.get(
+      db
+        .collection('monthlyReports')
+        .where('tenancyId', '==', report.tenancyId)
+        .where('status', '==', 'signed'),
+    )
+    const blocking = priorSignedSnap.docs
+      .map((doc) => doc.data())
+      // A LATER already-signed month blocks this one — the earliest such
+      // later month is the one the unlock procedure (FR-REP-11a) names.
+      .filter(
+        (signed) =>
+          signed.year > report.year ||
+          (signed.year === report.year && signed.month > report.month),
+      )
+      .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+    if (blocking) {
+      throw new HttpsError(
+        'failed-precondition',
+        `A later month (${blocking.month}/${blocking.year}) is already signed on this tenancy. ` +
+          'Signing an earlier month now would never be reflected in any balance (FR-REP-11a): ' +
+          'unlock every signed report later than this one, sign this month, then re-sign the ' +
+          'unlocked months in ascending order.',
+        {
+          reason: 'chronological-order',
+          blockingMonth: blocking.month,
+          blockingYear: blocking.year,
+        },
+      )
+    }
+
     tx.update(reportRef, {
       status: 'signed',
       signedAt: FieldValue.serverTimestamp(),
+      ...(overrideReason
+        ? {
+            finalTotalOverrideReason: overrideReason,
+            finalTotalOverrideReasonAt: FieldValue.serverTimestamp(),
+          }
+        : {}),
     })
   })
 
@@ -88,7 +150,7 @@ async function signReportHandler(request) {
   if (!reportId) {
     throw new HttpsError('invalid-argument', 'reportId is required.')
   }
-  return signReportCore(reportId)
+  return signReportCore(reportId, request.data?.overrideReason)
 }
 
 async function unlockReportHandler(request) {
@@ -124,6 +186,14 @@ const unlockReport = onCall(unlockReportHandler)
  * `finalTotal - undefined` is `NaN`, which would silently corrupt
  * `currentBalance` the moment a report is signed, before any payment exists.
  *
+ * `roundingSurplus ?? 0` (SRS §6, FR-REP-04a/04c, M8): a report produced by
+ * the rounding action asked the tenant for a round `finalTotal` but only
+ * `finalTotal - roundingSurplus` was actually owed — the surplus is the
+ * tenant's credit, already destined to reduce `previousMonthArrears` (or
+ * grow `previousMonthCredit`) on the NEXT report via `buildInitialValues`.
+ * Omitting this subtraction here would silently pocket that credit instead
+ * of carrying it forward.
+ *
  * Always a full re-derivation, never an increment/decrement — naturally
  * idempotent under onDocumentWritten's at-least-once delivery.
  */
@@ -148,7 +218,9 @@ async function recomputeCurrentBalance(tenancyId) {
     .sort((a, b) => b.year - a.year || b.month - a.month)[0]
 
   const currentBalance =
-    (mostRecent.finalTotal ?? 0) - (mostRecent.amountPaid ?? 0)
+    (mostRecent.finalTotal ?? 0) -
+    (mostRecent.amountPaid ?? 0) -
+    (mostRecent.roundingSurplus ?? 0)
   await db.collection('tenancies').doc(tenancyId).update({ currentBalance })
 }
 

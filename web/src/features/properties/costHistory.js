@@ -1,3 +1,5 @@
+import { billedForReport } from '@/features/reports/billing'
+
 const DEFAULT_WINDOW_SIZE = 12
 
 /**
@@ -40,13 +42,20 @@ const DEFAULT_WINDOW_SIZE = 12
  * `0` (FR-REP-03: a service billed at zero still appears in the report, so
  * `0` is a real recorded value, not a gap). `other` is the SUM of
  * `otherExpenses[].amount` across every sibling report — a single column,
- * not one per expense (no stable key to pivot on, unlike services). `total`
- * is the SUM of `finalTotal` across the group's siblings (FR-REP-04c —
- * `calculatedTotal` never appears here). **`total` is still the pre-stage-5
- * formula** (a plain sum of `finalTotal`, not the billed-amount formula
- * SRS §5.3 eventually specifies) — the corrected formula is stage 5's
- * change, not this one's; this function only owns the sibling GROUPING that
- * the re-key requires.
+ * not one per expense (no stable key to pivot on, unlike services).
+ *
+ * `total` is the SUM, across the group's siblings, of `billedForReport`
+ * (`../reports/billing.js`) — **per report first, then summed**, never a sum
+ * of raw `finalTotal` (which already contains each sibling's OWN
+ * `previousMonthArrears`/`previousMonthCredit`/`roundingSurplus` — summing
+ * those first and subtracting once would double-count a hand-over month's
+ * carry-forward once per tenancy). `rounding` is the SUM of `roundingSurplus`
+ * across the siblings — FR-REP-04d's "own column" for a manually-rounded
+ * report.
+ *
+ * `yearTotals`: one closing row per calendar year present among the
+ * (possibly windowed) `rows`, ascending — FR-PROP-09's "year total row",
+ * each column summed the same way as the monthly rows above.
  */
 export function buildCostHistory(
   reports,
@@ -111,7 +120,8 @@ export function buildCostHistory(
         ),
       0,
     )
-    const total = group.reduce((sum, r) => sum + (r.finalTotal ?? 0), 0)
+    const total = group.reduce((sum, r) => sum + billedForReport(r), 0)
+    const rounding = group.reduce((sum, r) => sum + (r.roundingSurplus ?? 0), 0)
 
     return {
       reportIds: group.map((r) => r.id),
@@ -122,8 +132,49 @@ export function buildCostHistory(
       services: serviceAmounts,
       other,
       total,
+      rounding,
     }
   })
 
-  return { rows, services }
+  const yearTotals = buildYearTotals(rows, services)
+
+  return { rows, services, yearTotals }
+}
+
+/** One totals row per calendar year present in `rows`, ascending — see the
+ * function doc-comment above. A service column is `null` for the year only
+ * if EVERY row of that year has `null` for it (the service never appeared),
+ * mirroring the per-row `null`-vs-`0` distinction above. */
+function buildYearTotals(rows, services) {
+  const byYear = new Map()
+  for (const row of rows) {
+    const group = byYear.get(row.year) ?? []
+    group.push(row)
+    byYear.set(row.year, group)
+  }
+
+  return Array.from(byYear.keys())
+    .sort((a, b) => a - b)
+    .map((year) => {
+      const yearRows = byYear.get(year)
+      const serviceAmounts = {}
+      for (const { serviceId } of services) {
+        const amounts = yearRows
+          .map((row) => row.services[serviceId])
+          .filter((amount) => amount !== null)
+        serviceAmounts[serviceId] =
+          amounts.length === 0
+            ? null
+            : amounts.reduce((sum, amount) => sum + amount, 0)
+      }
+      return {
+        year,
+        rent: yearRows.reduce((sum, row) => sum + row.rent, 0),
+        maintenance: yearRows.reduce((sum, row) => sum + row.maintenance, 0),
+        services: serviceAmounts,
+        other: yearRows.reduce((sum, row) => sum + row.other, 0),
+        total: yearRows.reduce((sum, row) => sum + row.total, 0),
+        rounding: yearRows.reduce((sum, row) => sum + row.rounding, 0),
+      }
+    })
 }

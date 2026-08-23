@@ -111,6 +111,9 @@
       "historyTitle": "Istoric costuri",
       "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare.",
       "historyMonth": "Lună",
+      "historyBilled": "Facturat",
+      "historyRounding": "Rotunjire",
+      "historyYearTotal": "Total {{year}}",
       "historyShowAll": "Arată tot",
       "dueDay": "Scadență",
       "daysUntilDue": "{{count}} zile rămase"
@@ -291,7 +294,10 @@
         "endConfirmBody": "Proprietatea va deveni liberă, iar contul va trece în stare inactiv-doar-citire. Acțiunea nu poate fi anulată.",
         "endConfirmButton": "Termină contractul",
         "endGenericError": "Contractul nu a putut fi terminat. Încearcă din nou.",
-        "endArrearsError": "Această tenanță are restanțe neachitate ({{balance}}) și nu poate fi terminată până la achitarea soldului.",
+        "endBalanceOwed": "Chiriașul mai are de plătit {{balance}}. Suma rămâne vizibilă și după terminarea contractului.",
+        "endBalanceCredit": "Chiriașul are un credit de {{balance}}, care va rămâne neconsumat după terminarea contractului.",
+        "endBalanceSettled": "Soldul este achitat integral.",
+        "endAcknowledge": "Am luat la cunoștință soldul de mai sus și confirm terminarea contractului.",
         "notActiveNotice": "Această tenanță s-a încheiat deja.",
         "historyItem": "{{property}} — {{startDate}} până la {{endDate}}",
         "contract": {
@@ -350,7 +356,11 @@
       "previousArrears": "Restanțe luna anterioară",
       "previousCredit": "Credit luna anterioară",
       "calculatedTotal": "Total calculat",
-      "finalTotal": "Total final"
+      "finalTotal": "Total final",
+      "roundUp": "Rotunjește la {{value}}",
+      "roundingLine": "Rotunjire: +{{value}} — reportat ca credit luna următoare",
+      "adjustmentLine": "Ajustare: {{value}}",
+      "creditLabel": "Credit"
     },
     "otherExpenses": {
       "add": "Adaugă cheltuială",
@@ -373,7 +383,10 @@
       "confirmTitle": "Semnează lista",
       "confirmBody": "Lista devine finală și blocată pentru editare.",
       "confirmButton": "Semnează",
-      "error": "Lista nu a putut fi semnată. Încearcă din nou."
+      "error": "Lista nu a putut fi semnată. Încearcă din nou.",
+      "chronologicalOrderError": "O lună mai recentă este deja semnată pentru această tenanță — deblochează toate rapoartele semnate ulterioare acestei luni, semnează luna curentă, apoi re-semnează lunile deblocate în ordine crescătoare.",
+      "overrideWarning": "Ajustezi totalul cu {{value}} față de totalul calculat.",
+      "overrideReasonLabel": "Motivul ajustării"
     },
     "unlock": {
       "button": "Deblochează pentru corecție",

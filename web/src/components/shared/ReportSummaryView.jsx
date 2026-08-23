@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '@/lib/formatCurrency'
 import { formatFullDate } from '@/lib/formatDate'
+import { FINAL_TOTAL_EPSILON } from '@/features/reports/schema'
 
 /**
  * Purely presentational, read-only summary of a signed report (M4 sub-stage
@@ -164,10 +165,41 @@ export function ReportSummaryView({
             {formatCurrency(data.previousMonthCredit)}
           </span>
         </div>
+        {/* FR-REP-04d: the difference line — never both at once. A stored
+            rounding surplus (rounding action) takes priority; otherwise a
+            manual edit's diff is derived at render, never stored. */}
+        {data.roundingSurplus > 0 ? (
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>
+              {t('reports.fields.roundingLine', {
+                value: formatCurrency(data.roundingSurplus),
+              })}
+            </span>
+          </div>
+        ) : (
+          Math.abs(data.finalTotal - data.calculatedTotal) >=
+            FINAL_TOTAL_EPSILON && (
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>
+                {t('reports.fields.adjustmentLine', {
+                  value: formatCurrency(data.finalTotal - data.calculatedTotal),
+                })}
+              </span>
+            </div>
+          )
+        )}
+        {/* FR-PAY-11: a zero-or-negative finalTotal is a real, reachable
+            state (a light month against a large credit) — the owner owes
+            the tenant, not the other way round. Rendered legibly as a
+            positive "Credit" figure, never a negative debt-shaped number. */}
         <div className="flex items-center justify-between text-base font-semibold text-foreground">
-          <span>{t('reports.fields.finalTotal')}</span>
+          <span>
+            {data.finalTotal < 0
+              ? t('reports.fields.creditLabel')
+              : t('reports.fields.finalTotal')}
+          </span>
           <span className="tabular-nums">
-            {formatCurrency(data.finalTotal)}
+            {formatCurrency(Math.abs(data.finalTotal))}
           </span>
         </div>
         <div className="flex items-center justify-between">

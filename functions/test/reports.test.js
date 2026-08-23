@@ -97,6 +97,127 @@ describe('signReport — happy path (FR-REP-07)', () => {
   })
 })
 
+describe('signReport — chronological order guard (FR-REP-11/11a)', () => {
+  it('rejects signing a month earlier than an already-signed later month, naming the blocking month', async () => {
+    await seedReport('report-aug', {
+      tenancyId: 'tenancy-1',
+      month: 8,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    await expect(signReportCore('report-jul')).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: {
+        reason: 'chronological-order',
+        blockingMonth: 8,
+        blockingYear: 2026,
+      },
+    })
+
+    const snap = await db.collection('monthlyReports').doc('report-jul').get()
+    expect(snap.data().status).toBe('draft')
+  })
+
+  it('rejects signing an earlier YEAR the same way (not just an earlier month within the same year)', async () => {
+    await seedReport('report-2027-jan', {
+      tenancyId: 'tenancy-1',
+      month: 1,
+      year: 2027,
+      status: 'signed',
+    })
+    await seedReport('report-2026-dec', {
+      tenancyId: 'tenancy-1',
+      month: 12,
+      year: 2026,
+      status: 'draft',
+    })
+
+    await expect(signReportCore('report-2026-dec')).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'chronological-order' },
+    })
+  })
+
+  it('permits signing a LATER month than the most recently signed one', async () => {
+    await seedReport('report-jun', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('permits re-signing the SAME month after an unlock — the report being signed does not block itself', async () => {
+    // The report under signature is itself still `draft` at read time, so it
+    // never appears in its own "already signed" query — anti-vacuity for the
+    // `<` (not `<=`) comparison: a `<=` bug would reject this every time.
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft', // was unlocked from signed
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('ignores a signed report on a DIFFERENT tenancy entirely', async () => {
+    await seedReport('report-other-tenancy', {
+      tenancyId: 'tenancy-2',
+      month: 12,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('stores overrideReason + a timestamp when provided (FR-REP-04e)', async () => {
+    await seedReport('report-1', { status: 'draft' })
+
+    await signReportCore('report-1', 'Reducere negociată cu chiriașul')
+
+    const snap = await db.collection('monthlyReports').doc('report-1').get()
+    expect(snap.data().finalTotalOverrideReason).toBe(
+      'Reducere negociată cu chiriașul',
+    )
+    expect(snap.data().finalTotalOverrideReasonAt).toBeTruthy()
+  })
+
+  it('does NOT write an override reason field at all when none is provided', async () => {
+    await seedReport('report-1', { status: 'draft' })
+
+    await signReportCore('report-1')
+
+    const snap = await db.collection('monthlyReports').doc('report-1').get()
+    expect(snap.data().finalTotalOverrideReason).toBeUndefined()
+  })
+})
+
 describe('signReport — invalid states', () => {
   it('rejects a report that does not exist', async () => {
     await expect(signReportCore('does-not-exist')).rejects.toMatchObject({
@@ -306,6 +427,44 @@ describe('recomputeCurrentBalance (SRS §6, pinned at e8ca367)', () => {
     expect(snap.data().currentBalance).toBe(0)
   })
 
+  it('a tenant unpaid across THREE consecutive signed months lands on the single carried balance, never 3x it (FR-DASH-04 data invariant — where the old per-report-summing arithmetic broke)', async () => {
+    await seedTenancy('tenancy-1')
+    // Each month's own finalTotal already carries the PRIOR month's arrears
+    // forward (FR-REP-04) — a wrong "sum every signed report" arithmetic
+    // would read 1500+3000+4500=9000; the correct one reads only the most
+    // recent report's own finalTotal.
+    await seedReport('report-jun', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 1500, // nothing carried in yet
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 3000, // 1500 rent/services + 1500 carried from June
+    })
+    await seedReport('report-aug', {
+      tenancyId: 'tenancy-1',
+      month: 8,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 4500, // 1500 + 3000 carried from July
+      amountPaid: 500, // a partial payment — discriminates against a buggy
+      // implementation that returns mostRecent.finalTotal outright and
+      // ignores amountPaid/roundingSurplus (both are absent on report-jun/
+      // report-jul, so that bug would pass undetected without this).
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBe(4000)
+  })
+
   it('picks the most recent by (year, month), not by document write order', async () => {
     await seedTenancy('tenancy-1')
     // Written in reverse chronological order on purpose — proves the sort is by
@@ -333,6 +492,81 @@ describe('recomputeCurrentBalance (SRS §6, pinned at e8ca367)', () => {
     // January 2026 is more recent than December 2025, even though the December
     // document has the larger (wrong-if-picked) arrears.
     expect(snap.data().currentBalance).toBe(0)
+  })
+
+  it('subtracts roundingSurplus from the balance (FR-REP-04a/04c, M8)', async () => {
+    await seedTenancy('tenancy-1')
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      status: 'signed',
+      calculatedTotal: 2382.17,
+      finalTotal: 2390,
+      roundingSurplus: 7.83,
+      amountPaid: 2390, // paid the rounded figure in full
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    // 2390 - 2390 - 7.83 = -7.83: the surplus becomes the tenant's credit,
+    // even though the tenant paid every lei of what was asked.
+    expect(snap.data().currentBalance).toBeCloseTo(-7.83, 2)
+  })
+
+  it('treats an absent roundingSurplus as 0 (no rounding action ever applied)', async () => {
+    await seedTenancy('tenancy-1')
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      status: 'signed',
+      finalTotal: 1500,
+      amountPaid: 1500,
+      // no roundingSurplus key at all
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBe(0)
+  })
+
+  it("a roundingSurplus credit CANCELS across two consecutive signed months (FR-REP-04a's own example)", async () => {
+    await seedTenancy('tenancy-1')
+
+    // Month 1: rounded up from 2382.17 to 2390, paid the rounded figure in
+    // full — the tenant now holds a 7.83 credit no one has consumed yet.
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+      calculatedTotal: 2382.17,
+      finalTotal: 2390,
+      roundingSurplus: 7.83,
+      amountPaid: 2390,
+    })
+    await recomputeCurrentBalance('tenancy-1')
+    let snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBeCloseTo(-7.83, 2)
+
+    // Month 2 opens with that 7.83 credit (mirroring buildInitialValues'
+    // previousMonthCredit = Math.max(-currentBalance, 0)), consumes it in
+    // full via finalTotal, and is itself paid in full — no rounding this
+    // time. If the surplus were lost (never subtracted, or subtracted
+    // twice), this would NOT land back on exactly 0.
+    await seedReport('report-2', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'signed',
+      previousMonthCredit: 7.83,
+      calculatedTotal: 1492.17, // e.g. 1500 rent - 7.83 credit
+      finalTotal: 1492.17,
+      roundingSurplus: 0,
+      amountPaid: 1492.17,
+    })
+    await recomputeCurrentBalance('tenancy-1')
+    snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBeCloseTo(0, 2)
   })
 
   it('ignores a DRAFT report even if it is more recent than the last signed one', async () => {

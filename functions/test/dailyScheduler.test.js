@@ -121,6 +121,8 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       endDate: '2030-01-01', // far away -> A5 does not fire
       reportReminderDaysBefore: 3, // next occurrence is ~28 days out -> A6 does not fire
     })
+    // FR-PAY-04 precondition (M8): a signed report must exist.
+    await seedSignedReport('report-1', { tenancyId: 'tenancy-1' })
 
     await dailySchedulerHandler(FAKE_EVENT)
 
@@ -129,6 +131,27 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     const mail = mailSnap.docs[0].data()
     expect(mail.to).toEqual(['ion@example.com'])
     expect(mail.message.subject).toContain('Reamintire')
+  })
+
+  it('does NOT send A4 when the tenancy has arrears but no signed report exists yet (FR-PAY-04 precondition, M8)', async () => {
+    await seedUser('user-1', {
+      preferredLanguage: 'ro',
+      email: 'ion@example.com',
+    })
+    await seedTenancy('tenancy-1', {
+      userId: 'user-1',
+      dueDay: 12,
+      currentBalance: 500,
+      endDate: '2030-01-01',
+      reportReminderDaysBefore: 999,
+    })
+    // Deliberately NO seedSignedReport — anti-vacuity for the M8 precondition:
+    // this is exactly the input the pre-M8 implementation would have fired for.
+
+    await dailySchedulerHandler(FAKE_EVENT)
+
+    const mailSnap = await db.collection('mail').get()
+    expect(mailSnap.size).toBe(0)
   })
 
   it('skips A5 and A6 when ADMIN_EMAIL is unset, logs once, and still sends A4', async () => {
@@ -148,6 +171,7 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       endDate: addDays(TODAY, 90), // exactly 90 days out -> A5 would fire too
       reportReminderDaysBefore: 28,
     })
+    await seedSignedReport('report-1', { tenancyId: 'tenancy-1' })
 
     await dailySchedulerHandler(FAKE_EVENT)
 
@@ -167,6 +191,7 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       endDate: '2030-01-01',
       reportReminderDaysBefore: 999,
     })
+    await seedSignedReport('report-broken', { tenancyId: 'tenancy-broken' })
     await seedUser('user-2', {
       preferredLanguage: 'en',
       email: 'jane@example.com',
@@ -178,6 +203,7 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       endDate: '2030-01-01',
       reportReminderDaysBefore: 999,
     })
+    await seedSignedReport('report-ok', { tenancyId: 'tenancy-ok' })
 
     await expect(dailySchedulerHandler(FAKE_EVENT)).resolves.toBeUndefined()
 
@@ -196,6 +222,9 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       endDate: addDays(TODAY, 90), // exactly 90 days out -> A5 fires
       reportReminderDaysBefore: 999, // keep A6 out of this test
     })
+    // FR-PAY-04 precondition (M8): without a signed report, family 1 would
+    // never even attempt the `users` lookup this test depends on throwing.
+    await seedSignedReport('report-1', { tenancyId: 'tenancy-1' })
 
     await dailySchedulerHandler(FAKE_EVENT)
 

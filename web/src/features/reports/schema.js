@@ -2,13 +2,20 @@ import { z } from 'zod'
 
 /**
  * Validation + initial-values logic for the monthly report DRAFT form
- * (FR-REP-01…05/11/14/04a/04b/04c, FR-DOC-01…05, SRS §6). Sub-stage 1+2+3 of
- * M4 — draft only, no signing/lock (sub-stage 4). No rounding
- * suggestion/button exists (dropped from the SRS at 5abb5bd) — `finalTotal`
- * only mirrors the exact `calculatedTotal` until the admin edits it manually
- * (MonthlyReportPage owns that dirty-flag orchestration; this file only
- * decides the STARTING values and whether a reopened report counts as
- * "already diverged").
+ * (FR-REP-01…05/11/14/04a/04b/04c/04d, FR-DOC-01…05, SRS §6).
+ * `finalTotal` mirrors the exact `calculatedTotal` until the admin edits it
+ * manually OR applies the rounding action (FR-REP-04a, reintroduced at M8 —
+ * the "no rounding button" note this comment used to carry, from 5abb5bd,
+ * was superseded by v4.6's reversal; MonthlyReportPage owns both the
+ * dirty-flag orchestration AND the rounding action; this file only decides
+ * the STARTING values and whether a reopened report counts as "already
+ * diverged").
+ *
+ * `roundingSurplus` (FR-REP-04a/04c, SRS §6): set ONLY by the rounding
+ * action, never by a manual edit of `finalTotal` (which clears it). A
+ * SIGNED report's surplus is frozen exactly like `previousMonthArrears`/
+ * `previousMonthCredit` below — it is a stored fact about how that report's
+ * `finalTotal` was produced, not something this file re-derives.
  *
  * Cost-line `attachments[]` (sub-stage 3): this file only decides the
  * STARTING values (existing refs carried over, resynced onto still-active
@@ -73,6 +80,7 @@ export const reportSchema = z.object({
   previousMonthArrears: amountField(),
   previousMonthCredit: amountField(),
   finalTotal: amountField(),
+  roundingSurplus: amountField(),
   dueDate: required(),
 })
 
@@ -87,6 +95,7 @@ export const reportFormDefaults = {
   previousMonthArrears: 0,
   previousMonthCredit: 0,
   finalTotal: 0,
+  roundingSurplus: 0,
   dueDate: '',
 }
 
@@ -113,6 +122,17 @@ export function calculateTotal(values) {
     (Number(values.previousMonthArrears) || 0) -
     (Number(values.previousMonthCredit) || 0)
   )
+}
+
+/**
+ * The rounding action (FR-REP-04a): rounds `calculatedTotal` UPWARD to the
+ * next multiple of 10. Only meaningful for `calculatedTotal > 0` — the
+ * caller (MonthlyReportPage) gates the button itself on that, per FR-REP-04a
+ * ("unavailable when calculatedTotal ≤ 0" — rounding a credit "up" moves it
+ * toward zero, quietly shrinking money the product owes the tenant).
+ */
+export function computeRoundedTotal(calculatedTotal) {
+  return Math.ceil(calculatedTotal / 10) * 10
 }
 
 /**
@@ -245,6 +265,10 @@ export function buildInitialValues({
         })),
         previousMonthArrears,
         previousMonthCredit,
+        // FR-REP-04a/04c: a stored fact about how THIS report's finalTotal
+        // was produced (rounding action or none) — carried over on every
+        // reopen exactly like the cost lines above, never re-derived here.
+        roundingSurplus: existingReport.roundingSurplus ?? 0,
         dueDate:
           existingReport.dueDate ??
           buildDueDate(year, month, tenancy?.dueDay ?? 1),
@@ -256,6 +280,7 @@ export function buildInitialValues({
         otherExpenses: [],
         previousMonthArrears,
         previousMonthCredit,
+        roundingSurplus: 0,
         dueDate: buildDueDate(year, month, tenancy?.dueDay ?? 1),
       }
 
@@ -269,8 +294,44 @@ export function buildInitialValues({
 }
 
 /** Epsilon for the finalTotal/calculatedTotal comparison below — floating-point
- * money math, not an exact-equality domain. */
-const FINAL_TOTAL_EPSILON = 0.005
+ * money math, not an exact-equality domain (NFR-VAL-03: money is never
+ * compared exactly). Exported — MonthlyReportPage's live "Adjustment" line
+ * (FR-REP-04d) needs the same tolerance, not a re-declared one. */
+export const FINAL_TOTAL_EPSILON = 0.005
+
+/**
+ * FR-REP-04e: whether a report's `finalTotal` diverges MATERIALLY from its
+ * `calculatedTotal` — `|finalTotal − calculatedTotal| > max(5, 1% of
+ * |calculatedTotal|)` — and therefore requires the second confirmation +
+ * written reason at signing.
+ *
+ * **The rounding action is exempt, but ONLY for as much of the divergence as
+ * it actually explains.** A report is exempt when `finalTotal −
+ * calculatedTotal` still EQUALS the stored `roundingSurplus` (within
+ * epsilon) — the ordinary case, where nothing has changed since the
+ * rounding action ran. If a cost line is edited AFTER rounding (finalTotal
+ * stays frozen at the rounded value — the mirror effect only runs while
+ * `!isFinalTotalDirty`, and rounding sets that dirty — while `calculatedTotal`
+ * keeps moving), the two drift apart: the divergence is no longer fully
+ * accounted for by the surplus, and the EXCESS is exactly the kind of
+ * unexplained gap FR-REP-04e exists to catch. A blanket "roundingSurplus > 0
+ * -> always exempt" would open a loophole where any edit made after a
+ * rounding action, however large, sails past the guard silently — this
+ * checks that the surplus still explains the WHOLE gap, not merely that one
+ * was ever set.
+ */
+export function isMaterialFinalTotalOverride(
+  finalTotal,
+  calculatedTotal,
+  roundingSurplus,
+) {
+  const divergence = (finalTotal ?? 0) - (calculatedTotal ?? 0)
+  const explainedByRounding =
+    Math.abs(divergence - (roundingSurplus ?? 0)) < FINAL_TOTAL_EPSILON
+  if (explainedByRounding) return false
+  const threshold = Math.max(5, Math.abs(calculatedTotal ?? 0) * 0.01)
+  return Math.abs(divergence) > threshold
+}
 
 /**
  * Decides whether a REOPENED report's `finalTotal` was manually diverged from

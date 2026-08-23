@@ -491,6 +491,114 @@ describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', ()
   })
 })
 
+describe('MonthlyReportPage — rounding action (FR-REP-04a/04c/04d, M8 stage 5)', () => {
+  it('shows a "round up" button proposing the next multiple of 10, and applying it sets finalTotal + shows the rounding line', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '13') // total: 1513 -> rounds to 1520
+
+    const roundButton = await screen.findByText('Rotunjește la 1.520,00 lei')
+    await user.click(roundButton)
+
+    expect(screen.getByLabelText('Total final')).toHaveValue(1520)
+    expect(
+      screen.getByText(
+        'Rotunjire: +7,00 lei — reportat ca credit luna următoare',
+      ),
+    ).toBeVisible()
+  })
+
+  it('hides the round-up button once the total is zero or negative (FR-REP-04a: unavailable when calculatedTotal <= 0)', async () => {
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    await screen.findByText('Gas')
+    expect(screen.getByText(/Rotunjește la/)).toBeVisible()
+
+    const rentInput = screen.getByLabelText('Chirie')
+    const user = userEvent.setup()
+    await user.clear(rentInput)
+    await user.type(rentInput, '0')
+
+    expect(screen.queryByText(/Rotunjește la/)).toBeNull()
+  })
+
+  it('a manual edit of finalTotal clears a previously-applied rounding surplus (FR-REP-04c)', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '13')
+    await user.click(await screen.findByText('Rotunjește la 1.520,00 lei'))
+    expect(screen.getByText(/^Rotunjire:/)).toBeVisible()
+
+    const finalTotalInput = screen.getByLabelText('Total final')
+    await user.clear(finalTotalInput)
+    await user.type(finalTotalInput, '1500')
+
+    expect(screen.queryByText(/^Rotunjire:/)).not.toBeInTheDocument()
+    expect(screen.getByText('Ajustare: -13,00 lei')).toBeVisible()
+
+    await user.click(screen.getByText('Salvează draftul'))
+    expect(mutateAsync.mock.calls[0][0].values.roundingSurplus).toBe(0)
+  })
+
+  it('reopening a draft with a saved roundingSurplus shows the rounding line immediately', async () => {
+    mockData({
+      report: {
+        id: 't1_2026-07',
+        rent: { amount: 1500, notes: '' },
+        maintenance: { amount: 0, notes: '' },
+        serviceCosts: [
+          { serviceId: 'gas', name: 'Gas', amount: 0, notes: '' },
+          {
+            serviceId: 'electricity',
+            name: 'Electricity',
+            amount: 0,
+            notes: '',
+          },
+        ],
+        otherExpenses: [],
+        previousMonthArrears: 0,
+        previousMonthCredit: 0,
+        calculatedTotal: 1500,
+        finalTotal: 1510,
+        roundingSurplus: 10,
+        dueDate: '2026-07-05',
+      },
+    })
+    await renderWithProviders(<MonthlyReportPage />)
+
+    expect(
+      await screen.findByText(
+        'Rotunjire: +10,00 lei — reportat ca credit luna următoare',
+      ),
+    ).toBeVisible()
+  })
+
+  it('saves roundingSurplus as part of the draft payload', async () => {
+    const user = userEvent.setup()
+    mockData()
+    await renderWithProviders(<MonthlyReportPage />)
+
+    const maintenanceInput = (await screen.findAllByRole('spinbutton'))[1]
+    await user.clear(maintenanceInput)
+    await user.type(maintenanceInput, '13')
+    await user.click(await screen.findByText('Rotunjește la 1.520,00 lei'))
+
+    await user.click(screen.getByText('Salvează draftul'))
+
+    expect(mutateAsync.mock.calls[0][0].values.roundingSurplus).toBe(7)
+    expect(mutateAsync.mock.calls[0][0].values.finalTotal).toBe(1520)
+  })
+})
+
 function makeFile({
   name = 'invoice.pdf',
   size = 1024,

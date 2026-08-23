@@ -675,9 +675,12 @@ function handoverOutTenancy(ownerId, property) {
     dueDay: 1,
     reportReminderDaysBefore: 3,
     paymentReminderDaysBefore: 3,
-    currentBalance: 0,
     status: 'ended',
     endedAt: Timestamp.fromDate(new Date('2026-07-14')),
+    // Placeholder — both fields are overwritten by `reseedHandoverScenario`
+    // right after the report write, once the real balance (which depends on
+    // HANDOVER_OUT_REPORT's roundingSurplus) is known.
+    currentBalance: 0,
     closingBalance: 0,
     attachedDocuments: [],
   }
@@ -737,7 +740,7 @@ function buildDueDate(year, month, dueDay) {
  *      previousMonthArrears = Math.max(balance, 0)
  *      previousMonthCredit  = Math.max(-balance, 0)
  *  - `recomputeCurrentBalance` (functions/src/reports.js):
- *      balance after a report = finalTotal - (amountPaid ?? 0)
+ *      balance after a report = finalTotal - (amountPaid ?? 0) - (roundingSurplus ?? 0)
  *
  * Each month's payment `intent` uses the EXACT field-set the real mutations
  * write for that state — not an invented shape (plan §5 risk #2):
@@ -807,6 +810,10 @@ function foldReportChain(costLines, months) {
     // else: payment omitted -> "absent" state, paymentFields stays {},
     // amountPaidForBalance stays 0 (never touched, just signed).
 
+    // No `- roundingSurplus` term: this fold's roundingSurplus is always 0
+    // (see the field's own comment below), so `recomputeCurrentBalance`'s
+    // extra subtraction is a no-op here — omitted rather than written as a
+    // literal `- 0`.
     balance = finalTotal - amountPaidForBalance
 
     return {
@@ -823,13 +830,14 @@ function foldReportChain(costLines, months) {
       previousMonthCredit,
       calculatedTotal: finalTotal,
       finalTotal,
-      // M8, FR-REP-04a: present and explicit (`0`) on every seeded report,
-      // not absent. A genuine non-zero value — subtracted when the balance
-      // is derived, carried forward as credit — needs stage 5's corrected
-      // `recomputeCurrentBalance` to land first; seeding one against
-      // today's pre-stage-5 formula would make this fold's own
-      // `finalBalance` (hand-set onto `currentBalance` below) wrong by
-      // construction. Deliberately deferred, not forgotten.
+      // M8, FR-REP-04a: every cost line this fold's chains use is already a
+      // round multiple of 10 (and stays round through arrears/credit, which
+      // are themselves derived from round `finalTotal`s), so the rounding
+      // ACTION never has anything to round here — `0` on every row is
+      // therefore correct, not a stand-in. The one reachable non-zero
+      // roundingSurplus in the seed lives on HANDOVER_OUT_REPORT (a literal,
+      // not fold-generated), where a deliberately non-round otherExpense
+      // line makes a real surplus possible.
       roundingSurplus: 0,
       ...paymentFields,
     }
@@ -1504,12 +1512,26 @@ const HANDOVER_OUT_REPORT = {
     },
     { serviceId: 'water', name: 'Apă', amount: 20, notes: '', attachments: [] },
   ],
-  otherExpenses: [],
+  // M8, FR-REP-04a: this is the seed's ONE reachable rounding-action example
+  // (CLAUDE.md §7's seed-completeness rule — "every state a requirement
+  // describes should be reachable in seeded data"). A small negative
+  // adjustment line is what makes calculatedTotal land off a multiple of 10
+  // in the first place — rent/services alone are already round numbers
+  // throughout this seed, so a rounding surplus can only ever be non-zero
+  // here, deliberately.
+  otherExpenses: [
+    {
+      description: 'Ajustare cont final predare',
+      amount: -3,
+      notes: '',
+      attachments: [],
+    },
+  ],
   previousMonthArrears: 0,
   previousMonthCredit: 0,
-  calculatedTotal: 1010,
-  finalTotal: 1010,
-  roundingSurplus: 0,
+  calculatedTotal: 1007,
+  finalTotal: 1010, // ceil(1007 / 10) * 10 — the rounding action applied
+  roundingSurplus: 3, // 1010 - 1007, carried nowhere further: this tenancy ended
   amountPaid: 1010,
   paymentMethod: 'bank_transfer',
   paymentDate: '2026-07-14',
@@ -1631,10 +1653,26 @@ async function reseedHandoverScenario(ownerId) {
   await writeBatch.commit()
 
   // Hand-set after both report writes, same reasoning as every other
-  // scenario above. The outgoing tenancy is already fully paid (0); the
-  // incoming one is unpaid, so its balance equals its own report's
-  // finalTotal — the two chains never touch each other.
-  await tenancyOutRef.update({ currentBalance: 0 })
+  // scenario above — mirroring `recomputeCurrentBalance`'s corrected M8
+  // formula (finalTotal - amountPaid - roundingSurplus), not a literal.
+  // The outgoing tenancy paid its ROUNDED finalTotal (1010) in full, but
+  // roundingSurplus(3) means only 1007 was actually owed — the 3 lei
+  // difference is a credit the tenant never got to consume (FR-REP-04a's
+  // "carried forward as credit" has nowhere to carry to: this tenancy ended
+  // the same month). `closingBalance` freezes it at termination — the same
+  // pair `endTenancyCore` would have written, hand-mirrored here because
+  // this scenario is seeded already-ended, never via the real transaction.
+  // The incoming tenancy is unpaid and has no rounding, so its balance
+  // equals its own report's finalTotal outright — the two chains never
+  // touch each other.
+  const outClosingBalance =
+    HANDOVER_OUT_REPORT.finalTotal -
+    HANDOVER_OUT_REPORT.amountPaid -
+    HANDOVER_OUT_REPORT.roundingSurplus
+  await tenancyOutRef.update({
+    currentBalance: outClosingBalance,
+    closingBalance: outClosingBalance,
+  })
   await tenancyInRef.update({ currentBalance: HANDOVER_IN_REPORT.finalTotal })
 
   console.log(

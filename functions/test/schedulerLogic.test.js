@@ -127,7 +127,12 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
   ])('elapsed=%i days after due date -> %s', (elapsedDays, expected) => {
     const today = addDays(dueDate, elapsedDays)
     expect(
-      shouldSendArrearsReminder({ today, dueDate, currentBalance: 100 }),
+      shouldSendArrearsReminder({
+        today,
+        dueDate,
+        currentBalance: 100,
+        hasSignedReport: true,
+      }),
     ).toBe(expected)
   })
 
@@ -137,6 +142,7 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, 3),
         dueDate,
         currentBalance: -50,
+        hasSignedReport: true,
       }),
     ).toBe(false)
   })
@@ -147,6 +153,18 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, 3),
         dueDate,
         currentBalance: 0,
+        hasSignedReport: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false for a sub-epsilon currentBalance (NFR-VAL-03: money never compared exactly)', () => {
+    expect(
+      shouldSendArrearsReminder({
+        today: addDays(dueDate, 3),
+        dueDate,
+        currentBalance: 0.001,
+        hasSignedReport: true,
       }),
     ).toBe(false)
   })
@@ -157,6 +175,22 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, -5),
         dueDate,
         currentBalance: 100,
+        hasSignedReport: true,
+      }),
+    ).toBe(false)
+  })
+
+  // Anti-vacuity for the M8 precondition (CLAUDE.md §7): a positive
+  // currentBalance and a fire-eligible elapsed day, but NO signed report —
+  // this exercises exactly the input the OLD (pre-M8) implementation would
+  // have fired a reminder for.
+  it('is false when NO signed report exists yet, even with a fire-eligible balance and day (FR-PAY-04, M8 precondition)', () => {
+    expect(
+      shouldSendArrearsReminder({
+        today: addDays(dueDate, 3),
+        dueDate,
+        currentBalance: 100,
+        hasSignedReport: false,
       }),
     ).toBe(false)
   })

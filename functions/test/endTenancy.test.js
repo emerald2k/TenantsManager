@@ -73,7 +73,7 @@ beforeEach(async () => {
 
 describe('endTenancy — happy path (FR-CON-03/05), symmetric with finalizeKyc', () => {
   it('atomically ends the tenancy, frees the property, and sets the account inactive-readonly', async () => {
-    await seedTenancy('tenancy-1')
+    await seedTenancy('tenancy-1', { currentBalance: 0 })
 
     const result = await endTenancyCore('tenancy-1', 'admin-uid')
     expect(result.tenancyId).toBe('tenancy-1')
@@ -81,6 +81,7 @@ describe('endTenancy — happy path (FR-CON-03/05), symmetric with finalizeKyc',
     const tenancySnap = await db.collection('tenancies').doc('tenancy-1').get()
     expect(tenancySnap.data().status).toBe('ended')
     expect(tenancySnap.data().endedAt).toBeTruthy()
+    expect(tenancySnap.data().closingBalance).toBe(0)
 
     const propertySnap = await db.collection('properties').doc('prop-1').get()
     expect(propertySnap.data().status).toBe('free')
@@ -90,41 +91,36 @@ describe('endTenancy — happy path (FR-CON-03/05), symmetric with finalizeKyc',
   })
 })
 
-describe('endTenancy — arrears guard (FR-CON-04)', () => {
-  // Anti-vacuity: removing the guard from endTenancy.js makes this fail (the
-  // termination would silently succeed instead of being blocked).
-  it('blocks termination when currentBalance > 0 (arrears) — nothing changes', async () => {
+describe('endTenancy — arrears no longer block termination (FR-CON-04, reversed at M8)', () => {
+  // Anti-vacuity for the OLD guard's removal: this is exactly the input the
+  // pre-M8 guard rejected. Re-introducing the guard makes this fail.
+  it('permits termination when currentBalance > 0 (arrears) and freezes it into closingBalance', async () => {
     await seedTenancy('tenancy-1', { currentBalance: 150 })
-
-    await expect(
-      endTenancyCore('tenancy-1', 'admin-uid'),
-    ).rejects.toMatchObject({
-      code: 'failed-precondition',
-      details: { reason: 'arrears' },
-    })
-
-    const tenancySnap = await db.collection('tenancies').doc('tenancy-1').get()
-    expect(tenancySnap.data().status).toBe('active')
-    const propertySnap = await db.collection('properties').doc('prop-1').get()
-    expect(propertySnap.data().status).toBe('occupied')
-    const userSnap = await db.collection('users').doc('user-1').get()
-    expect(userSnap.data().status).toBe('active')
-  })
-
-  it('permits termination when currentBalance is exactly 0', async () => {
-    await seedTenancy('tenancy-1', { currentBalance: 0 })
 
     const result = await endTenancyCore('tenancy-1', 'admin-uid')
     expect(result.tenancyId).toBe('tenancy-1')
+
+    const tenancySnap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(tenancySnap.data().status).toBe('ended')
+    expect(tenancySnap.data().closingBalance).toBe(150)
+    // The debt itself survives termination (FR-DASH-13) — currentBalance is
+    // NOT cleared, only frozen alongside into closingBalance.
+    expect(tenancySnap.data().currentBalance).toBe(150)
+
+    const propertySnap = await db.collection('properties').doc('prop-1').get()
+    expect(propertySnap.data().status).toBe('free')
+    const userSnap = await db.collection('users').doc('user-1').get()
+    expect(userSnap.data().status).toBe('inactive-readonly')
   })
 
-  it('permits termination when currentBalance is negative (credit in the tenant’s favor)', async () => {
+  it('freezes a negative currentBalance (credit in the tenant’s favor) into closingBalance (FR-DASH-14)', async () => {
     await seedTenancy('tenancy-1', { currentBalance: -50 })
 
     await endTenancyCore('tenancy-1', 'admin-uid')
 
     const tenancySnap = await db.collection('tenancies').doc('tenancy-1').get()
     expect(tenancySnap.data().status).toBe('ended')
+    expect(tenancySnap.data().closingBalance).toBe(-50)
   })
 })
 

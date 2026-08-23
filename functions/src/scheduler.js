@@ -39,6 +39,23 @@ if (!getApps().length) {
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 
 /**
+ * Whether the tenancy's tenancyId has ANY signed report at all — FR-PAY-04's
+ * precondition (M8): a reminder about a balance with no signed report to
+ * point at has nothing to name. Same query shape as
+ * `recomputeCurrentBalance`/`hasSignedReportThisMonth` below (two equality
+ * filters, no `orderBy`).
+ */
+async function hasAnySignedReport(db, tenancyId) {
+  const snap = await db
+    .collection('monthlyReports')
+    .where('tenancyId', '==', tenancyId)
+    .where('status', '==', 'signed')
+    .limit(1)
+    .get()
+  return !snap.empty
+}
+
+/**
  * Whether the tenancy's tenancyId already has a SIGNED report for the given
  * `year`/`month`. Same query shape as `recomputeCurrentBalance`
  * (reports.js): two equality filters (`tenancyId`, `status`), no `orderBy`
@@ -80,11 +97,13 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
   // for family 3, below, and which could point at a FUTURE month instead).
   try {
     const arrearsDueDate = dueDateInMonth(year, month, tenancy.dueDay)
+    const signedReportExists = await hasAnySignedReport(db, tenancyId)
     if (
       shouldSendArrearsReminder({
         today,
         dueDate: arrearsDueDate,
         currentBalance: tenancy.currentBalance,
+        hasSignedReport: signedReportExists,
       })
     ) {
       const userSnap = await db.collection('users').doc(tenancy.userId).get()

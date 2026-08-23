@@ -205,9 +205,9 @@ export function useSignReport() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id }) => {
+    mutationFn: ({ id, overrideReason }) => {
       const signReport = httpsCallable(functions, 'signReport')
-      return signReport({ reportId: id })
+      return signReport({ reportId: id, overrideReason })
     },
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
