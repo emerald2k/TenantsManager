@@ -29,13 +29,21 @@ import { derivePaymentStatus } from './schema'
 const COLLECTION = 'monthlyReports'
 
 /**
- * Deterministic id on (propertyId + month + year) — FR-REP-14's uniqueness
+ * Deterministic id on (tenancyId + month + year) — FR-REP-14's uniqueness
  * guarantee lives here, structurally: there is no separate "create" path that
- * could produce a duplicate, because the id for a given property+month+year
- * is always the same document.
+ * could produce a duplicate, because the id for a given tenancy+month+year is
+ * always the same document.
+ *
+ * Re-keyed at M8 from `propertyId_YYYY-MM` (SRS §9, FR-REP-14): a mid-month
+ * handover puts two tenancies on one property inside one calendar month, and
+ * the old key could only ever bill one of them. Argument order is
+ * (tenancyId, year, month) — reconciled with `functions/scripts/seed.js`'s
+ * own copy of this function, which previously used this order while this
+ * file used (id, month, year); a mechanical rename would have preserved that
+ * mismatch across the two packages.
  */
-export function buildReportId(propertyId, month, year) {
-  return `${propertyId}_${year}-${String(month).padStart(2, '0')}`
+export function buildReportId(tenancyId, year, month) {
+  return `${tenancyId}_${year}-${String(month).padStart(2, '0')}`
 }
 
 export const reportKeys = {
@@ -51,12 +59,13 @@ function reportRef(id) {
 }
 
 /**
- * A single month's report, by property+month+year. `null` (not an error) when
- * none exists yet — a fresh month with no report is a normal, expected state
- * (same reasoning as `useActiveTenancyForProperty`), not a failure.
+ * A single month's report, by tenancy+month+year (FR-REP-14). `null` (not an
+ * error) when none exists yet — a fresh month with no report is a normal,
+ * expected state (same reasoning as `useActiveTenancyForProperty`), not a
+ * failure.
  */
-export function useMonthlyReport({ propertyId, month, year }) {
-  const id = propertyId ? buildReportId(propertyId, month, year) : null
+export function useMonthlyReport({ tenancyId, month, year }) {
+  const id = tenancyId ? buildReportId(tenancyId, year, month) : null
 
   return useQuery({
     queryKey: reportKeys.detail(id),

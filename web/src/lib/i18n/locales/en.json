@@ -330,8 +330,13 @@
     }
   },
   "reports": {
-    "notFound": "This property does not exist.",
-    "noActiveTenancy": "This property has no active tenancy — a report cannot be created.",
+    "notFound": "This tenancy does not exist.",
+    "noTenancyForMonth": "No tenancy on this property covers this month.",
+    "pickTenancy": {
+      "title": "Which tenancy?",
+      "description": "More than one tenancy covered this property this month — pick the one this report belongs to.",
+      "ongoing": "ongoing"
+    },
     "sections": {
       "rent": "Rent",
       "maintenance": "Maintenance",

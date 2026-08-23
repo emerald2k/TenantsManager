@@ -21,6 +21,7 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 
 function tenancy(overrides) {
   return {
+    id: 't1',
     propertyId: 'p1',
     tenantName: 'Ion Popescu',
     property: { name: 'Apartament Centru' },
@@ -135,15 +136,15 @@ describe('CurrentMonthPage', () => {
     expect(screen.getByText('Nicio proprietate ocupată încă.')).toBeVisible()
   })
 
-  it('clicking a row navigates to the report form with propertyId, month and year', async () => {
-    mockData({ tenancies: [tenancy({ propertyId: 'p7' })] })
+  it('clicking a row navigates to the report form with tenancyId, month and year (FR-REP-14)', async () => {
+    mockData({ tenancies: [tenancy({ id: 't7', propertyId: 'p7' })] })
     await renderWithProviders(<CurrentMonthPage />)
 
     screen.getByRole('row', { name: /Apartament Centru/ }).click()
 
     const now = new Date()
     expect(navigate).toHaveBeenCalledWith(
-      `/admin/reports/p7?month=${now.getMonth() + 1}&year=${now.getFullYear()}`,
+      `/admin/reports/t7?month=${now.getMonth() + 1}&year=${now.getFullYear()}`,
     )
   })
 

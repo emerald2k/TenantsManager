@@ -9,6 +9,7 @@ import { TenantsListPage } from '@/features/tenants/pages/TenantsListPage'
 import { TenantDetailPage } from '@/features/tenants/pages/TenantDetailPage'
 import { OnboardingWizardPage } from '@/features/onboarding/pages/OnboardingWizardPage'
 import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
+import { PropertyReportRedirectPage } from '@/features/reports/pages/PropertyReportRedirectPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
 import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
@@ -59,8 +60,17 @@ export function AppRoutes() {
             />
             <Route path="/admin/tenants/:id" element={<TenantDetailPage />} />
             <Route
-              path="/admin/reports/:propertyId"
+              path="/admin/reports/:tenancyId"
               element={<MonthlyReportPage />}
+            />
+            {/* Re-keyed at M8 (FR-REP-14): monthlyReports is keyed by
+                tenancy, not property, so a property alone can no longer say
+                which report to open. Two path segments keep this distinct
+                from the :tenancyId route above regardless of declaration
+                order. */}
+            <Route
+              path="/admin/reports/property/:propertyId"
+              element={<PropertyReportRedirectPage />}
             />
             {/* Phase 2 */}
             <Route

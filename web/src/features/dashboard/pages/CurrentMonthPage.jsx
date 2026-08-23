@@ -82,6 +82,7 @@ export function CurrentMonthPage() {
         const report = reportsByProperty.get(tenancy.propertyId) ?? null
         return {
           propertyId: tenancy.propertyId,
+          tenancyId: tenancy.id,
           propertyName: tenancy.property?.name ?? '',
           tenantName: tenancy.tenantName,
           badge: deriveReportStatusBadge(report),
@@ -91,9 +92,13 @@ export function CurrentMonthPage() {
       .sort((a, b) => a.propertyName.localeCompare(b.propertyName))
   }, [tenancies.data, reports.data])
 
-  function goToReport(propertyId) {
+  // Links straight to the tenancy-scoped report route (FR-REP-14) — this
+  // list is already built from ACTIVE tenancies (FR-CON-02: at most one per
+  // property), so which tenancy a row means is never ambiguous here. No
+  // property->tenancy resolution needed, unlike a bare property-level link.
+  function goToReport(tenancyId) {
     navigate(
-      `/admin/reports/${propertyId}?month=${selected.month}&year=${selected.year}`,
+      `/admin/reports/${tenancyId}?month=${selected.month}&year=${selected.year}`,
     )
   }
 
@@ -167,11 +172,11 @@ export function CurrentMonthPage() {
               {rows.map((row) => (
                 <tr
                   key={row.propertyId}
-                  onClick={() => goToReport(row.propertyId)}
+                  onClick={() => goToReport(row.tenancyId)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      goToReport(row.propertyId)
+                      goToReport(row.tenancyId)
                     }
                   }}
                   tabIndex={0}

@@ -82,18 +82,18 @@ beforeEach(() => {
 })
 
 describe('buildReportId (FR-REP-14 — composite/unique id)', () => {
-  it('builds a deterministic id from propertyId+month+year, zero-padding the month', () => {
-    expect(buildReportId('p1', 7, 2026)).toBe('p1_2026-07')
-    expect(buildReportId('p1', 12, 2026)).toBe('p1_2026-12')
+  it('builds a deterministic id from tenancyId+year+month, zero-padding the month', () => {
+    expect(buildReportId('t1', 2026, 7)).toBe('t1_2026-07')
+    expect(buildReportId('t1', 2026, 12)).toBe('t1_2026-12')
   })
 
-  it('produces the SAME id every time for the same property+month+year', () => {
-    expect(buildReportId('p1', 7, 2026)).toBe(buildReportId('p1', 7, 2026))
+  it('produces the SAME id every time for the same tenancy+month+year', () => {
+    expect(buildReportId('t1', 2026, 7)).toBe(buildReportId('t1', 2026, 7))
   })
 
-  it('produces different ids for different properties or months', () => {
-    expect(buildReportId('p1', 7, 2026)).not.toBe(buildReportId('p2', 7, 2026))
-    expect(buildReportId('p1', 7, 2026)).not.toBe(buildReportId('p1', 8, 2026))
+  it('produces different ids for different tenancies or months', () => {
+    expect(buildReportId('t1', 2026, 7)).not.toBe(buildReportId('t2', 2026, 7))
+    expect(buildReportId('t1', 2026, 7)).not.toBe(buildReportId('t1', 2026, 8))
   })
 })
 
@@ -101,22 +101,23 @@ describe('useMonthlyReport', () => {
   it('parses the document, with its id, when it exists', async () => {
     getDoc.mockResolvedValue({
       exists: () => true,
-      id: 'p1_2026-07',
-      data: () => ({ propertyId: 'p1', status: 'draft' }),
+      id: 't1_2026-07',
+      data: () => ({ propertyId: 'p1', tenancyId: 't1', status: 'draft' }),
     })
 
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: 'p1', month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: 't1', month: 7, year: 2026 }),
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual({
-      id: 'p1_2026-07',
+      id: 't1_2026-07',
       propertyId: 'p1',
+      tenancyId: 't1',
       status: 'draft',
     })
     expect(getDoc).toHaveBeenCalledWith({
-      __doc: 'monthlyReports/p1_2026-07',
+      __doc: 'monthlyReports/t1_2026-07',
     })
   })
 
@@ -124,16 +125,16 @@ describe('useMonthlyReport', () => {
     getDoc.mockResolvedValue({ exists: () => false })
 
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: 'p1', month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: 't1', month: 7, year: 2026 }),
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toBeNull()
   })
 
-  it('reads nothing without a propertyId', async () => {
+  it('reads nothing without a tenancyId', async () => {
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: undefined, month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: undefined, month: 7, year: 2026 }),
     )
 
     expect(result.current.fetchStatus).toBe('idle')

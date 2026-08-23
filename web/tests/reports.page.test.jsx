@@ -3,10 +3,8 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { MonthlyReportPage } from '@/features/reports/pages/MonthlyReportPage'
-import {
-  useActiveTenancyForProperty,
-  useProperty,
-} from '@/features/properties/hooks'
+import { useProperty } from '@/features/properties/hooks'
+import { useTenancy } from '@/features/tenants/hooks'
 import {
   useCancelPayment,
   useMarkPayment,
@@ -29,9 +27,17 @@ import {
 
 vi.mock('@/features/properties/hooks', () => ({
   useProperty: vi.fn(),
-  useActiveTenancyForProperty: vi.fn(),
+}))
+vi.mock('@/features/tenants/hooks', () => ({
+  useTenancy: vi.fn(),
 }))
 vi.mock('@/features/reports/hooks', () => ({
+  // Real implementation, not a stub: `handleValid` calls it directly to
+  // build the save id, and this file's own assertions expect the exact
+  // `t1_2026-07` shape it produces — a `vi.fn()` stub would return
+  // `undefined` and break every save-path test, not just skip coverage.
+  buildReportId: (tenancyId, year, month) =>
+    `${tenancyId}_${year}-${String(month).padStart(2, '0')}`,
   useMonthlyReport: vi.fn(),
   useSaveReportDraft: vi.fn(),
   useSignReport: vi.fn(),
@@ -49,7 +55,7 @@ vi.mock('jspdf', () => ({ jsPDF: vi.fn(function jsPDFMock() {}) }))
 vi.mock('html2canvas-pro', () => ({ default: vi.fn() }))
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal()),
-  useParams: () => ({ propertyId: 'p1' }),
+  useParams: () => ({ tenancyId: 't1' }),
   useSearchParams: () => [
     new URLSearchParams({ month: '7', year: '2026' }),
     vi.fn(),
@@ -89,6 +95,7 @@ const PROPERTY = {
 }
 const TENANCY = {
   id: 't1',
+  propertyId: 'p1',
   userId: 'u1',
   tenantName: 'Ana Pop',
   monthlyRent: 1500,
@@ -96,14 +103,16 @@ const TENANCY = {
 }
 
 function mockData({ report = null } = {}) {
+  useTenancy.mockReturnValue({
+    data: TENANCY,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  })
   useProperty.mockReturnValue({
     data: PROPERTY,
     isPending: false,
     isError: false,
-  })
-  useActiveTenancyForProperty.mockReturnValue({
-    data: TENANCY,
-    isPending: false,
   })
   useMonthlyReport.mockReturnValue({ data: report, isPending: false })
 }
@@ -119,7 +128,7 @@ const revokeMutateAsync = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mutateAsync.mockResolvedValue('p1_2026-07')
+  mutateAsync.mockResolvedValue('t1_2026-07')
   useSaveReportDraft.mockReturnValue({ mutateAsync, isPending: false })
   signMutateAsync.mockResolvedValue({})
   unlockMutateAsync.mockResolvedValue({})
@@ -205,7 +214,7 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
   it('opens an existing draft with its SAVED values, not blank ones (FR-REP-14)', async () => {
     mockData({
       report: {
-        id: 'p1_2026-07',
+        id: 't1_2026-07',
         rent: { amount: 1600, notes: '' },
         maintenance: { amount: 50, notes: '' },
         serviceCosts: [
@@ -230,45 +239,54 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
     expect(screen.getByDisplayValue('2026-07-10')).toBeVisible()
   })
 
-  it('shows an empty state instead of the form when the property has no active tenancy', async () => {
-    useProperty.mockReturnValue({
-      data: PROPERTY,
-      isPending: false,
-      isError: false,
-    })
-    useActiveTenancyForProperty.mockReturnValue({
+  it('shows the not-found message and a Retry button when the tenancy does not exist (FR-REP-14 — no more "active-only" gate)', async () => {
+    const refetch = vi.fn()
+    useTenancy.mockReturnValue({
       data: null,
       isPending: false,
+      isError: false,
+      refetch,
     })
-    useMonthlyReport.mockReturnValue({ data: null, isPending: false })
-
-    await renderWithProviders(<MonthlyReportPage />)
-
-    expect(
-      await screen.findByText(
-        'Această proprietate nu are o tenanță activă — nu se poate crea un raport.',
-      ),
-    ).toBeVisible()
-  })
-
-  it('shows the not-found message and a Retry button when the property query errors, and Retry re-runs it', async () => {
-    const refetch = vi.fn()
     useProperty.mockReturnValue({
       data: undefined,
       isPending: false,
-      isError: true,
-      refetch,
-    })
-    useActiveTenancyForProperty.mockReturnValue({
-      data: null,
-      isPending: false,
+      isError: false,
     })
     useMonthlyReport.mockReturnValue({ data: null, isPending: false })
     const user = userEvent.setup()
 
     await renderWithProviders(<MonthlyReportPage />)
 
-    expect(screen.getByText('Această proprietate nu există.')).toBeVisible()
+    expect(screen.getByText('Această tenanță nu există.')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the not-found message and a Retry button when the PROPERTY behind a valid tenancy errors, and Retry re-runs it', async () => {
+    const refetch = vi.fn()
+    useTenancy.mockReturnValue({
+      data: TENANCY,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+    useProperty.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch,
+    })
+    useMonthlyReport.mockReturnValue({ data: null, isPending: false })
+    const user = userEvent.setup()
+
+    await renderWithProviders(<MonthlyReportPage />)
+
+    // Same message as the tenancy-not-found case: `reports.notFound` covers
+    // both guards on MonthlyReportPage, deliberately — see the page's own
+    // comment on the two `if` blocks.
+    expect(screen.getByText('Această tenanță nu există.')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
 
@@ -338,7 +356,7 @@ describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', ()
     const user = userEvent.setup()
     mockData({
       report: {
-        id: 'p1_2026-07',
+        id: 't1_2026-07',
         rent: { amount: 1500, notes: '' },
         maintenance: { amount: 0, notes: '' },
         serviceCosts: [
@@ -373,7 +391,7 @@ describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', ()
     const user = userEvent.setup()
     mockData({
       report: {
-        id: 'p1_2026-07',
+        id: 't1_2026-07',
         rent: { amount: 1500, notes: '' },
         maintenance: { amount: 0, notes: '' },
         serviceCosts: [
@@ -409,7 +427,7 @@ describe('MonthlyReportPage — finalTotal (M4 sub-stage 2, FR-REP-04a/04b)', ()
     const user = userEvent.setup()
     mockData({
       report: {
-        id: 'p1_2026-07',
+        id: 't1_2026-07',
         rent: { amount: 1500, notes: '' },
         maintenance: { amount: 0, notes: '' },
         serviceCosts: [
@@ -482,13 +500,13 @@ function makeFile({
 }
 
 const REPORT_WITH_RENT_ATTACHMENT = {
-  id: 'p1_2026-07',
+  id: 't1_2026-07',
   rent: {
     amount: 1500,
     notes: '',
     attachments: [
       {
-        path: 'reports/p1_2026-07/invoices/lease.pdf',
+        path: 'reports/t1_2026-07/invoices/lease.pdf',
         name: 'lease.pdf',
         type: 'pdf',
       },
@@ -574,7 +592,7 @@ describe('MonthlyReportPage — attachments per line (M4 sub-stage 3, FR-DOC-01�
 
     expect(mutateAsync).toHaveBeenCalledTimes(1)
     expect(mutateAsync.mock.calls[0][0].previousAttachmentPaths).toEqual([
-      'reports/p1_2026-07/invoices/lease.pdf',
+      'reports/t1_2026-07/invoices/lease.pdf',
     ])
   })
 
@@ -616,7 +634,7 @@ describe('MonthlyReportPage — isNew propagation (M4 sub-stage 4, create/re-sav
 })
 
 const SIGNED_REPORT = {
-  id: 'p1_2026-07',
+  id: 't1_2026-07',
   status: 'signed',
   signedAt: '2026-07-01T10:00:00Z',
   rent: { amount: 1500, notes: '', attachments: [] },
@@ -719,7 +737,7 @@ describe('MonthlyReportPage — locked when signed (M4 sub-stage 4, FR-REP-07)',
     ).toBeVisible()
     await user.click(screen.getByText('Semnează'))
 
-    expect(signMutateAsync).toHaveBeenCalledWith({ id: 'p1_2026-07' })
+    expect(signMutateAsync).toHaveBeenCalledWith({ id: 't1_2026-07' })
   })
 
   it('unlocking calls unlockReport with the report id, via a confirmation dialog', async () => {
@@ -730,7 +748,7 @@ describe('MonthlyReportPage — locked when signed (M4 sub-stage 4, FR-REP-07)',
     await user.click(await screen.findByText('Deblochează pentru corecție'))
     await user.click(screen.getByText('Deblochează'))
 
-    expect(unlockMutateAsync).toHaveBeenCalledWith({ id: 'p1_2026-07' })
+    expect(unlockMutateAsync).toHaveBeenCalledWith({ id: 't1_2026-07' })
   })
 
   it('does not resync serviceCosts against the live property once signed (FR-PROP-08 — page-level integration)', async () => {
@@ -742,9 +760,11 @@ describe('MonthlyReportPage — locked when signed (M4 sub-stage 4, FR-REP-07)',
       isPending: false,
       isError: false,
     })
-    useActiveTenancyForProperty.mockReturnValue({
+    useTenancy.mockReturnValue({
       data: TENANCY,
       isPending: false,
+      isError: false,
+      refetch: vi.fn(),
     })
     useMonthlyReport.mockReturnValue({ data: SIGNED_REPORT, isPending: false })
 

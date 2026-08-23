@@ -40,3 +40,11 @@ CURRENT_SPRINT.md
 
 # local milestone-audit tooling (not versioned)
 .claude/skills/milestone-audit/
+
+# Mailbox between the planning session and Claude Code (CLAUDE.md 11).
+# Transient coordination, like CURRENT_SPRINT.md - never committed.
+docs/agents/inbox.md
+docs/agents/outbox.md
+
+# probeProdShape.js output — a run artifact, not versioned (M8 stage 4).
+functions/probe.json

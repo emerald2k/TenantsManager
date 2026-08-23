@@ -225,6 +225,61 @@ export function useActiveTenancyForProperty(propertyId) {
 }
 
 /**
+ * Every tenancy that overlaps calendar month `month`/`year` on this property
+ * (FR-REP-14, SRS §5.1/§5.3) — backs the property-level report-link redirect.
+ * Since M8, `monthlyReports` is keyed by tenancy, not property, so a bare
+ * propertyId can no longer say which report to open: this resolves it by
+ * date-range overlap against `tenancies`, and — unlike
+ * `useActiveTenancyForProperty` — also matches an ENDED tenancy (the
+ * outgoing side of a mid-month handover) and can legitimately return more
+ * than one row for a month a property changed hands in. `startDate`/
+ * `endDate` are plain ISO `YYYY-MM-DD` strings (NFR-VAL-01, no format
+ * validation beyond presence), which sort and compare correctly as strings —
+ * no `Date` parsing needed. Equality-only query (`propertyId`); the
+ * date-range filter runs in JS, same no-composite-index convention as the
+ * rest of this file (SRS §6).
+ */
+export function useTenanciesCoveringPropertyMonth(propertyId, month, year) {
+  return useQuery({
+    queryKey: ['tenancies', 'coveringMonth', propertyId, month, year],
+    enabled: Boolean(propertyId) && Boolean(month) && Boolean(year),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(
+          collection(db, 'tenancies'),
+          where('propertyId', '==', propertyId),
+        ),
+      )
+      const paddedMonth = String(month).padStart(2, '0')
+      const monthStart = `${year}-${paddedMonth}-01`
+      const lastDay = new Date(year, month, 0).getDate()
+      const monthEnd = `${year}-${paddedMonth}-${String(lastDay).padStart(2, '0')}`
+      return snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((tenancy) => {
+          if (!tenancy.startDate) {
+            // SRS §6 makes `startDate` mandatory — this should never happen.
+            // A silent `undefined <= monthEnd` comparison would just make
+            // the tenancy vanish from the result, surfacing as "no tenant
+            // for this month" instead of the data defect it actually is.
+            // Reported, never guessed — same discipline as FR-REP-14's
+            // migration script treats a report with no `tenancyId`.
+            console.warn(
+              `Tenancy ${tenancy.id} has no startDate — excluded from the ` +
+                'property/month resolver pending a data fix.',
+            )
+            return false
+          }
+          return (
+            tenancy.startDate <= monthEnd &&
+            (!tenancy.endDate || tenancy.endDate >= monthStart)
+          )
+        })
+    },
+  })
+}
+
+/**
  * A property's SIGNED reports, across every month (FR-PROP-09's cost-history
  * table). Two-equality query (`propertyId`, `status`) with NO `orderBy` —
  * same "no-composite-index convention" as `useMySignedReports`

@@ -330,8 +330,13 @@
     }
   },
   "reports": {
-    "notFound": "Această proprietate nu există.",
-    "noActiveTenancy": "Această proprietate nu are o tenanță activă — nu se poate crea un raport.",
+    "notFound": "Această tenanță nu există.",
+    "noTenancyForMonth": "Nicio tenanță de pe această proprietate nu acoperă luna aceasta.",
+    "pickTenancy": {
+      "title": "Care tenanță?",
+      "description": "Mai multe tenanțe au acoperit această proprietate în luna aceasta — alege-o pe cea căreia îi aparține raportul.",
+      "ongoing": "în curs"
+    },
     "sections": {
       "rent": "Chirie",
       "maintenance": "Mentenanță",

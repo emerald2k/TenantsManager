@@ -192,4 +192,33 @@ describe('storage.rules — /reports/{reportId}/invoices/**: admin write; owning
 
     await assertSucceeds(deleteObject(ref(storage, PATH)))
   })
+
+  // M8, FR-REP-14: the rule resolves access by `firestore.get(monthlyReports/
+  // $(reportId))`, taking `reportId` VERBATIM from the Storage path segment —
+  // it has never cared whether that string looks like `propertyId_YYYY-MM`
+  // or `tenancyId_YYYY-MM`. The tests above already prove that structurally
+  // (REPORT_ID is an arbitrary literal), but stage 4's whole risk is a
+  // migration that moves the Firestore document to a NEW id without moving
+  // the Storage object to match — silently orphaning the tenant's access.
+  // This test names the actual post-migration SHAPE explicitly, so it reads
+  // as "the migrated case", not just "any string works".
+  it('resolves a report id in the POST-MIGRATION shape (tenancyId_YYYY-MM), Storage object moved to match', async () => {
+    const MIGRATED_REPORT_ID = 'seed-tenancy-occupied_2026-07'
+    const MIGRATED_PATH = `reports/${MIGRATED_REPORT_ID}/invoices/invoice.pdf`
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), 'monthlyReports', MIGRATED_REPORT_ID),
+        report({ tenancyId: 'seed-tenancy-occupied' }),
+      )
+      await uploadBytes(ref(context.storage(), MIGRATED_PATH), BYTES)
+    })
+
+    const tenantStorage = testEnv.authenticatedContext('tenant-1').storage()
+    await assertSucceeds(getBytes(ref(tenantStorage, MIGRATED_PATH)))
+
+    const otherTenantStorage = testEnv
+      .authenticatedContext('tenant-2')
+      .storage()
+    await assertFails(getBytes(ref(otherTenantStorage, MIGRATED_PATH)))
+  })
 })

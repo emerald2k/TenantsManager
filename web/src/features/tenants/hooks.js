@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   updateDoc,
@@ -121,6 +122,33 @@ export function useActiveTenancies() {
         query(collection(db, TENANCIES), where('status', '==', 'active')),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+// ─────────────────────────── useTenancy ──────────────────────────
+/**
+ * A single tenancy by id (FR-REP-14, M8): backs the monthly report form,
+ * which is routed and keyed by tenancyId rather than propertyId since the
+ * re-keying — `tenancies/{tenancyId}` already carries the denormalized
+ * `property` and `tenantName` the form's header needs, so no separate
+ * `useProperty` read is needed alongside this one. `null` (not an error) when
+ * the id does not resolve — a stale link or a mistyped URL is a normal
+ * "not found" state, not a failure, same convention as `useMonthlyReport`.
+ *
+ * Deliberately NOT constrained to `status == 'active'`, unlike
+ * `useActiveTenancies` above: FR-REP-14 exists precisely so an ENDED tenancy
+ * (the outgoing side of a mid-month handover) can still be billed for its
+ * last partial month.
+ */
+export function useTenancy(tenancyId) {
+  return useQuery({
+    queryKey: ['tenancies', 'detail', tenancyId],
+    enabled: Boolean(tenancyId),
+    queryFn: async () => {
+      const snap = await getDoc(tenancyRef(tenancyId))
+      if (!snap.exists()) return null
+      return { id: snap.id, ...snap.data() }
     },
   })
 }

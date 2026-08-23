@@ -54,7 +54,7 @@ describe('buildCostHistory (FR-PROP-09)', () => {
     ])
     expect(rows).toEqual([
       {
-        reportId: 'r1',
+        reportIds: ['r1'],
         month: 1,
         year: 2026,
         rent: 1000,
@@ -161,10 +161,116 @@ describe('buildCostHistory (FR-PROP-09)', () => {
 
     const { rows } = buildCostHistory(reports)
 
-    expect(rows.map((r) => r.reportId)).toEqual(['r-jan', 'r-feb', 'r-mar'])
+    expect(rows.map((r) => r.reportIds)).toEqual([
+      ['r-jan'],
+      ['r-feb'],
+      ['r-mar'],
+    ])
   })
 
   it('returns empty rows and services for an empty report list', () => {
     expect(buildCostHistory([])).toEqual({ rows: [], services: [] })
+  })
+
+  describe('sibling reports of the same month (M8, FR-REP-14 hand-over)', () => {
+    it('sums rent/maintenance/other/total across two reports sharing one month, into ONE row', () => {
+      const reports = [
+        report({
+          id: 'r-out',
+          month: 7,
+          year: 2026,
+          rent: 950,
+          maintenance: 0,
+          otherExpenses: [{ description: 'Curățenie', amount: 40 }],
+          finalTotal: 990,
+        }),
+        report({
+          id: 'r-in',
+          month: 7,
+          year: 2026,
+          rent: 1150,
+          maintenance: 10,
+          otherExpenses: [],
+          finalTotal: 1160,
+        }),
+      ]
+
+      const { rows } = buildCostHistory(reports)
+
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        month: 7,
+        year: 2026,
+        rent: 2100, // 950 + 1150
+        maintenance: 10, // 0 + 10
+        other: 40, // 40 + 0
+        total: 2150, // 990 + 1160
+      })
+      expect(rows[0].reportIds.sort()).toEqual(['r-in', 'r-out'])
+    })
+
+    it('sums a service present in BOTH sibling reports', () => {
+      const reports = [
+        report({
+          id: 'r-out',
+          month: 7,
+          year: 2026,
+          serviceCosts: [
+            { serviceId: 'electricity', name: 'Electricitate', amount: 40 },
+          ],
+        }),
+        report({
+          id: 'r-in',
+          month: 7,
+          year: 2026,
+          serviceCosts: [
+            { serviceId: 'electricity', name: 'Electricitate', amount: 40 },
+          ],
+        }),
+      ]
+
+      const { rows } = buildCostHistory(reports)
+
+      expect(rows[0].services.electricity).toBe(80)
+    })
+
+    it('a service on only ONE sibling still sums (not null) — present in the group, not absent', () => {
+      const reports = [
+        report({
+          id: 'r-out',
+          month: 7,
+          year: 2026,
+          serviceCosts: [{ serviceId: 'water', name: 'Apă', amount: 20 }],
+        }),
+        report({ id: 'r-in', month: 7, year: 2026, serviceCosts: [] }),
+      ]
+
+      const { rows } = buildCostHistory(reports)
+
+      // Present on the outgoing report, absent from the incoming one — the
+      // GROUP still has it, so the cell is the sum of what exists (20), not
+      // null. null means "no report in this month's group has it at all".
+      expect(rows[0].services.water).toBe(20)
+    })
+
+    it('a hand-over month still occupies exactly ONE slot in the windowSize window', () => {
+      const reports = [
+        report({ id: 'r-jun', month: 6, year: 2026 }),
+        report({ id: 'r-jul-out', month: 7, year: 2026 }),
+        report({ id: 'r-jul-in', month: 7, year: 2026 }),
+        report({ id: 'r-aug', month: 8, year: 2026 }),
+      ]
+
+      const { rows } = buildCostHistory(reports, { windowSize: 3 })
+
+      // Keeps the 3 most recent PERIODS (Jun/Jul/Aug), not the 3 most
+      // recent REPORTS (which would have dropped June entirely).
+      expect(rows.map((r) => `${r.year}-${r.month}`)).toEqual([
+        '2026-6',
+        '2026-7',
+        '2026-8',
+      ])
+      expect(rows[1].reportIds.sort()).toEqual(['r-jul-in', 'r-jul-out'])
+    })
   })
 })

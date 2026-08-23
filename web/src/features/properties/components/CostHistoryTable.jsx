@@ -12,7 +12,10 @@ const WINDOW_SIZE = 12
  * Columns: month | rent | maintenance | one per service | other | total
  * (`finalTotal`, FR-REP-04c — never `calculatedTotal`). Rows are the
  * property's SIGNED reports (`reports` — already fetched by the caller via
- * `useSignedReportsForProperty`), pivoted by `buildCostHistory`.
+ * `useSignedReportsForProperty`), pivoted by `buildCostHistory` — one row
+ * per CALENDAR MONTH, not per report: a mid-month hand-over (FR-REP-14) can
+ * leave two signed reports in the same month, and `buildCostHistory` sums
+ * them into a single row rather than rendering two.
  *
  * Defaults to the most recent 12 months; "Show all" (only rendered when
  * there IS more) re-pivots against the full `reports` array — a service
@@ -82,7 +85,7 @@ export function CostHistoryTable({ reports, isPending }) {
           <tbody>
             {rows.map((row) => (
               <tr
-                key={row.reportId}
+                key={`${row.year}-${row.month}`}
                 className="border-b border-border last:border-0"
               >
                 <td className="px-4 py-2 align-top text-foreground">

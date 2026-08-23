@@ -20,6 +20,7 @@ import {
   useProperty,
   useRemoveService,
   useSignedReportsForProperty,
+  useTenanciesCoveringPropertyMonth,
   useUpdateProperty,
 } from '@/features/properties/hooks'
 
@@ -358,6 +359,138 @@ describe('useActiveTenancyForProperty (Sub-stage E, FR-PROP-11)', () => {
 
     expect(result.current.fetchStatus).toBe('idle')
     expect(getDocs).not.toHaveBeenCalled()
+  })
+})
+
+describe('useTenanciesCoveringPropertyMonth (FR-REP-14)', () => {
+  it('queries by propertyId ONLY — the date overlap is filtered in JS, never a Firestore range filter', async () => {
+    getDocs.mockResolvedValue(listSnapshot([]))
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    // A composite index would be needed the moment a second `where` (or an
+    // `orderBy`) joined this one — firestore.indexes.json stays empty (SRS
+    // §6), and the emulator would not have caught it: it does not enforce
+    // composite indexes, so a wrong query here passes green locally and
+    // fails only in production.
+    expect(where).toHaveBeenCalledTimes(1)
+    expect(where).toHaveBeenCalledWith('propertyId', '==', 'p1')
+  })
+
+  it('includes an ACTIVE tenancy with no endDate — absent means "still ongoing", not "ended at the start of time"', async () => {
+    getDocs.mockResolvedValue(
+      listSnapshot([
+        {
+          id: 't-active',
+          propertyId: 'p1',
+          tenantName: 'Ana Pop',
+          startDate: '2026-01-01',
+          // endDate deliberately absent — this is the case that breaks if
+          // the filter reads a missing endDate as "0000-00-00" instead of
+          // "no upper bound".
+        },
+      ]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([
+      expect.objectContaining({ id: 't-active' }),
+    ])
+  })
+
+  it('excludes a tenancy that ended before the queried month started', async () => {
+    getDocs.mockResolvedValue(
+      listSnapshot([
+        {
+          id: 't-past',
+          propertyId: 'p1',
+          startDate: '2025-01-01',
+          endDate: '2026-06-15',
+        },
+      ]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+
+  it('excludes a tenancy that starts after the queried month ends', async () => {
+    getDocs.mockResolvedValue(
+      listSnapshot([
+        { id: 't-future', propertyId: 'p1', startDate: '2026-08-01' },
+      ]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+
+  it('returns BOTH tenancies for a month a property changed hands in — the FR-REP-14 handover case', async () => {
+    getDocs.mockResolvedValue(
+      listSnapshot([
+        {
+          id: 't-outgoing',
+          propertyId: 'p1',
+          startDate: '2025-09-01',
+          endDate: '2026-07-14',
+        },
+        {
+          id: 't-incoming',
+          propertyId: 'p1',
+          startDate: '2026-07-15',
+        },
+      ]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data.map((t) => t.id).sort()).toEqual([
+      't-incoming',
+      't-outgoing',
+    ])
+  })
+
+  it('reads nothing without a propertyId', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth(undefined, 7, 2026),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
+  })
+
+  it('excludes and WARNS about a tenancy with no startDate, instead of silently dropping it', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    getDocs.mockResolvedValue(
+      listSnapshot([{ id: 't-malformed', propertyId: 'p1', endDate: null }]),
+    )
+
+    const { result } = await renderHookWithProviders(() =>
+      useTenanciesCoveringPropertyMonth('p1', 7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('t-malformed'))
+    warnSpy.mockRestore()
   })
 })
 

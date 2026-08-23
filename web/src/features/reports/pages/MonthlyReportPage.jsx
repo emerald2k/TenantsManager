@@ -8,11 +8,13 @@ import { RetryButton } from '@/components/shared/RetryButton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/formatCurrency'
+import { useTenancy } from '@/features/tenants/hooks'
+import { useProperty } from '@/features/properties/hooks'
 import {
-  useActiveTenancyForProperty,
-  useProperty,
-} from '@/features/properties/hooks'
-import { useMonthlyReport, useSaveReportDraft } from '@/features/reports/hooks'
+  buildReportId,
+  useMonthlyReport,
+  useSaveReportDraft,
+} from '@/features/reports/hooks'
 import { collectAttachmentPaths } from '@/features/reports/attachments'
 import {
   buildInitialValues,
@@ -29,16 +31,19 @@ import { SendReportNotificationControl } from '@/features/reports/components/Sen
 import { ExportReportControls } from '@/features/reports/components/ExportReportControls'
 
 /**
- * The monthly report form (SRS §5.3, `/admin/reports/:propertyId?month=&year=`).
- * The "Current month" list page (§5.1) still links nowhere here yet
- * (sub-stage 7) — this route is reached directly by URL.
+ * The monthly report form (SRS §5.3, `/admin/reports/:tenancyId?month=&year=`).
+ * Re-keyed at M8 (FR-REP-14) from `:propertyId`: a mid-month handover puts two
+ * tenancies on one property inside one calendar month, and both owe a part of
+ * it, so a property alone can no longer say which report to open. A
+ * property-level link resolves through `PropertyReportRedirectPage` instead.
  *
- * Requires an ACTIVE tenancy on the property: a report always needs a
- * tenancyId/userId to save (SRS §6). A free property (or one whose tenancy has
- * since ended) shows an empty state instead of a blank form — building
- * support for editing an already-created draft after its tenancy ended is
- * left for a later sub-stage, since nothing can reach that state yet (no
- * signed reports exist to leave behind once endTenancy runs).
+ * `tenancies/{tenancyId}` already carries everything the header and the save
+ * payload need — denormalized `property`, `tenantName`, `userId`, `ownerId`
+ * (SRS §6) — so this page reads exactly ONE document, not a property/tenancy
+ * pair. Deliberately NOT restricted to an active tenancy: FR-REP-14 exists so
+ * an ENDED tenancy (the outgoing side of a handover) can still be billed for
+ * its last partial month — `useTenancy` matches any status, and "not found"
+ * now means only "no such tenancy", not "no active one".
  *
  * `finalTotal` (FR-REP-04a/04b): mirrors `calculatedTotal` live until the
  * admin edits it manually — then it FREEZES (`isFinalTotalDirty`). There is
@@ -56,7 +61,7 @@ import { ExportReportControls } from '@/features/reports/components/ExportReport
  */
 export function MonthlyReportPage() {
   const { t } = useTranslation()
-  const { propertyId } = useParams()
+  const { tenancyId } = useParams()
   const [searchParams] = useSearchParams()
 
   const now = new Date()
@@ -64,15 +69,22 @@ export function MonthlyReportPage() {
   const year = Number(searchParams.get('year')) || now.getFullYear()
 
   const {
+    data: tenancy,
+    isPending: isTenancyPending,
+    isError: isTenancyError,
+    refetch: refetchTenancy,
+  } = useTenancy(tenancyId)
+  // Chained off the tenancy: `tenancies.property` only denormalizes
+  // {name, address} (SRS §6), not `services` — a NEW report's cost lines need
+  // the property's full service list (FR-REP-03), so this read stays.
+  const {
     data: property,
     isPending: isPropertyPending,
     isError: isPropertyError,
     refetch: refetchProperty,
-  } = useProperty(propertyId)
-  const { data: tenancy, isPending: isTenancyPending } =
-    useActiveTenancyForProperty(propertyId)
+  } = useProperty(tenancy?.propertyId)
   const { data: existingReport, isPending: isReportPending } = useMonthlyReport(
-    { propertyId, month, year },
+    { tenancyId, month, year },
   )
   const saveDraft = useSaveReportDraft()
   const [saveError, setSaveError] = useState(null)
@@ -118,7 +130,15 @@ export function MonthlyReportPage() {
     remove: removeOtherExpense,
   } = useFieldArray({ control, name: 'otherExpenses' })
 
-  const isPending = isPropertyPending || isTenancyPending || isReportPending
+  // `isPropertyPending` only counts once a tenancy has actually resolved:
+  // `useProperty` stays disabled (and therefore permanently "pending") while
+  // `tenancy` is null, which would otherwise mask a genuinely missing
+  // tenancy behind an infinite spinner instead of falling through to the
+  // not-found state below.
+  const isPending =
+    isTenancyPending ||
+    (Boolean(tenancy) && isPropertyPending) ||
+    isReportPending
 
   // Rebuilds the form once property/tenancy/existingReport have loaded (or
   // when the admin navigates to a different month via the URL). Piggybacks
@@ -160,7 +180,7 @@ export function MonthlyReportPage() {
     // at all) — this guard just avoids the pointless network round-trip.
     if (isLocked) return
     setSaveError(null)
-    const id = `${propertyId}_${year}-${String(month).padStart(2, '0')}`
+    const id = buildReportId(tenancyId, year, month)
     // Recomputed fresh here (not read off `values.finalTotal`) so that, while
     // mirroring, finalTotal and calculatedTotal are written from the EXACT
     // same calculateTotal() call — no float drift between them that a future
@@ -172,7 +192,7 @@ export function MonthlyReportPage() {
         id,
         values: {
           ownerId: property.ownerId,
-          propertyId,
+          propertyId: tenancy.propertyId,
           tenancyId: tenancy.id,
           userId: tenancy.userId,
           month,
@@ -197,20 +217,21 @@ export function MonthlyReportPage() {
     )
   }
 
+  if (isTenancyError || !tenancy) {
+    return (
+      <div className="flex flex-col items-start gap-2 p-6">
+        <p className="text-sm text-muted-foreground">{t('reports.notFound')}</p>
+        <RetryButton onRetry={refetchTenancy} />
+      </div>
+    )
+  }
+
   if (isPropertyError || !property) {
     return (
       <div className="flex flex-col items-start gap-2 p-6">
         <p className="text-sm text-muted-foreground">{t('reports.notFound')}</p>
         <RetryButton onRetry={refetchProperty} />
       </div>
-    )
-  }
-
-  if (!tenancy) {
-    return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t('reports.noActiveTenancy')}
-      </p>
     )
   }
 
