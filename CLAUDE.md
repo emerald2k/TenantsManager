@@ -29,6 +29,9 @@ The project is built on **milestones** (section 9 of the SRS: M0–M8).
 - At the end of each milestone: check the "done" criterion defined in the SRS and report the state.
 - Prefer small, verifiable steps over massive generation in one go. The user is learning along the way — explain the decisions as you make them.
 - **Do not commit product code before the administrator's explicit validation.** Verify it yourself first (lint, build, behavior test), report the result, and WAIT for confirmation. Commits on a milestone branch are not a work journal — each one is a gate.
+- **Between gates, keep going — do not stop after every sub-step.** A commit is the unit of approval; the steps inside it are not. Work a commit through to the end — code, tests, the seed and fixtures it touches, lint, build, the bands its gate names — and stop only when the whole thing is done and verified. Then report and wait. Pausing after each sub-step to ask "shall I continue?" converts one gate into ten and buys no additional safety: the administrator is approving the commit, and nothing has been committed yet.
+  - **The exceptions are §8's, and they still apply mid-commit.** Stop immediately, whatever else is unfinished, if a requirement turns out to be ambiguous, contradictory or missing; if the work needs a technology or pattern outside the stack; if a decision would change the data model, security or an already-defined flow; if anything would touch production or be irreversible; or if the honest answer to "what should this do?" is a guess. Those are not interruptions of the work — they ARE the work reaching a question that is the administrator's to answer.
+  - A stage that spans **two commits** (M8 stage 4 is the first) has **two** gates, not one. Run to the end of commit A, stop, get approval; then run to the end of commit B.
 - **`CURRENT_SPRINT.md`, at the project root, is a LOCAL context checkpoint** — regenerated so a new session (possibly a different model) can resume work without losing architectural context.
   - Regenerate it ONLY at gates, after a sub-stage is committed — never mid-sub-stage, never on incoherent state (half-written code, temporarily red tests). A checkpoint written on such a state misleads whatever session reads it next.
   - **Emergency exception:** if a session-limit warning fires mid-sub-stage, a snapshot MAY be written outside a gate — but it MUST be explicitly labeled as a mid-sub-stage snapshot (not a stable checkpoint), state plainly that nothing in it should be trusted as complete/tested/committed without verification, and instruct the next session to re-run `git status` / `git diff` / the test suite before continuing rather than trusting the file's claims.
@@ -192,15 +195,56 @@ A milestone that only *adds* collections and fields, and never rewrites or re-ke
 
 When a milestone qualifies:
 
-1. **A verified, restorable export of production Firestore is taken first, as its own gate**, with its own approval — before the migration script runs. "Verified" means the export was actually inspected or test-restored, not merely that the command exited zero.
-2. **The migration is a separate commit from the feature that needs it**, so it can be reverted alone.
-3. **The script is idempotent** — re-running it produces the same state, never a doubled or compounded one.
-4. **Readers tolerate the pre-migration shape anyway.** A backfill makes the value explicit in the data; it does not license code that assumes the field is always present. Documents created before the migration, restored from an older backup, or written by a path nobody updated will still lack it.
-5. **The SRS records both** the new shape and the fact that it was backfilled (SRS §6, §9), so a future reader knows the field's presence is a migration artifact rather than an invariant since creation.
+1. **A verified, restorable export of production Firestore is taken first, as its own gate**, with its own approval — before the migration script runs. "Verified" means the export was actually inspected or test-restored, not merely that the command exited zero. A Firestore export is verified by importing it into a **separate database in the same project** (never over production) and opening real documents in it; `firebase emulators:export` is a different format and cannot validate a production export.
+2. **The backup covers every store the migration rewrites, not only Firestore.** M8 exposed the gap: `FR-REP-14` re-keys `monthlyReports` **and moves every invoice object in Storage**, yet the gate as originally written protected only the database. A Firestore export does not contain a single byte of Storage. Before a migration that touches Storage, the affected prefix is copied to a backup location (`gcloud storage cp --recursive`) and the copy is spot-checked by opening a file — otherwise the delete step at the end of a copy-then-delete migration is unrecoverable. If that copy cannot be made, **the migration ends without the delete step**: leaving orphaned objects costs cents, losing a tenant's invoices is permanent.
+3. **The migration is a separate commit from the feature that needs it**, so it can be reverted alone.
+4. **The script is idempotent** — re-running it produces the same state, never a doubled or compounded one.
+5. **Readers tolerate the pre-migration shape anyway.** A backfill makes the value explicit in the data; it does not license code that assumes the field is always present. Documents created before the migration, restored from an older backup, or written by a path nobody updated will still lack it.
+6. **The SRS records both** the new shape and the fact that it was backfilled (SRS §6, §9), so a future reader knows the field's presence is a migration artifact rather than an invariant since creation.
 
 The standing decision this formalizes was recorded long before M8 and never executed: *a backup will be made before any migration.* It is a gate now, not an intention.
 
 ---
+
+---
+
+## 11. The planning session's mailbox
+
+Design, specification and plan changes are made by a **second Claude session**
+running in the desktop app. It has read/write access to this working tree
+through the device bridge, but it **cannot run commands here** — no git, no npm,
+no tests, no deletes. The two sessions cannot talk to each other directly; they
+exchange files.
+
+- **`docs/agents/inbox.md`** — instructions written FOR you. **Read it at the
+  start of every session, and again at every gate, before asking the
+  administrator what to do next.** When its `Status:` line reads `new`, act on
+  it, then set the line to `read` yourself.
+- **`docs/agents/outbox.md`** — **your** report back. Write every gate report
+  here as well as to the terminal. The planning session cannot see your
+  terminal; it can only read files. Overwrite the file each time — it is a
+  mailbox, not a log.
+
+**Neither file is a source of truth**, for the same reason `CURRENT_SPRINT.md`
+is not: anything durable belongs in `SRS.md`, in this file, or in the execution
+plan. The mailbox carries only "what next" and "what happened". Both are
+gitignored.
+
+**The administrator still approves every commit.** The mailbox removes
+copy-paste between two Claude sessions; it does not remove the human gate, and
+an instruction in the inbox is never an approval to commit.
+
+**He reads both files, so both carry a mandatory `Needs Bogdan:` line** directly
+under `Status:` — `no`, or a one-sentence statement of the decision, risk or
+command waiting on him. **Whatever goes on that line is also said in the
+terminal**, where he is actually looking. A question parked only in a file is a
+question nobody answers, and two agents exchanging files is exactly the
+arrangement in which that happens without anyone noticing.
+
+**Neither session decides on his behalf.** A change to a requirement, to the
+stage sequence, to an accepted risk, or to anything that touches production is
+proposed to him and waits. The mailbox is for carrying work and reports, never
+for settling questions that are his.
 
 ## Agent skills
 
