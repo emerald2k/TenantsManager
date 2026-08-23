@@ -1,0 +1,2101 @@
+<title>Panoul pe telefon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
+/>
+
+<style>
+  /* ============ pagina care ține ramele ============ */
+  :root {
+    --pg-bg: #eef1f5;
+    --pg-card: #ffffff;
+    --pg-tx: #0f172a;
+    --pg-tx2: #475569;
+    --pg-tx3: #94a3b8;
+    --pg-line: #dde3ea;
+    --pg-em: #047857;
+    --bezel: #0e0e11;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --pg-bg: #0a0a0b;
+      --pg-card: #141416;
+      --pg-tx: #f1f1f2;
+      --pg-tx2: #a8a8ad;
+      --pg-tx3: #76767b;
+      --pg-line: #2a2a2e;
+      --pg-em: #63cba0;
+      --bezel: #000;
+    }
+  }
+  :root[data-theme='dark'] {
+    --pg-bg: #0a0a0b;
+    --pg-card: #141416;
+    --pg-tx: #f1f1f2;
+    --pg-tx2: #a8a8ad;
+    --pg-tx3: #76767b;
+    --pg-line: #2a2a2e;
+    --pg-em: #63cba0;
+    --bezel: #000;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--pg-bg);
+    color: var(--pg-tx);
+    cursor: default;
+    font-family:
+      'Hanken Grotesk',
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
+    font-size: 15.5px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg {
+    display: block;
+    flex: none;
+  }
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.012em;
+  }
+  .wrap {
+    padding: 26px 30px 60px;
+    max-width: 1560px;
+    margin: 0 auto;
+  }
+  .pre-b {
+    border: 1px solid var(--pg-line);
+    border-left: 4px solid var(--pg-em);
+    border-radius: 12px;
+    background: var(--pg-card);
+    padding: 16px 20px;
+    color: var(--pg-tx2);
+    font-size: 14.5px;
+    max-width: 104ch;
+    cursor: text;
+  }
+  .pre-b b {
+    color: var(--pg-tx);
+    font-weight: 600;
+  }
+  h1.pg {
+    margin: 26px 0 4px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+  p.pg {
+    margin: 0 0 26px;
+    color: var(--pg-tx2);
+    font-size: 15px;
+    max-width: 96ch;
+    cursor: text;
+  }
+  .row {
+    display: flex;
+    gap: 34px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .cap {
+    margin-top: 14px;
+    width: 390px;
+    max-width: 100%;
+  }
+  .cap b {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .cap span {
+    font-size: 13.5px;
+    color: var(--pg-tx3);
+    line-height: 1.5;
+    display: block;
+    cursor: text;
+  }
+  .cap.sm {
+    width: 320px;
+  }
+
+  /* ============ rama de telefon ============ */
+  .frame {
+    width: 390px;
+    height: 800px;
+    padding: 13px;
+    border-radius: 46px;
+    background: var(--bezel);
+    box-shadow:
+      0 2px 6px rgba(15, 23, 42, 0.16),
+      0 24px 60px rgba(15, 23, 42, 0.22);
+    position: relative;
+    flex: none;
+  }
+  .frame.sm {
+    width: 320px;
+    height: 660px;
+    border-radius: 40px;
+    padding: 11px;
+  }
+  .glass {
+    position: absolute;
+    inset: 13px;
+    border-radius: 34px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .frame.sm .glass {
+    inset: 11px;
+    border-radius: 30px;
+  }
+  .frame.sm .sys {
+    height: 34px;
+    padding: 0 18px 3px;
+    font-size: 12.5px;
+  }
+  .frame.sm .tb {
+    top: 34px;
+  }
+  .island {
+    position: absolute;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 104px;
+    height: 26px;
+    background: var(--bezel);
+    border-radius: 999px;
+    z-index: 40;
+  }
+  .frame.sm .island {
+    width: 0;
+    height: 0;
+  }
+
+  /* ============ TOKENI — ecranul aplicației ============ */
+  .glass {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --sunk: #f1f5f9;
+    --line: #e2e8f0;
+    --line-soft: #eef2f6;
+    --tx: #0f172a;
+    --tx-2: #475569;
+    --tx-3: #94a3b8;
+    --em: #10b981;
+    --em-tx: #047857;
+    --em-soft: #ecfdf5;
+    --em-line: #a7f3d0;
+    --rd: #dc2626;
+    --rd-tx: #b91c1c;
+    --rd-soft: #fef2f2;
+    --rd-line: #fecaca;
+    --am: #b45309;
+    --am-soft: #fffbeb;
+    --am-line: #fde68a;
+    --s1: #10b981;
+    --s2: #cbd5e1;
+    --grid: #edf2f7;
+    --bar: #0f172a;
+    --bar-tx: #94a3b8;
+    --bar-on: #ffffff;
+    --bar-line: #1e293b;
+    --sh: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --sh-b: 0 -1px 0 rgba(15, 23, 42, 0.06);
+    --scrim: rgba(15, 23, 42, 0.45);
+    --ez: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .frame.is-dark .glass {
+    --bg: #0a0a0b;
+    --card: #141416;
+    --sunk: #1b1b1e;
+    --line: #2a2a2e;
+    --line-soft: #202024;
+    --tx: #f1f1f2;
+    --tx-2: #a8a8ad;
+    --tx-3: #76767b;
+    --em: #3fa97f;
+    --em-tx: #63cba0;
+    --em-soft: #152420;
+    --em-line: #28604a;
+    --rd: #c4544a;
+    --rd-tx: #e69289;
+    --rd-soft: #251413;
+    --rd-line: #5a312c;
+    --am: #cba05c;
+    --am-soft: #241e13;
+    --am-line: #4f4124;
+    --s1: #3fa97f;
+    --s2: #43434a;
+    --grid: #232326;
+    --bar: #0b0b0c;
+    --bar-tx: #6e6e73;
+    --bar-on: #ffffff;
+    --bar-line: #1c1c1f;
+    --sh: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --sh-b: 0 -1px 0 rgba(255, 255, 255, 0.06);
+    --scrim: rgba(0, 0, 0, 0.6);
+  }
+
+  /* ============ ecranul ============ */
+  .scr {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--tx);
+    padding-bottom: 96px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scr::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* bara de sistem a telefonului */
+  .sys {
+    position: sticky;
+    top: 0;
+    z-index: 21;
+    background: var(--bg);
+    height: 56px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 26px 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--tx);
+    letter-spacing: 0.01em;
+  }
+  .sys .r {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    opacity: 0.85;
+  }
+
+  /* bara de titlu, lipită sus */
+  .tb {
+    position: sticky;
+    top: 56px;
+    z-index: 20;
+    background: var(--bg);
+    padding: 2px 16px 10px;
+    box-shadow: 0 8px 12px -10px rgba(15, 23, 42, 0.28);
+  }
+  .frame.is-dark .tb {
+    box-shadow: 0 8px 12px -10px rgba(0, 0, 0, 0.7);
+  }
+  .tb-r {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tb h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.026em;
+    flex: 1;
+    line-height: 1.2;
+  }
+  .ib {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    display: grid;
+    place-items: center;
+    color: var(--tx-2);
+    position: relative;
+    cursor: pointer;
+    flex: none;
+  }
+  .ib .dot {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--rd);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    padding: 0 4px;
+    border: 2px solid var(--bg);
+  }
+  .tb .sub {
+    color: var(--tx-3);
+    font-size: 13.5px;
+    margin: 2px 0 0;
+  }
+
+  /* selectorul de lună, cât toată lățimea */
+  .mo {
+    display: flex;
+    align-items: stretch;
+    margin: 12px 0 2px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--sh);
+    overflow: hidden;
+  }
+  .mo button {
+    font: inherit;
+    font-size: 21px;
+    color: var(--tx-2);
+    background: none;
+    border: 0;
+    width: 52px;
+    cursor: pointer;
+  }
+  .mo button:disabled {
+    color: var(--tx-3);
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .mo .lbl {
+    flex: 1;
+    text-align: center;
+    padding: 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
+
+  .body {
+    padding: 14px 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* carduri */
+  .c {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--sh);
+  }
+  a.c {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .k {
+    padding: 16px 17px 14px;
+  }
+  .k-h {
+    color: var(--tx-2);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.075em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .k-h svg {
+    color: var(--tx-3);
+  }
+  .k-v {
+    font-size: 31px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-top: 8px;
+    line-height: 1.08;
+  }
+  .k-n {
+    margin-top: 6px;
+    color: var(--tx-3);
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .k-sep {
+    height: 1px;
+    background: var(--line);
+    margin: 0;
+  }
+  .k.due .k-v {
+    color: var(--rd-tx);
+    font-size: 26px;
+  }
+  .k-cap {
+    display: inline-flex;
+    margin-top: 7px;
+    background: var(--rd-soft);
+    border: 1px solid var(--rd-line);
+    color: var(--rd-tx);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .goto {
+    display: flex;
+    align-items: center;
+    padding: 12px 17px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--em-tx);
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 46px;
+  }
+  .goto .mk {
+    margin-left: auto;
+    font-size: 19px;
+    line-height: 1;
+  }
+
+  /* două pe rând */
+  .duo2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .duo2 .k {
+    padding: 14px 14px 12px;
+  }
+  .duo2 .k-v {
+    font-size: 23px;
+    margin-top: 7px;
+  }
+  .duo2 .goto {
+    padding: 10px 14px;
+    font-size: 13px;
+    min-height: 42px;
+  }
+
+  /* listă compactă */
+  .lst {
+    overflow: hidden;
+  }
+  .lst a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    min-height: 56px;
+    border-bottom: 1px solid var(--line-soft);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .lst a:last-child {
+    border-bottom: 0;
+  }
+  .lst .t {
+    font-size: 14.5px;
+    color: var(--tx-2);
+    flex: 1;
+    line-height: 1.35;
+  }
+  .lst b {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lst .mk {
+    color: var(--tx-3);
+    font-size: 19px;
+    opacity: 0.55;
+  }
+
+  /* titlu de secțiune */
+  .sh {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 8px 2px -2px;
+  }
+  .sh h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .sh .all {
+    margin-left: auto;
+    color: var(--em-tx);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 2px;
+  }
+
+  /* fișa unui chiriaș (înlocuiește rândul de tabel) */
+  .rw {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 15px 16px;
+  }
+  .rw .l1 {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .rw .nm {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+  }
+  .rw .nm small {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--tx-3);
+    margin-top: 1px;
+  }
+  .rw .mk {
+    margin-left: auto;
+    color: var(--tx-3);
+    font-size: 21px;
+    line-height: 1;
+    opacity: 0.55;
+    align-self: center;
+  }
+  .rw .l2 {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .rw .l3 {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .rw .amt {
+    font-size: 12px;
+    color: var(--tx-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+  }
+  .rw .amt b {
+    display: block;
+    font-size: 19px;
+    letter-spacing: -0.02em;
+    color: var(--tx);
+    text-transform: none;
+    margin-top: 1px;
+  }
+  .rw .amt.due b {
+    color: var(--rd-tx);
+  }
+  .rw .amt.mut b {
+    color: var(--tx-3);
+  }
+  .rw .dl {
+    text-align: right;
+    font-size: 13px;
+    color: var(--tx-2);
+    line-height: 1.35;
+  }
+  .rw .dl small {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--rd-tx);
+  }
+  .rw .dl.ok small {
+    color: var(--tx-3);
+    font-weight: 400;
+  }
+  .bdg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .bdg svg {
+    width: 12px;
+    height: 12px;
+  }
+  .b-ok {
+    background: var(--em-soft);
+    color: var(--em-tx);
+    border-color: var(--em-line);
+  }
+  .b-rd {
+    background: var(--rd-soft);
+    color: var(--rd-tx);
+    border-color: var(--rd-line);
+  }
+  .b-am {
+    background: var(--am-soft);
+    color: var(--am);
+    border-color: var(--am-line);
+  }
+  .b-gy {
+    background: var(--sunk);
+    color: var(--tx-2);
+    border-color: var(--line);
+  }
+
+  /* grafic — se trage cu degetul */
+  .chart {
+    padding: 16px 0 12px;
+  }
+  .ch-h {
+    padding: 0 17px;
+  }
+  .ch-t {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .ch-m {
+    color: var(--tx-3);
+    font-size: 12.5px;
+    margin-top: 2px;
+  }
+  .ch-l {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--tx-2);
+    margin-top: 10px;
+  }
+  .ch-l b {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+  .ch-l i {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+  }
+  .ch-l i.a {
+    background: var(--s1);
+  }
+  .ch-l i.b {
+    background: var(--s2);
+  }
+  .sw {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding: 16px 17px 0;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sw::-webkit-scrollbar {
+    display: none;
+  }
+  .br {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    height: 150px;
+    width: max-content;
+    padding-bottom: 26px;
+    position: relative;
+  }
+  .bc {
+    width: 38px;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 3px;
+    position: relative;
+    scroll-snap-align: center;
+    cursor: pointer;
+  }
+  .bar {
+    width: 14px;
+    border-radius: 3px 3px 0 0;
+    transform-origin: bottom;
+  }
+  .bar.a {
+    background: var(--s1);
+  }
+  .bar.b {
+    background: var(--s2);
+  }
+  .bc.now .bar.a {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--s1),
+      var(--s1) 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    border: 1.5px solid var(--s1);
+    border-bottom: 0;
+  }
+  .bc.now .bar.b {
+    opacity: 0.55;
+  }
+  .xl {
+    position: absolute;
+    bottom: -22px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--tx-3);
+  }
+  .bc.now .xl {
+    color: var(--tx);
+    font-weight: 700;
+  }
+  .bc::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -5px;
+    width: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--em);
+    transition: width 0.18s var(--ez);
+  }
+  .bc.on::after {
+    width: 24px;
+  }
+  .tipbar {
+    margin: 14px 17px 0;
+    background: var(--sunk);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 11px 13px;
+    font-size: 13.5px;
+    color: var(--tx-2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+  }
+  .tipbar .v {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .tipbar b {
+    color: var(--tx);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .tipbar .tb-f {
+    font-size: 12.5px;
+    color: var(--tx-3);
+    margin-top: 1px;
+  }
+  .tipbar .g {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+    font-size: 12.5px;
+    color: var(--tx-3);
+    flex: none;
+  }
+  .tipbar .g b {
+    font-size: 13px;
+    color: var(--tx-2);
+    font-weight: 600;
+  }
+
+  /* notificări */
+  .nt {
+    padding: 4px 0 0;
+  }
+  .nt .li {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    min-height: 60px;
+  }
+  .nt .li:last-of-type {
+    border-bottom: 0;
+  }
+  .ic {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    flex: none;
+    margin-top: 1px;
+  }
+  .ic.ok {
+    background: var(--em-soft);
+    color: var(--em-tx);
+  }
+  .ic.rd {
+    background: var(--rd-soft);
+    color: var(--rd-tx);
+  }
+  .ic.gy {
+    background: var(--sunk);
+    color: var(--tx-2);
+  }
+  .ic.am {
+    background: var(--am-soft);
+    color: var(--am);
+  }
+  .nt .bd {
+    flex: 1;
+    min-width: 0;
+  }
+  .nt .t1 {
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .nt .t2 {
+    font-size: 12.5px;
+    color: var(--tx-3);
+    margin-top: 2px;
+  }
+  .nt .t3 {
+    font-size: 12px;
+    color: var(--tx-3);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .nt .all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 14px;
+    color: var(--em-tx);
+    font-size: 14.5px;
+    font-weight: 600;
+    text-decoration: none;
+    border-top: 1px solid var(--line-soft);
+    cursor: pointer;
+    min-height: 50px;
+  }
+
+  .note {
+    margin: 0 2px;
+    font-size: 12.5px;
+    color: var(--tx-3);
+    line-height: 1.5;
+    cursor: text;
+  }
+
+  /* ============ bara de jos ============ */
+  .tabs {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    background: var(--bar);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    padding: 8px 4px 22px;
+    box-shadow: var(--sh-b);
+    border-top: 1px solid var(--bar-line);
+  }
+  .tabs a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 7px 2px 5px;
+    min-height: 52px;
+    text-decoration: none;
+    color: var(--bar-tx);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 11px;
+    position: relative;
+    white-space: nowrap;
+  }
+  .frame.sm .tabs a {
+    font-size: 10px;
+    gap: 3px;
+  }
+  .frame.sm .tabs a svg {
+    width: 19px;
+    height: 19px;
+  }
+  .tabs a[aria-current='page'] {
+    color: var(--bar-on);
+  }
+  .tabs a[aria-current='page']::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--em);
+  }
+  .tabs .pin {
+    position: absolute;
+    top: 4px;
+    right: 50%;
+    margin-right: -19px;
+    min-width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--rd);
+  }
+
+  /* ============ sertarul „Mai multe" ============ */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--scrim);
+    z-index: 34;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 36;
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 10px 0 26px;
+    transform: translateY(102%);
+    transition: transform 0.28s var(--ez);
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.28);
+  }
+  .frame.sheet-open .scrim {
+    opacity: 1;
+  }
+  .frame.sheet-open .sheet {
+    transform: translateY(0);
+  }
+  .grab {
+    width: 40px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--line);
+    margin: 4px auto 12px;
+  }
+  .sheet .st {
+    padding: 0 20px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+  }
+  .sheet a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 20px;
+    min-height: 56px;
+    text-decoration: none;
+    color: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .sheet a:last-child {
+    border-bottom: 0;
+  }
+  .sheet a .mk {
+    margin-left: auto;
+    color: var(--tx-3);
+    font-size: 19px;
+    opacity: 0.6;
+  }
+  .sheet a svg {
+    color: var(--tx-2);
+  }
+  .sheet a.dgr {
+    color: var(--rd-tx);
+  }
+  .sheet a.dgr svg {
+    color: var(--rd-tx);
+  }
+
+  /* ============ atingere: fără hover, doar apăsare ============ */
+  @media (prefers-reduced-motion: no-preference) {
+    a.c,
+    .rw,
+    .lst a,
+    .tabs a,
+    .nt .li,
+    .ib,
+    .mo button,
+    .sheet a,
+    .bar {
+      transition:
+        transform 0.12s var(--ez),
+        background-color 0.12s linear,
+        box-shadow 0.12s var(--ez),
+        opacity 0.12s;
+    }
+    .bar {
+      animation: rise 0.5s var(--ez) backwards;
+      animation-delay: var(--d, 0ms);
+    }
+    @keyframes rise {
+      from {
+        transform: scaleY(0.03);
+      }
+    }
+  }
+  a.c:active,
+  .rw:active {
+    transform: scale(0.985);
+    background: var(--sunk);
+  }
+  .lst a:active,
+  .nt .li:active,
+  .sheet a:active {
+    background: var(--sunk);
+  }
+  .tabs a:active {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .ib:active,
+  .mo button:not(:disabled):active {
+    transform: scale(0.92);
+    background: var(--sunk);
+  }
+  .bc:active .bar {
+    transform: scaleY(1.03);
+  }
+  :focus-visible {
+    outline: 2.5px solid var(--em);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* ============ dacă schița e deschisă chiar de pe telefon ============ */
+  @media (max-width: 560px) {
+    .wrap {
+      padding: 18px 14px 44px;
+    }
+    .row {
+      gap: 22px;
+      flex-direction: column;
+      flex-wrap: nowrap;
+    }
+    .row > div {
+      width: 100%;
+    }
+    .frame {
+      width: 100%;
+      height: min(760px, 86vh);
+      border-radius: 34px;
+      padding: 9px;
+      box-shadow: none;
+      border: 1px solid var(--pg-line);
+    }
+    .frame.sm {
+      width: 100%;
+      height: min(660px, 78vh);
+    }
+    .glass {
+      inset: 9px;
+      border-radius: 26px;
+    }
+    .island {
+      display: none;
+    }
+    .cap,
+    .cap.sm {
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <div class="pre-b">
+    <b>Varianta pentru telefon — aceleași date, altă mecanică.</b> Nu e ecranul
+    de desktop micșorat: bara laterală neagră devine bară de file jos, la
+    degetul mare; tabelul devine fișe; graficul se trage lateral, iar valorile
+    apar la atingere, fiindcă pe telefon nu există „trecere cu mouse-ul". Ramele
+    de mai jos se pot derula cu rotița, exact ca telefonul real.
+    <b>Cea de-a treia ramă</b> arată sertarul „Mai multe" deschis, iar
+    <b>ultima</b> este un ecran mic (iPhone SE / Android compact), ca să vezi că
+    nimic nu se rupe.
+  </div>
+
+  <h1 class="pg">Panou · telefon</h1>
+  <p class="pg">
+    Trei stări și două teme. Derulează în interiorul fiecărei rame.
+  </p>
+
+  <div class="row">
+    <div>
+      <div class="frame" id="f1">
+        <div class="island"></div>
+        <div class="glass"></div>
+      </div>
+      <div class="cap">
+        <b>Temă deschisă — de sus în jos</b>
+        <span
+          >Titlul, luna, apoi cifra care contează. Sub ea, restul în ordinea în
+          care ai nevoie de ele. Clopoțelul cu bulină ține notificările; bara de
+          file ține navigarea.</span
+        >
+      </div>
+    </div>
+
+    <div>
+      <div class="frame is-dark" id="f2">
+        <div class="island"></div>
+        <div class="glass"></div>
+      </div>
+      <div class="cap">
+        <b>Temă închisă — lista lunii și graficul</b>
+        <span
+          >Aceeași pagină, derulată până la fișele chiriașilor. Fiecare fișă are
+          numele sus, starea la mijloc, banii jos — și se apasă întreagă.</span
+        >
+      </div>
+    </div>
+
+    <div>
+      <div class="frame sheet-open" id="f3">
+        <div class="island"></div>
+        <div class="glass"></div>
+      </div>
+      <div class="cap">
+        <b>Sertarul „Mai multe"</b>
+        <span
+          >Bara de jos are cinci file — atât încap fără să devină imposibil de
+          nimerit. Restul (proprietăți, notificări, limbă, temă, ieșire) stă
+          într-un sertar care urcă de jos.</span
+        >
+      </div>
+    </div>
+
+    <div>
+      <div class="frame sm" id="f4"><div class="glass"></div></div>
+      <div class="cap sm">
+        <b>Ecran mic — 320 px</b>
+        <span
+          >Cel mai îngust telefon aflat încă în uz. Cifrele rămân întregi,
+          butoanele rămân peste 44 px, nimic nu iese în lateral.</span
+        >
+      </div>
+    </div>
+  </div>
+
+  <h1 class="pg">Ce e altfel față de desktop, și de ce</h1>
+  <p class="pg">
+    Fiecare schimbare rezolvă o problemă care apare doar pe telefon.
+  </p>
+  <div class="row" style="gap: 16px">
+    <div class="cap" style="margin: 0">
+      <b>Bara laterală → bară de file jos</b
+      ><span
+        >Sus, în colțul stâng, degetul mare nu ajunge. Jos ajunge fără să muți
+        mâna. Rămâne închisă la culoare, ca bara laterală pe care ai
+        aprobat-o.</span
+      >
+    </div>
+    <div class="cap" style="margin: 0">
+      <b>Șase secțiuni → cinci file + sertar</b
+      ><span
+        >Peste cinci file, fiecare devine prea îngustă ca s-o nimerești sigur.
+        Notificările urcă în clopoțelul din titlu, unde bulina roșie se vede
+        oricum.</span
+      >
+    </div>
+    <div class="cap" style="margin: 0">
+      <b>Tabel → fișe</b
+      ><span
+        >Șapte coloane nu încap pe 390 px, iar derularea laterală într-un tabel
+        ascunde tocmai coloana cu banii. Fișa pune numele, starea și suma una
+        sub alta.</span
+      >
+    </div>
+    <div class="cap" style="margin: 0">
+      <b>Grafic care se trage cu degetul</b
+      ><span
+        >Douăsprezece luni pe 390 px ar da bare de 8 px. Se trag lateral, se
+        opresc pe lună, iar valoarea apare scris sub grafic — nu într-un balon
+        care dispare.</span
+      >
+    </div>
+    <div class="cap" style="margin: 0">
+      <b>Fără hover, doar apăsare</b
+      ><span
+        >Pe telefon efectul de hover se lipește de ultimul element atins. Aici
+        totul reacționează la apăsare: se afundă puțin și se colorează, apoi
+        revine.</span
+      >
+    </div>
+    <div class="cap" style="margin: 0">
+      <b>Ținte de minimum 44 px</b
+      ><span
+        >Fiecare rând, buton și filă are cel puțin 44–56 px înălțime. Săgeata
+        „›" rămâne vizibilă permanent, fiindcă aici nu există alt indiciu.</span
+      >
+    </div>
+  </div>
+</div>
+
+<template id="tpl">
+  <div class="scr">
+    <div class="sys">
+      <span class="num">9:41</span>
+      <span class="r">
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor">
+          <rect x="0" y="8" width="3" height="4" rx="1" />
+          <rect x="4.5" y="5.5" width="3" height="6.5" rx="1" />
+          <rect x="9" y="3" width="3" height="9" rx="1" />
+          <rect x="13.5" y="0" width="3" height="12" rx="1" />
+        </svg>
+        <svg
+          width="24"
+          height="12"
+          viewBox="0 0 24 12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+        >
+          <rect x=".6" y=".6" width="19" height="10.8" rx="3" />
+          <rect
+            x="2.4"
+            y="2.4"
+            width="13"
+            height="7.2"
+            rx="1.6"
+            fill="currentColor"
+            stroke="none"
+          />
+          <path d="M21.4 4.2v3.6" stroke-width="2.4" stroke-linecap="round" />
+        </svg>
+      </span>
+    </div>
+
+    <header class="tb">
+      <div class="tb-r">
+        <h1>Panou</h1>
+        <button class="ib" type="button" aria-label="Notificări">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"
+            />
+            <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+          </svg>
+          <span class="dot num">3</span>
+        </button>
+        <button class="ib" type="button" aria-label="Temă">
+          <svg
+            width="19"
+            height="19"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <path
+              d="M12 3v2M12 19v2M5.6 5.6 7 7M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4"
+            />
+            <circle cx="12" cy="12" r="3.6" />
+          </svg>
+        </button>
+      </div>
+      <p class="sub">vineri, 21 august 2026</p>
+      <div class="mo">
+        <button type="button" aria-label="Luna anterioară">‹</button>
+        <div class="lbl num">August 2026</div>
+        <button type="button" aria-label="Luna următoare" disabled>›</button>
+      </div>
+    </header>
+
+    <div class="body">
+      <a class="c" href="#">
+        <div class="k">
+          <div class="k-h">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z"
+              />
+              <circle cx="12" cy="12.5" r="2.4" />
+            </svg>
+            Total de încasat
+          </div>
+          <div class="k-v num">4.790,00 lei</div>
+          <div class="k-n">
+            Tot ce datorează chiriașii activi, restanțele vechi incluse
+          </div>
+        </div>
+        <div class="k-sep"></div>
+        <div class="k due">
+          <div class="k-h">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--rd-tx)"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
+              />
+              <path d="M12 9.5v4M12 17.4v.1" />
+            </svg>
+            Din care restant
+          </div>
+          <div class="k-v num">2.450,00 lei</div>
+          <div class="k-cap">2 chiriași · scadență depășită</div>
+        </div>
+        <div class="goto">Vezi toate plățile <span class="mk">›</span></div>
+      </a>
+
+      <div class="duo2">
+        <a class="c" href="#">
+          <div class="k">
+            <div class="k-h">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 3v11M8 10.5l4 3.5 4-3.5" />
+                <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg
+              >Încasat
+            </div>
+            <div class="k-v num">
+              4.010<span style="font-size: 15px"> lei</span>
+            </div>
+            <div class="k-n">între 1 și 21 august</div>
+          </div>
+          <div class="goto">Încasări <span class="mk">›</span></div>
+        </a>
+        <a class="c" href="#">
+          <div class="k">
+            <div class="k-h">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 21h18M6 21V9l6-4.5L18 9v12" />
+                <rect x="9.5" y="14" width="5" height="7" /></svg
+              >Proprietăți
+            </div>
+            <div class="k-v num">6</div>
+            <div class="k-n">5 închiriate · 1 liberă</div>
+          </div>
+          <div class="goto">Vezi lista <span class="mk">›</span></div>
+        </a>
+      </div>
+
+      <div class="c lst">
+        <a href="#"
+          ><span class="t">Avans plătit de chiriași</span
+          ><b class="num">60,00 lei</b><span class="mk">›</span></a
+        >
+        <a href="#"
+          ><span class="t">De recuperat de la foști chiriași</span
+          ><b class="num">1.240,00 lei</b><span class="mk">›</span></a
+        >
+        <a href="#"
+          ><span class="t">Rapoarte nesemnate luna asta</span
+          ><b class="num">2 din 5</b><span class="mk">›</span></a
+        >
+      </div>
+
+      <div class="sh">
+        <h2>Luna curentă</h2>
+        <a class="all" href="#">Deschide <span class="mk">›</span></a>
+      </div>
+
+      <a class="c rw" href="#">
+        <div class="l1">
+          <div class="nm">
+            Aviatorilor 12<small>ap. 4 · Andrei Munteanu</small>
+          </div>
+          <span class="mk">›</span>
+        </div>
+        <div class="l2">
+          <span class="bdg b-ok"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            >
+              <path d="M20 6 9 17l-5-5" /></svg
+            >Semnat</span
+          ><span class="bdg b-ok">Achitat integral</span>
+        </div>
+        <div class="l3">
+          <div class="amt mut">Rămas de încasat<b class="num">—</b></div>
+          <div class="dl ok">15 august 2026<small>achitat la timp</small></div>
+        </div>
+      </a>
+
+      <a class="c rw" href="#">
+        <div class="l1">
+          <div class="nm">
+            Dorobanți 44<small>ap. 11 · Elena Ionescu</small>
+          </div>
+          <span class="mk">›</span>
+        </div>
+        <div class="l2">
+          <span class="bdg b-ok"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            >
+              <path d="M20 6 9 17l-5-5" /></svg
+            >Semnat</span
+          ><span class="bdg b-rd">Plătit parțial</span>
+        </div>
+        <div class="l3">
+          <div class="amt due">
+            Rămas de încasat<b class="num">1.560,00 lei</b>
+          </div>
+          <div class="dl">15 august 2026<small>întârziat cu 6 zile</small></div>
+        </div>
+      </a>
+
+      <a class="c rw" href="#">
+        <div class="l1">
+          <div class="nm">Titulescu 8<small>ap. 2 · Radu Pavel</small></div>
+          <span class="mk">›</span>
+        </div>
+        <div class="l2">
+          <span class="bdg b-ok"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            >
+              <path d="M20 6 9 17l-5-5" /></svg
+            >Semnat</span
+          ><span class="bdg b-gy">Neplătit încă</span>
+        </div>
+        <div class="l3">
+          <div class="amt">Rămas de încasat<b class="num">2.340,00 lei</b></div>
+          <div class="dl ok">25 august 2026<small>peste 4 zile</small></div>
+        </div>
+      </a>
+
+      <a class="c rw" href="#">
+        <div class="l1">
+          <div class="nm">Unirii 3<small>ap. 7 · Maria Dobre</small></div>
+          <span class="mk">›</span>
+        </div>
+        <div class="l2">
+          <span class="bdg b-am">Ciornă, nesemnat</span
+          ><span class="bdg b-gy">Nu se poate încă</span>
+        </div>
+        <div class="l3">
+          <div class="amt mut">Rămas de încasat<b class="num">—</b></div>
+          <div class="dl ok">20 august 2026<small>după semnare</small></div>
+        </div>
+      </a>
+
+      <a class="c rw" href="#">
+        <div class="l1">
+          <div class="nm">Berceni 21<small>ap. 19 · Cristian Neagu</small></div>
+          <span class="mk">›</span>
+        </div>
+        <div class="l2">
+          <span class="bdg b-am">Neîntocmit</span
+          ><span class="bdg b-rd">Restanță din iulie</span>
+        </div>
+        <div class="l3">
+          <div class="amt due">
+            Rămas de încasat<b class="num">890,00 lei</b>
+          </div>
+          <div class="dl">
+            15 iulie 2026<small>întârziat cu 37 de zile</small>
+          </div>
+        </div>
+      </a>
+
+      <p class="note">
+        Apeși pe o fișă și se deschide lista de plată a lunii pentru acel
+        chiriaș. Proprietățile libere nu apar aici.
+      </p>
+
+      <div class="c chart">
+        <div class="ch-h">
+          <div class="ch-t">Încasări pe lună</div>
+          <div class="ch-m">Trage lateral · apasă o lună pentru cifre</div>
+          <div class="ch-l">
+            <b><i class="a"></i>Încasat</b><b><i class="b"></i>Facturat</b>
+          </div>
+        </div>
+        <div class="sw">
+          <div class="br">
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="11.200 lei încasat"
+              data-f="din 11.800 lei facturat"
+              data-m="septembrie 2025"
+            >
+              <div class="bar a" style="height: 70%"></div>
+              <div class="bar b" style="height: 73.8%"></div>
+              <span class="xl">sep</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="12.400 lei încasat"
+              data-f="din 12.400 lei facturat"
+              data-m="octombrie 2025 · integral"
+            >
+              <div class="bar a" style="height: 77.5%"></div>
+              <div class="bar b" style="height: 77.5%"></div>
+              <span class="xl">oct</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="13.100 lei încasat"
+              data-f="din 13.900 lei facturat"
+              data-m="noiembrie 2025"
+            >
+              <div class="bar a" style="height: 81.9%"></div>
+              <div class="bar b" style="height: 86.9%"></div>
+              <span class="xl">noi</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="14.600 lei încasat"
+              data-f="din 15.200 lei facturat"
+              data-m="decembrie 2025"
+            >
+              <div class="bar a" style="height: 91.3%"></div>
+              <div class="bar b" style="height: 95%"></div>
+              <span class="xl">dec</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="15.800 lei încasat"
+              data-f="din 15.800 lei facturat"
+              data-m="ianuarie 2026 · integral"
+            >
+              <div class="bar a" style="height: 98.8%"></div>
+              <div class="bar b" style="height: 98.8%"></div>
+              <span class="xl">ian</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="14.200 lei încasat"
+              data-f="din 15.100 lei facturat"
+              data-m="februarie 2026"
+            >
+              <div class="bar a" style="height: 88.8%"></div>
+              <div class="bar b" style="height: 94.4%"></div>
+              <span class="xl">feb</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="13.600 lei încasat"
+              data-f="din 13.600 lei facturat"
+              data-m="martie 2026 · integral"
+            >
+              <div class="bar a" style="height: 85%"></div>
+              <div class="bar b" style="height: 85%"></div>
+              <span class="xl">mar</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="11.800 lei încasat"
+              data-f="din 12.300 lei facturat"
+              data-m="aprilie 2026"
+            >
+              <div class="bar a" style="height: 73.8%"></div>
+              <div class="bar b" style="height: 76.9%"></div>
+              <span class="xl">apr</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="11.500 lei încasat"
+              data-f="din 11.500 lei facturat"
+              data-m="mai 2026 · integral"
+            >
+              <div class="bar a" style="height: 71.9%"></div>
+              <div class="bar b" style="height: 71.9%"></div>
+              <span class="xl">mai</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="10.400 lei încasat"
+              data-f="din 11.200 lei facturat"
+              data-m="iunie 2026"
+            >
+              <div class="bar a" style="height: 65%"></div>
+              <div class="bar b" style="height: 70%"></div>
+              <span class="xl">iun</span>
+            </div>
+            <div
+              class="bc"
+              tabindex="0"
+              data-i="11.600 lei încasat"
+              data-f="din 11.600 lei facturat"
+              data-m="iulie 2026 · integral"
+            >
+              <div class="bar a" style="height: 72.5%"></div>
+              <div class="bar b" style="height: 72.5%"></div>
+              <span class="xl">iul</span>
+            </div>
+            <div
+              class="bc now on"
+              tabindex="0"
+              data-i="4.010 lei încasat"
+              data-f="din 7.400 lei facturat"
+              data-m="august 2026 · luna nu s-a încheiat"
+            >
+              <div class="bar a" style="height: 25.1%"></div>
+              <div class="bar b" style="height: 46.3%"></div>
+              <span class="xl">aug</span>
+            </div>
+          </div>
+        </div>
+        <div class="tipbar">
+          <span class="v"
+            ><b class="tb-i">4.010 lei</b
+            ><span class="tb-f">încasat din 7.400 lei facturați</span></span
+          ><span class="g"
+            ><b class="tb-m1">august 2026</b
+            ><span class="tb-m2">luna nu s-a încheiat</span></span
+          >
+        </div>
+      </div>
+
+      <div class="sh">
+        <h2>Ultimele notificări</h2>
+        <a class="all" href="#">Toate <span class="mk">›</span></a>
+      </div>
+
+      <div class="c nt">
+        <a class="li" href="#"
+          ><div class="ic ok">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+          <div class="bd">
+            <div class="t1">Raport august publicat</div>
+            <div class="t2">Andrei Munteanu · livrat</div>
+          </div>
+          <div class="t3 num">09:02</div></a
+        >
+        <a class="li" href="#"
+          ><div class="ic rd">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
+              />
+              <path d="M12 9.5v4M12 17.4v.1" />
+            </svg>
+          </div>
+          <div class="bd">
+            <div class="t1">Reamintire restanță</div>
+            <div class="t2">Elena Ionescu · livrat</div>
+          </div>
+          <div class="t3 num">ieri</div></a
+        >
+        <a class="li" href="#"
+          ><div class="ic rd">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M15 9l-6 6M9 9l6 6" />
+            </svg>
+          </div>
+          <div class="bd">
+            <div class="t1">Date de autentificare</div>
+            <div class="t2">
+              Cristian Neagu ·
+              <b style="color: var(--rd-tx)">eroare la livrare</b>
+            </div>
+          </div>
+          <div class="t3 num">14 aug</div></a
+        >
+        <a class="li" href="#"
+          ><div class="ic am">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 3v6M12 21a8 8 0 1 0-8-8" />
+              <path d="M4 13H2" />
+            </svg>
+          </div>
+          <div class="bd">
+            <div class="t1">Contract aproape de expirare</div>
+            <div class="t2">Maria Dobre · 30 de zile</div>
+          </div>
+          <div class="t3 num">17 aug</div></a
+        >
+        <a class="all" href="#"
+          >Toate cele 9 notificări <span class="mk">›</span></a
+        >
+      </div>
+
+      <p class="note" style="margin-bottom: 8px">
+        Cifrele se leagă: 1.560 + 2.340 + 890 = 4.790 lei de încasat, din care
+        depășite ca scadență 1.560 + 890 = 2.450 lei restant.
+      </p>
+    </div>
+  </div>
+
+  <div class="scrim"></div>
+
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="st">Mai multe</div>
+    <a href="#"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M3 21h18M6 21V9l6-4.5L18 9v12" />
+        <rect x="9.5" y="14" width="5" height="7" /></svg
+      >Proprietăți<span class="mk">›</span></a
+    >
+    <a href="#"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+        <path d="m3 6.5 9 6.5 9-6.5" /></svg
+      >Notificări<span class="mk">›</span></a
+    >
+    <a href="#"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18" /></svg
+      >Limbă · Română<span class="mk">›</span></a
+    >
+    <a href="#"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <path
+          d="M12 3v2M12 19v2M5.6 5.6 7 7M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4"
+        />
+        <circle cx="12" cy="12" r="3.6" /></svg
+      >Temă · Sistem<span class="mk">›</span></a
+    >
+    <a class="dgr" href="#"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+        /></svg
+      >Ieșire din cont</a
+    >
+  </div>
+
+  <nav class="tabs">
+    <a href="#" aria-current="page"
+      ><svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M3 10.5 12 3l9 7.5M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"
+        /></svg
+      >Panou</a
+    >
+    <a href="#"
+      ><svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="4.5" width="18" height="16.5" rx="2.5" />
+        <path d="M3 9.5h18M8 2.5v4M16 2.5v4" /></svg
+      >Luna<span class="pin"></span
+    ></a>
+    <a href="#"
+      ><svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="2.5" y="5.5" width="19" height="13" rx="2.5" />
+        <path d="M2.5 10h19" />
+        <path d="M6.5 14.5h3" /></svg
+      >Plăți</a
+    >
+    <a href="#"
+      ><svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M16.5 20.5v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2a3.7 3.7 0 0 0-3.7 3.7v1.8"
+        />
+        <circle cx="9.5" cy="7.5" r="3.6" />
+        <path d="M21.5 20.5v-1.8a3.7 3.7 0 0 0-2.8-3.6" /></svg
+      >Chiriași</a
+    >
+    <a href="#" class="more"
+      ><svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+      >
+        <circle cx="5" cy="12" r="1.1" fill="currentColor" />
+        <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+        <circle cx="19" cy="12" r="1.1" fill="currentColor" /></svg
+      >Mai multe</a
+    >
+  </nav>
+</template>
+
+<script>
+  ;(function () {
+    var tpl = document.getElementById('tpl')
+    document.querySelectorAll('.glass').forEach(function (g) {
+      g.appendChild(tpl.content.cloneNode(true))
+      var frame = g.parentElement
+
+      // barele cresc pe rând
+      g.querySelectorAll('.bc').forEach(function (bc, i) {
+        bc.querySelectorAll('.bar').forEach(function (b) {
+          b.style.setProperty('--d', i * 40 + 'ms')
+        })
+        function pick() {
+          g.querySelectorAll('.bc').forEach(function (o) {
+            o.classList.remove('on')
+          })
+          bc.classList.add('on')
+          var inc = bc.dataset.i.replace(' încasat', ''),
+            fac = bc.dataset.f.replace('din ', '').replace(' facturat', '')
+          var m = bc.dataset.m.split(' · ')
+          g.querySelector('.tb-i').textContent = inc
+          g.querySelector('.tb-f').textContent =
+            'încasat din ' + fac + ' facturați'
+          g.querySelector('.tb-m1').textContent = m[0]
+          g.querySelector('.tb-m2').textContent = m[1] || 'lună încheiată'
+        }
+        bc.addEventListener('click', pick)
+        bc.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            pick()
+          }
+        })
+      })
+
+      // graficul pornește pe luna curentă
+      var sw = g.querySelector('.sw')
+      if (sw) sw.scrollLeft = sw.scrollWidth
+
+      // sertarul „Mai multe"
+      var more = g.querySelector('.tabs .more'),
+        scrim = g.querySelector('.scrim')
+      more.addEventListener('click', function (e) {
+        e.preventDefault()
+        frame.classList.toggle('sheet-open')
+      })
+      scrim.addEventListener('click', function () {
+        frame.classList.remove('sheet-open')
+      })
+
+      // clopoțelul și tema, doar ca să reacționeze
+      g.querySelectorAll('.ib')[1].addEventListener('click', function () {
+        frame.classList.toggle('is-dark')
+      })
+    })
+
+    // stări inițiale diferite pe fiecare ramă
+    requestAnimationFrame(function () {
+      var f2 = document.querySelector('#f2 .scr')
+      if (f2) f2.scrollTop = 690
+      var f3 = document.querySelector('#f3 .scr')
+      if (f3) f3.scrollTop = 120
+    })
+
+    document.addEventListener('touchstart', function () {}, { passive: true })
+  })()
+</script>
