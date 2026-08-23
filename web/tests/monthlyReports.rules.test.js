@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   assertFails,
   assertSucceeds,
@@ -13,6 +13,7 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore'
 
 // monthlyReports — admin full access; the tenant reads ONLY their own SIGNED
@@ -157,6 +158,57 @@ describe('firestore.rules — monthlyReports: admin full, tenant reads own SIGNE
     const db = testEnv.authenticatedContext('tenant-1').firestore()
 
     await assertSucceeds(getDoc(doc(db, 'monthlyReports', SIGNED_ID)))
+  })
+
+  // NFR-SEC-11 (M8): status is pinned on update. A direct client write is
+  // never how a report signs or unlocks — that happens exclusively through
+  // signReport/unlockReport (Admin SDK, bypasses rules). Asserting
+  // permission-denied SPECIFICALLY, not just assertFails, matters here:
+  // not-found also satisfies assertFails(), so a test against a missing
+  // document would pass vacuously even with the pin absent. Anti-vacuity was
+  // run by hand: with the update clause relaxed back to `if isAdmin();`, this
+  // test failed (the update succeeded); restored, it passes again.
+  it("denies an admin's direct write flipping status from draft to signed", async () => {
+    await seed()
+    const db = testEnv
+      .authenticatedContext('admin-1', { admin: true })
+      .firestore()
+
+    try {
+      await updateDoc(doc(db, 'monthlyReports', DRAFT_ID), {
+        status: 'signed',
+      })
+      expect.fail('expected the update to be denied')
+    } catch (err) {
+      expect(err.code).toBe('permission-denied')
+    }
+  })
+
+  it("denies an admin's direct write flipping status from signed back to draft", async () => {
+    await seed()
+    const db = testEnv
+      .authenticatedContext('admin-1', { admin: true })
+      .firestore()
+
+    try {
+      await updateDoc(doc(db, 'monthlyReports', SIGNED_ID), {
+        status: 'draft',
+      })
+      expect.fail('expected the update to be denied')
+    } catch (err) {
+      expect(err.code).toBe('permission-denied')
+    }
+  })
+
+  it('allows an admin write that edits an ordinary field while leaving status unchanged', async () => {
+    await seed()
+    const db = testEnv
+      .authenticatedContext('admin-1', { admin: true })
+      .firestore()
+
+    await assertSucceeds(
+      updateDoc(doc(db, 'monthlyReports', DRAFT_ID), { finalTotal: 1234 }),
+    )
   })
 
   it('allows the full CRUD to the admin (claim admin:true)', async () => {

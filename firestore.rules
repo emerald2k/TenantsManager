@@ -61,12 +61,47 @@ service cloud.firestore {
     // Public (no-auth) access via shareToken does NOT go through this rule —
     // it is served by the getSharedReport Cloud Function (sub-stage 8), which
     // is why there is no "shareToken" branch here.
+    //
+    // `status` is pinned on update (NFR-SEC-11, M8): an admin client write
+    // is allowed only when it leaves `status` unchanged. §6 has always said
+    // the draft<->signed transition happens EXCLUSIVELY through the
+    // signReport/unlockReport callables (§7.2), never a direct client write —
+    // until now nothing enforced that, it was upheld by client discipline
+    // alone. Both callables run on the Admin SDK, which bypasses Security
+    // Rules entirely, so the pin costs the admin client nothing it is
+    // supposed to be able to do; it just makes the written invariant true by
+    // construction.
     match /monthlyReports/{reportId} {
       allow read: if isAdmin() ||
         (request.auth != null &&
           resource.data.userId == request.auth.uid &&
           resource.data.status == 'signed');
-      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.status == resource.data.status;
+      allow delete: if isAdmin();
+    }
+
+    // mail — Cloud Functions only. NO client access, admin included (SRS §6,
+    // NFR-SEC-02). `message.text` holds the fully rendered body, and Appendix
+    // A1 interpolates the generated password IN CLEAR TEXT. Nothing ever
+    // deletes a mail document, so granting even admin reads would make every
+    // password ever generated permanently readable from a browser session.
+    // The administrator's view of sent mail is the projected `notifications`
+    // collection below — subject line only, never a body (FR-NLOG-02).
+    match /mail/{mailId} {
+      allow read, write: if false;
+    }
+
+    // notifications — admin-read, server-write (NFR-SEC-10, FR-NLOG-01…08).
+    // There is NO `allow write` clause of any kind here — not for the admin,
+    // not for anyone. "Cloud Functions write only" names a principal that
+    // does not exist: the Admin SDK (onMailWrite, §7.2) bypasses Security
+    // Rules entirely, so the ABSENCE of a write rule IS the server-write
+    // guarantee. Writing it positively (`if isAdmin()`) would instead open a
+    // client write path the requirement explicitly forbids.
+    match /notifications/{notificationId} {
+      allow read: if isAdmin();
     }
 
     // The remaining collections are not implemented yet.
