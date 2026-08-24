@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { AdminConfigBanner } from '@/components/shared/AdminConfigBanner'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { useAuth } from '@/features/auth/useAuth'
 import { cn } from '@/lib/utils'
 
@@ -43,6 +44,7 @@ export function AdminLayout() {
 
           <div className="flex flex-col gap-3">
             <LanguageSwitcher />
+            <ThemeToggle />
             <Button type="button" variant="outline" size="sm" onClick={logout}>
               {t('common.logout')}
             </Button>

@@ -562,6 +562,10 @@
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"
   },
+  "theme": {
+    "switchToDark": "Temă închisă",
+    "switchToLight": "Temă deschisă"
+  },
   "system": {
     "adminEmailMissing": "Adresa de email a administratorului (ADMIN_EMAIL) nu este configurată. Memento-urile de expirare a contractului, cele de pregătire a raportului și rularea automată zilnică nu mai ajung nicăieri."
   }

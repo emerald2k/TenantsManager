@@ -67,11 +67,16 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* NFR-UX-04 (M8 stage 8): five DISTINCT hues, not five shades of the same
+     gray — the pre-M8 values here were byte-identical to .dark's, which
+     defeats a categorical chart's whole purpose (FR-DASH-09, stage 15).
+     Blue/green/amber/magenta/teal, spread around the wheel for
+     discriminability against a light background. */
+  --chart-1: oklch(0.62 0.19 260);
+  --chart-2: oklch(0.6 0.15 150);
+  --chart-3: oklch(0.7 0.18 70);
+  --chart-4: oklch(0.58 0.2 320);
+  --chart-5: oklch(0.65 0.14 195);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -102,11 +107,14 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Same five hues as :root, lifted in lightness and slightly desaturated —
+     the standard dark-UI adjustment so they read clearly against the
+     near-black background (oklch(0.145 0 0)) without vibrating. */
+  --chart-1: oklch(0.7 0.16 260);
+  --chart-2: oklch(0.72 0.14 150);
+  --chart-3: oklch(0.78 0.15 70);
+  --chart-4: oklch(0.68 0.17 320);
+  --chart-5: oklch(0.74 0.12 195);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

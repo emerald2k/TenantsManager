@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
 import { formatFullDate } from '@/lib/formatDate'
@@ -53,6 +54,7 @@ export function TenantLayout() {
 
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
+          <ThemeToggle />
           <Button type="button" variant="outline" size="sm" onClick={logout}>
             {t('common.logout')}
           </Button>

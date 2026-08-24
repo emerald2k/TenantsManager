@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
+import { useTheme } from '@/features/theme/useTheme'
 import { TenantLayout } from '@/routes/TenantLayout'
 import { TenantContractPage } from '@/features/tenantApp/pages/TenantContractPage'
 
@@ -23,6 +24,10 @@ vi.mock('@/features/auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/features/tenantApp/hooks', () => ({
   useMyTenancy: vi.fn(),
 }))
+// TenantLayout now also mounts <ThemeToggle> (M8 stage 8, NFR-UX-04), which
+// needs a <ThemeProvider> ancestor — mocked here, same convention as
+// useAuth: this file is not about the theme toggle's own behavior.
+vi.mock('@/features/theme/useTheme', () => ({ useTheme: vi.fn() }))
 
 function tenancyFixture(overrides = {}) {
   return {
@@ -40,6 +45,7 @@ function query(overrides = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   useAuth.mockReturnValue({ user: { uid: 'tenant-1' }, logout: vi.fn() })
+  useTheme.mockReturnValue({ theme: 'light', toggleTheme: vi.fn() })
 })
 
 describe('TenantLayout — ended-contract banner (FR-TAPP-06)', () => {

@@ -562,6 +562,10 @@
     "title": "Page not found",
     "backHome": "Back to home"
   },
+  "theme": {
+    "switchToDark": "Dark theme",
+    "switchToLight": "Light theme"
+  },
   "system": {
     "adminEmailMissing": "The administrator's email address (ADMIN_EMAIL) is not configured. Contract-expiry reminders, report-preparation reminders and the daily automation heartbeat are not being delivered anywhere."
   }

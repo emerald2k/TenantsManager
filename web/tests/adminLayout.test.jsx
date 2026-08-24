@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import { renderWithProviders } from './renderWithProviders'
 import { useAuth } from '@/features/auth/useAuth'
 import { useAdminEmailConfigured } from '@/features/system/hooks'
+import { useTheme } from '@/features/theme/useTheme'
 import { AdminLayout } from '@/routes/AdminLayout'
 
 // First dedicated AdminLayout test (same justification TenantLayout's own
@@ -13,10 +14,16 @@ vi.mock('@/features/auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/features/system/hooks', () => ({
   useAdminEmailConfigured: vi.fn(),
 }))
+// AdminLayout now also mounts <ThemeToggle> (M8 stage 8, NFR-UX-04), which
+// needs a <ThemeProvider> ancestor — mocked here, same convention as
+// useAuth: this file is not about the theme toggle's own behavior
+// (ThemeToggle has its own dedicated test).
+vi.mock('@/features/theme/useTheme', () => ({ useTheme: vi.fn() }))
 
 beforeEach(() => {
   vi.clearAllMocks()
   useAuth.mockReturnValue({ logout: vi.fn() })
+  useTheme.mockReturnValue({ theme: 'light', toggleTheme: vi.fn() })
 })
 
 describe('AdminLayout — configuration banner (FR-SYS-07)', () => {
