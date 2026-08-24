@@ -18,31 +18,39 @@ import { cn } from '@/lib/utils'
 
 /**
  * The admin shell's sidebar (M8 stage 10, SRS §5.1/§5.3) — six items, in
- * the order SRS §5.1 lists them (`docs/design/README.md`'s own pre-agreed
- * tiebreaker: the mockup illustrates, the SRS governs where they differ,
- * and the mockup orders Current month second rather than fourth). Payments
- * and Notifications route to `PlaceholderPage` until stages 12 and 14
- * build their real pages — the sidebar is greenfield ahead of both, by
- * design (the plan's own stage 10 row says "sidebar (6 items)"), not a
- * dangling link.
+ * the order SRS §5.1 lists them: Dashboard, Current month, Properties,
+ * Renters, Payments, Notifications. Current month sits second, directly
+ * under Dashboard — corrected in the SRS on 2026-08-25 to match the
+ * administrator's own ordering decision made on the approved mockup
+ * (comment `1d5e7bcd`), which the SRS text had not caught up with yet.
+ * The first pass here followed the SRS's OLD order under the "SRS wins
+ * where they disagree" rule — correctly applying the rule against a
+ * source that itself hadn't been brought forward. The rule stands; this
+ * commit just follows the corrected SRS instead of the stale one.
+ * Payments and Notifications route to `PlaceholderPage` until stages 12
+ * and 14 build their real pages — the sidebar is greenfield ahead of
+ * both, by design (the plan's own stage 10 row says "sidebar (6 items)"),
+ * not a dangling link.
  *
  * Not adopted: the mockup's badge pill on "Current month" (would need
  * this-month's unsigned-report count, a data feature this shell stage
  * does not own) and the sub-700px phone shell (bottom tab bar, bell,
- * "More" sheet, NFR-UX-03) — neither is named in the plan's stage 10 row.
- * What IS built here, because NFR-UX-03 names it directly: below 880px the
- * dark rail collapses into a horizontal scroller instead of a fixed side
- * column, still above the main content, not yet the phone shell.
+ * "More" sheet, NFR-UX-03) — neither is named in the plan's stage 10 row;
+ * the plan's stage 15b now names the phone shell explicitly, after stage
+ * 15 (Dashboard), not started yet. What IS built here, because NFR-UX-03
+ * names it directly: below 880px the dark rail collapses into a
+ * horizontal scroller instead of a fixed side column, still above the
+ * main content, not yet the phone shell.
  */
 const NAV_ITEMS = [
   { to: '/admin', label: 'nav.dashboard', end: true, Icon: LayoutDashboard },
-  { to: '/admin/properties', label: 'nav.properties', Icon: Building2 },
-  { to: '/admin/tenants', label: 'nav.tenants', Icon: Users },
   {
     to: '/admin/current-month',
     label: 'nav.currentMonth',
     Icon: CalendarDays,
   },
+  { to: '/admin/properties', label: 'nav.properties', Icon: Building2 },
+  { to: '/admin/tenants', label: 'nav.tenants', Icon: Users },
   { to: '/admin/payments', label: 'nav.payments', Icon: Wallet },
   { to: '/admin/notifications', label: 'nav.notifications', Icon: Bell },
 ]
