@@ -24,6 +24,8 @@
     "currentMonth": "Current month",
     "properties": "Properties",
     "tenants": "Tenants",
+    "payments": "Payments",
+    "notifications": "Notifications",
     "home": "Home",
     "history": "History",
     "contract": "Contract"
@@ -40,6 +42,8 @@
     "monthlyReportForm": "Admin — Monthly report",
     "reportsListPhase2": "Admin — Reports list (Phase 2)",
     "annualReportPhase2": "Admin — Annual report (Phase 2)",
+    "paymentsComingSoon": "Admin — Payments (coming soon)",
+    "notificationsComingSoon": "Admin — Notifications (coming soon)",
     "tenantDashboard": "Tenant — Home",
     "tenantHistory": "Tenant — History",
     "tenantContract": "Tenant — Contract",
@@ -551,7 +555,7 @@
       },
       "badge": {
         "notEntered": "Not entered",
-        "published": "Published",
+        "signed": "Signed",
         "paid": "Paid",
         "partial": "Partial",
         "overdue": "Overdue"
@@ -562,9 +566,14 @@
     "title": "Page not found",
     "backHome": "Back to home"
   },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. You can try going back to the home page.",
+    "backHome": "Back to home"
+  },
   "theme": {
-    "switchToDark": "Dark theme",
-    "switchToLight": "Light theme"
+    "stateDark": "Theme · Dark",
+    "stateLight": "Theme · Light"
   },
   "system": {
     "adminEmailMissing": "The administrator's email address (ADMIN_EMAIL) is not configured. Contract-expiry reminders, report-preparation reminders and the daily automation heartbeat are not being delivered anywhere."

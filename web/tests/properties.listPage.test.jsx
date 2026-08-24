@@ -4,12 +4,18 @@ import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { PropertiesListPage } from '@/features/properties/pages/PropertiesListPage'
 import { useProperties } from '@/features/properties/hooks'
+import { useActiveTenancies } from '@/features/tenants/hooks'
 
-// Fast band — the boundary (the hook) is mocked, no emulator. B already covers what
+// Fast band — the boundary (the hooks) is mocked, no emulator. B already covers what
 // `useProperties` does with Firestore; here we check only what the page does with
-// the list: composes it, sorts it, and drives the toggle/navigation.
+// the list: composes it, sorts it, joins the balance column, and drives the
+// toggle/navigation. `useActiveTenancies` is the same join TenantsListPage
+// already does by `userId` (M8 stage 10), here by `propertyId`.
 vi.mock('@/features/properties/hooks', () => ({
   useProperties: vi.fn(),
+}))
+vi.mock('@/features/tenants/hooks', () => ({
+  useActiveTenancies: vi.fn(),
 }))
 
 // PARTIAL mock: renderWithProviders mounts a real MemoryRouter, so replacing the
@@ -40,8 +46,20 @@ function mockList(data, extra = {}) {
   })
 }
 
+function mockTenancies(data = [], extra = {}) {
+  useActiveTenancies.mockReturnValue({
+    data,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+    ...extra,
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  mockTenancies()
 })
 
 /** The names in the body rows, in DOM order (the header row is dropped). */
@@ -71,6 +89,42 @@ describe('PropertiesListPage', () => {
     await renderWithProviders(<PropertiesListPage />)
 
     expect(renderedNames()).toEqual(['Alpha', 'Mango', 'Zebra'])
+  })
+
+  describe('balance column (M8 stage 10 — joined from useActiveTenancies, was a hardcoded 0)', () => {
+    function balanceCell(name) {
+      const row = screen.getByText(name).closest('tr')
+      // name | address | status | balance
+      return within(row).getAllByRole('cell')[3]
+    }
+
+    it('shows the real, formatted currentBalance for an occupied property', async () => {
+      mockList([property({ id: 'p1', name: 'Apartament Ocupat' })])
+      mockTenancies([{ id: 't1', propertyId: 'p1', currentBalance: 500 }])
+      await renderWithProviders(<PropertiesListPage />)
+
+      const cell = balanceCell('Apartament Ocupat')
+      expect(cell.textContent).toBe('500,00 lei')
+      expect(cell.querySelector('.text-destructive')).not.toBeNull()
+    })
+
+    it('shows "—" for a free property (no active tenancy), never a stale 0', async () => {
+      mockList([property({ id: 'p1', name: 'Apartament Liber' })])
+      mockTenancies([])
+      await renderWithProviders(<PropertiesListPage />)
+
+      const cell = balanceCell('Apartament Liber')
+      expect(cell.textContent).toBe('—')
+    })
+
+    it('renders a negative currentBalance as a positive figure labelled Credit, never a bare negative number (§5.5)', async () => {
+      mockList([property({ id: 'p1', name: 'Apartament Credit' })])
+      mockTenancies([{ id: 't1', propertyId: 'p1', currentBalance: -150 }])
+      await renderWithProviders(<PropertiesListPage />)
+
+      const cell = balanceCell('Apartament Credit')
+      expect(cell.textContent).toBe('150,00 lei (Credit)')
+    })
   })
 
   describe('show-archived toggle (FR-PROP-07)', () => {

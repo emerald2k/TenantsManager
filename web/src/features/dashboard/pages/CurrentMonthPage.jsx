@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { RetryButton } from '@/components/shared/RetryButton'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Table } from '@/components/shared/Table'
+import { MoneyAmount } from '@/components/shared/MoneyAmount'
 import { useActiveTenancies } from '@/features/tenants/hooks'
 import { useReportsForMonth } from '@/features/reports/hooks'
-import { formatCurrency } from '@/lib/formatCurrency'
 import {
   deriveReportStatusBadge,
   formatMonthYearLabel,
@@ -13,7 +15,7 @@ import {
 
 const BADGE_TONE = {
   'not-entered': 'bg-muted text-muted-foreground',
-  published: 'bg-secondary text-secondary-foreground',
+  signed: 'bg-secondary text-secondary-foreground',
   partial: 'bg-primary/10 text-primary',
   paid: 'bg-primary text-primary-foreground',
   overdue: 'bg-destructive/10 text-destructive',
@@ -21,7 +23,7 @@ const BADGE_TONE = {
 
 const BADGE_LABEL_KEY = {
   'not-entered': 'notEntered',
-  published: 'published',
+  signed: 'signed',
   paid: 'paid',
   partial: 'partial',
   overdue: 'overdue',
@@ -104,31 +106,35 @@ export function CurrentMonthPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-foreground">
-          {t('dashboard.currentMonth.title')}
-        </h1>
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setSelected((prev) => shiftMonth(prev, -1))}
-          >
-            {t('dashboard.currentMonth.previousMonth')}
-          </Button>
-          <span className="min-w-32 text-center text-sm font-medium text-foreground">
-            {formatMonthYearLabel(selected.month, selected.year, i18n.language)}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isAtCurrentMonth}
-            onClick={() => setSelected((prev) => shiftMonth(prev, 1))}
-          >
-            {t('dashboard.currentMonth.nextMonth')}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('dashboard.currentMonth.title')}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSelected((prev) => shiftMonth(prev, -1))}
+            >
+              {t('dashboard.currentMonth.previousMonth')}
+            </Button>
+            <span className="min-w-32 text-center text-sm font-medium text-foreground">
+              {formatMonthYearLabel(
+                selected.month,
+                selected.year,
+                i18n.language,
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isAtCurrentMonth}
+              onClick={() => setSelected((prev) => shiftMonth(prev, 1))}
+            >
+              {t('dashboard.currentMonth.nextMonth')}
+            </Button>
+          </>
+        }
+      />
 
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
@@ -150,55 +156,40 @@ export function CurrentMonthPage() {
           {t('dashboard.currentMonth.noOccupiedProperties')}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border bg-muted/50">
-              <tr className="text-xs text-muted-foreground">
-                <th className="px-4 py-2 font-medium">
-                  {t('dashboard.currentMonth.columns.property')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('dashboard.currentMonth.columns.tenant')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('dashboard.currentMonth.columns.status')}
-                </th>
-                <th className="px-4 py-2 text-right font-medium">
-                  {t('dashboard.currentMonth.columns.total')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.propertyId}
-                  onClick={() => goToReport(row.tenancyId)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      goToReport(row.tenancyId)
-                    }
-                  }}
-                  tabIndex={0}
-                  className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
-                >
-                  <td className="px-4 py-3 font-medium text-foreground">
-                    {row.propertyName}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {row.tenantName}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={row.badge} />
-                  </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
-                    {row.total === null ? '—' : formatCurrency(row.total)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            {
+              key: 'property',
+              header: t('dashboard.currentMonth.columns.property'),
+              primary: true,
+              render: (row) => row.propertyName,
+            },
+            {
+              key: 'tenant',
+              header: t('dashboard.currentMonth.columns.tenant'),
+              render: (row) => row.tenantName,
+            },
+            {
+              key: 'status',
+              header: t('dashboard.currentMonth.columns.status'),
+              render: (row) => <StatusBadge status={row.badge} />,
+            },
+            {
+              key: 'total',
+              header: t('dashboard.currentMonth.columns.total'),
+              align: 'right',
+              // A positive finalTotal is just this month's ordinary bill,
+              // not arrears — emphasizePositive={false} keeps it from
+              // rendering in the destructive colour the balance columns use.
+              render: (row) => (
+                <MoneyAmount value={row.total} emphasizePositive={false} />
+              ),
+            },
+          ]}
+          rows={rows}
+          getRowKey={(row) => row.propertyId}
+          onRowClick={(row) => goToReport(row.tenancyId)}
+        />
       )}
     </div>
   )

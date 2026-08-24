@@ -14,20 +14,22 @@ beforeEach(() => {
 })
 
 describe('ThemeToggle (NFR-UX-04)', () => {
-  it('labels itself with the DESTINATION theme when currently light', async () => {
+  it('labels itself with the CURRENT theme when currently light', async () => {
     useTheme.mockReturnValue({ theme: 'light', toggleTheme })
 
     await renderWithProviders(<ThemeToggle />)
 
-    expect(screen.getByRole('button', { name: 'Temă închisă' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Temă · Deschisă' }),
+    ).toBeVisible()
   })
 
-  it('labels itself with the DESTINATION theme when currently dark', async () => {
+  it('labels itself with the CURRENT theme when currently dark', async () => {
     useTheme.mockReturnValue({ theme: 'dark', toggleTheme })
 
     await renderWithProviders(<ThemeToggle />)
 
-    expect(screen.getByRole('button', { name: 'Temă deschisă' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Temă · Închisă' })).toBeVisible()
   })
 
   it('calls toggleTheme on click', async () => {

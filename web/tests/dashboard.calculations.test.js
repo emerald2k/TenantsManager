@@ -111,13 +111,13 @@ describe('deriveReportStatusBadge', () => {
     ).toBe('overdue')
   })
 
-  it('signed + unpaid, within due date -> published', () => {
+  it('signed + unpaid, within due date -> signed', () => {
     expect(
       deriveReportStatusBadge(
         { status: 'signed', paymentStatus: 'unpaid', dueDate: '2026-07-25' },
         TODAY,
       ),
-    ).toBe('published')
+    ).toBe('signed')
   })
 
   it('signed + paymentStatus ABSENT entirely (never marked), past due -> overdue, never crashes', () => {
@@ -129,22 +129,22 @@ describe('deriveReportStatusBadge', () => {
     ).toBe('overdue')
   })
 
-  it('signed + paymentStatus ABSENT entirely, within due date -> published', () => {
+  it('signed + paymentStatus ABSENT entirely, within due date -> signed', () => {
     expect(
       deriveReportStatusBadge(
         { status: 'signed', dueDate: '2026-07-25' },
         TODAY,
       ),
-    ).toBe('published')
+    ).toBe('signed')
   })
 
-  it('due date is exactly today -> not yet overdue (published)', () => {
+  it('due date is exactly today -> not yet overdue (signed)', () => {
     expect(
       deriveReportStatusBadge(
         { status: 'signed', dueDate: '2026-07-20' },
         TODAY,
       ),
-    ).toBe('published')
+    ).toBe('signed')
   })
 })
 

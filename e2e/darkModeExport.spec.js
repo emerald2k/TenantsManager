@@ -94,9 +94,10 @@ test('exports stay light when downloaded from dark mode (NFR-UX-05)', async ({
 }) => {
   await loginAsAdmin(page)
 
-  // Switch to dark mode - the button is labelled with the theme it
-  // switches TO, so in the default (light) state it reads "Temă închisă".
-  await page.getByRole('button', { name: 'Temă închisă' }).click()
+  // Switch to dark mode - the button is labelled with the CURRENT theme
+  // (M8 stage 10 relabel), so in the default (light) state it reads
+  // "Temă · Deschisă"; clicking it switches to dark.
+  await page.getByRole('button', { name: 'Temă · Deschisă' }).click()
   await expect(page.locator('html')).toHaveClass(/dark/)
 
   await page.goto(REPORT_URL)

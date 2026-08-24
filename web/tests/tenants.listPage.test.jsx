@@ -178,8 +178,8 @@ describe('TenantsListPage (FR-TEN-13)', () => {
       await renderWithProviders(<TenantsListPage />)
 
       const cell = balanceCell('Sold Zero')
-      expect(cell.textContent).toBe('0')
-      expect(cell.className).not.toContain('text-destructive')
+      expect(cell.textContent).toBe('0,00 lei')
+      expect(cell.querySelector('.text-destructive')).toBeNull()
     })
 
     it('applies the destructive arrears styling when the balance is > 0', async () => {
@@ -208,8 +208,37 @@ describe('TenantsListPage (FR-TEN-13)', () => {
       await renderWithProviders(<TenantsListPage />)
 
       const cell = balanceCell('Sold Restant')
-      expect(cell.textContent).toBe('500')
-      expect(cell.className).toContain('text-destructive')
+      expect(cell.textContent).toBe('500,00 lei')
+      expect(cell.querySelector('.text-destructive')).not.toBeNull()
+    })
+
+    it('renders a negative currentBalance as a positive figure labelled Credit, never a bare negative number (§5.5)', async () => {
+      mockData({
+        users: [
+          {
+            id: 'u1',
+            name: 'Sold Credit',
+            phone: '',
+            email: '',
+            status: 'active',
+          },
+        ],
+        tenancies: [
+          {
+            id: 't1',
+            userId: 'u1',
+            property: { name: 'Casa C' },
+            currentBalance: -200,
+            status: 'active',
+          },
+        ],
+      })
+      await renderWithProviders(<TenantsListPage />)
+
+      const cell = balanceCell('Sold Credit')
+      expect(cell.textContent).toBe('200,00 lei (Credit)')
+      expect(cell.textContent).not.toContain('-200')
+      expect(cell.querySelector('.text-destructive')).toBeNull()
     })
   })
 

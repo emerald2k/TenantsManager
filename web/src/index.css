@@ -78,14 +78,23 @@
   --chart-4: oklch(0.58 0.2 320);
   --chart-5: oklch(0.65 0.14 195);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* NFR-UX-01/M8 stage 10: the admin rail is a CONSTANT dark-navy surface,
+     the same value in :root and .dark below — not derived from the
+     light/dark app theme at all. The approved mockup's rail is dark in
+     both themes; giving it one fixed value rather than two close ones
+     guarantees "visually distinct from the content area" by construction,
+     in both themes, forever — the M4 shell's dark-theme sidebar used the
+     same near-black tone as the page background and nearly disappeared
+     into it (the defect stage 10 exists to fix), which two independently
+     "close enough" values could reproduce just as easily as one bad one. */
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.869 0.022 252.894);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.279 0.041 260.031);
+  --sidebar-ring: oklch(0.869 0.022 252.894);
 }
 
 .dark {
@@ -115,14 +124,15 @@
   --chart-3: oklch(0.78 0.15 70);
   --chart-4: oklch(0.68 0.17 320);
   --chart-5: oklch(0.74 0.12 195);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Same constant rail as :root above — see the comment there. */
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.869 0.022 252.894);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.279 0.041 260.031);
+  --sidebar-ring: oklch(0.869 0.022 252.894);
 }
 
 /* NFR-UX-05 (M8 stage 9) — pins `ReportSummaryView` to the light palette

@@ -4,8 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RetryButton } from '@/components/shared/RetryButton'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Table } from '@/components/shared/Table'
+import { MoneyAmount } from '@/components/shared/MoneyAmount'
 import { filterByText } from '@/lib/filterByText'
 import { useProperties } from '@/features/properties/hooks'
+import { useActiveTenancies } from '@/features/tenants/hooks'
 
 /**
  * The property list (FR-PROP-07, SRS §5.3), also surfacing the status (FR-PROP-05).
@@ -19,6 +23,13 @@ import { useProperties } from '@/features/properties/hooks'
  *  - the search (FR-PROP-07) is client-side too, over the already-fetched list, via
  *    the shared `filterByText` (the same util the tenant list uses). It was deferred
  *    past M1 and landed in M3 alongside the tenant list.
+ *
+ * The balance column (M8 stage 10) joins `useActiveTenancies` by `propertyId` —
+ * the same source and the same join shape `TenantsListPage` already uses by
+ * `userId`. Until this stage it was a hardcoded `0` (a stale M4 TODO):
+ * `currentBalance` has carried the real figure since M4, this column was
+ * simply never wired to it. A free property (no active tenancy) shows "—",
+ * not a misleading `0`.
  */
 
 /** Address as one line: "street number, city" (SRS §6 address shape). The optional
@@ -61,11 +72,38 @@ export function PropertiesListPage() {
   // toggle and B refetches with the right WHERE clause.
   const {
     data: properties,
-    isPending,
-    isError,
-    isFetching,
-    refetch,
+    isPending: isPropertiesPending,
+    isError: isPropertiesError,
+    isFetching: isPropertiesFetching,
+    refetch: refetchProperties,
   } = useProperties({ includeArchived: showArchived })
+  const {
+    data: tenancies,
+    isPending: isTenanciesPending,
+    isError: isTenanciesError,
+    isFetching: isTenanciesFetching,
+    refetch: refetchTenancies,
+  } = useActiveTenancies()
+
+  const isPending = isPropertiesPending || isTenanciesPending
+  const isError = isPropertiesError || isTenanciesError
+  const isFetching = isPropertiesFetching || isTenanciesFetching
+
+  function refetch() {
+    refetchProperties()
+    refetchTenancies()
+  }
+
+  const balanceByProperty = useMemo(
+    () =>
+      new Map(
+        (tenancies ?? []).map((tenancy) => [
+          tenancy.propertyId,
+          tenancy.currentBalance ?? 0,
+        ]),
+      ),
+    [tenancies],
+  )
 
   // A COPY before sorting: `sort` mutates in place, and the array belongs to the
   // react-query cache — sorting it directly would mutate cached state.
@@ -94,35 +132,35 @@ export function PropertiesListPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-foreground">
-          {t('properties.list.title')}
-        </h1>
-        <div className="flex flex-wrap items-center gap-4">
-          <Input
-            type="search"
-            aria-label={t('properties.list.search')}
-            placeholder={t('properties.list.search')}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-56"
-          />
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(event) => setShowArchived(event.target.checked)}
+      <PageHeader
+        title={t('properties.list.title')}
+        actions={
+          <>
+            <Input
+              type="search"
+              aria-label={t('properties.list.search')}
+              placeholder={t('properties.list.search')}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-56"
             />
-            {t('properties.list.showArchived')}
-          </label>
-          <Button
-            type="button"
-            onClick={() => navigate('/admin/properties/new')}
-          >
-            {t('properties.list.add')}
-          </Button>
-        </div>
-      </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => setShowArchived(event.target.checked)}
+              />
+              {t('properties.list.showArchived')}
+            </label>
+            <Button
+              type="button"
+              onClick={() => navigate('/admin/properties/new')}
+            >
+              {t('properties.list.add')}
+            </Button>
+          </>
+        }
+      />
 
       {isPending ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
@@ -150,60 +188,42 @@ export function PropertiesListPage() {
           {t('properties.list.noMatches')}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border bg-muted/50">
-              <tr className="text-xs text-muted-foreground">
-                <th className="px-4 py-2 font-medium">
-                  {t('properties.fields.name')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('properties.fields.address')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('properties.fields.status')}
-                </th>
-                <th className="px-4 py-2 text-right font-medium">
-                  {t('properties.fields.balance')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((property) => (
-                <tr
-                  key={property.id}
-                  onClick={() => goToProperty(property.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      goToProperty(property.id)
-                    }
-                  }}
-                  tabIndex={0}
-                  className={`cursor-pointer border-b border-border last:border-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none ${
-                    property.archived ? 'opacity-60' : ''
-                  }`}
-                >
-                  <td className="px-4 py-3 font-medium text-foreground">
-                    {property.name}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {formatAddress(property.address)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge property={property} />
-                  </td>
-                  {/* TODO M4: the real outstanding balance comes from the tenancy's
-                      currentBalance (FR-PROP-05). Until then a neutral 0 — the red
-                      "in arrears" styling activates at M4 with real data. */}
-                  <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
-                    0
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            {
+              key: 'name',
+              header: t('properties.fields.name'),
+              primary: true,
+              render: (property) => property.name,
+            },
+            {
+              key: 'address',
+              header: t('properties.fields.address'),
+              render: (property) => formatAddress(property.address),
+            },
+            {
+              key: 'status',
+              header: t('properties.fields.status'),
+              render: (property) => <StatusBadge property={property} />,
+            },
+            {
+              key: 'balance',
+              header: t('properties.fields.balance'),
+              align: 'right',
+              render: (property) => (
+                <MoneyAmount
+                  value={balanceByProperty.get(property.id) ?? null}
+                />
+              ),
+            },
+          ]}
+          rows={filtered}
+          getRowKey={(property) => property.id}
+          onRowClick={(property) => goToProperty(property.id)}
+          rowClassName={(property) =>
+            property.archived ? 'opacity-60' : undefined
+          }
+        />
       )}
     </div>
   )

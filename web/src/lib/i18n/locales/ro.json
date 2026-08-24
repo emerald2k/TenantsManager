@@ -24,6 +24,8 @@
     "currentMonth": "Luna curentă",
     "properties": "Proprietăți",
     "tenants": "Chiriași",
+    "payments": "Plăți",
+    "notifications": "Notificări",
     "home": "Acasă",
     "history": "Istoric",
     "contract": "Contract"
@@ -40,6 +42,8 @@
     "monthlyReportForm": "Admin — Raport lunar",
     "reportsListPhase2": "Admin — Listă rapoarte (Faza 2)",
     "annualReportPhase2": "Admin — Raport anual (Faza 2)",
+    "paymentsComingSoon": "Admin — Plăți (în curând)",
+    "notificationsComingSoon": "Admin — Notificări (în curând)",
     "tenantDashboard": "Chiriaș — Acasă",
     "tenantHistory": "Chiriaș — Istoric",
     "tenantContract": "Chiriaș — Contract",
@@ -551,7 +555,7 @@
       },
       "badge": {
         "notEntered": "Neintrodus",
-        "published": "Publicat",
+        "signed": "Semnat",
         "paid": "Plătit",
         "partial": "Parțial",
         "overdue": "Restant"
@@ -562,9 +566,14 @@
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"
   },
+  "errorBoundary": {
+    "title": "Ceva nu a funcționat",
+    "message": "A apărut o eroare neașteptată. Poți încerca să te întorci la pagina principală.",
+    "backHome": "Înapoi la pagina principală"
+  },
   "theme": {
-    "switchToDark": "Temă închisă",
-    "switchToLight": "Temă deschisă"
+    "stateDark": "Temă · Închisă",
+    "stateLight": "Temă · Deschisă"
   },
   "system": {
     "adminEmailMissing": "Adresa de email a administratorului (ADMIN_EMAIL) nu este configurată. Memento-urile de expirare a contractului, cele de pregătire a raportului și rularea automată zilnică nu mai ajung nicăieri."

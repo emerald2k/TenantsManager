@@ -31,14 +31,20 @@ export function calculateTotalArrears(activeTenancies) {
  * Badge precedence (pinned, do not reorder):
  * no signed report -> not-entered; paid -> paid; partial -> partial (even
  * past due); unpaid/absent + past due -> overdue; unpaid/absent + in term
- * -> published. `paymentStatus` absent (report never had a payment marked)
+ * -> signed. `paymentStatus` absent (report never had a payment marked)
  * falls through to the same branch as 'unpaid' by construction below.
+ *
+ * Found and fixed at M8 stage 10: this last branch used to return the
+ * literal string `'published'` — the exact value CLAUDE.md §5.5 and SRS
+ * §5.5 both name as the one status word never allowed to survive ("renamed
+ * to 'signed' at v4.3"). It reached the admin as real badge text ("Publicat")
+ * on `/admin/current-month`, not just an internal key name.
  */
 export function deriveReportStatusBadge(report, referenceDate = new Date()) {
   if (!report || report.status !== 'signed') return 'not-entered'
   if (report.paymentStatus === 'paid') return 'paid'
   if (report.paymentStatus === 'partial') return 'partial'
-  return isPastDueDate(report.dueDate, referenceDate) ? 'overdue' : 'published'
+  return isPastDueDate(report.dueDate, referenceDate) ? 'overdue' : 'signed'
 }
 
 /** ISO date string split into a LOCAL Date (not `new Date(isoString)`, which
