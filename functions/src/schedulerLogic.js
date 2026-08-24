@@ -169,4 +169,5 @@ module.exports = {
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
+  FINAL_TOTAL_EPSILON,
 }

@@ -325,6 +325,18 @@
           "saveError": "The settlement could not be saved. Please try again."
         }
       },
+      "balance": {
+        "title": "Balance",
+        "stored": "Stored balance",
+        "recomputed": "Recomputed balance",
+        "reportChain": "From the signed report chain",
+        "recalculateButton": "Recalculate balance",
+        "confirmTitle": "Recalculate this balance?",
+        "confirmBody": "This writes the recomputed value over the stored one. The change is recorded — who, when, from what, to what.",
+        "confirmButton": "Recalculate",
+        "recalculatedNotice": "Recalculated: {{from}} → {{to}}",
+        "error": "The balance could not be recalculated. Please try again."
+      },
       "account": {
         "title": "Account status",
         "resetPasswordTitle": "Password reset",
@@ -549,5 +561,8 @@
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
+  },
+  "system": {
+    "adminEmailMissing": "The administrator's email address (ADMIN_EMAIL) is not configured. Contract-expiry reminders, report-preparation reminders and the daily automation heartbeat are not being delivered anywhere."
   }
 }

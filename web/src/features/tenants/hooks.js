@@ -400,3 +400,44 @@ export function useSettleDeposit() {
     },
   })
 }
+
+// ─────────────────────── useRecalculateTenancyBalance ────────────────────
+/**
+ * The confirm half of the Recalculate-balance control (FR-SYS-05a, M8 stage
+ * 7) — via the `recalculateTenancyBalance` callable, NOT a Firestore write:
+ * `NFR-SEC-12` pins `currentBalance` against every client write, so a
+ * client `updateDoc` here would simply be refused by the rules. Same
+ * calling convention as `useEndTenancy`/`useSettleDeposit`'s sibling
+ * callable-vs-`updateDoc` split — the Admin SDK path is the one that
+ * already owns this field, and this is the one deliberate exception NFR-
+ * SEC-12's own comment names.
+ *
+ * Returns `{ from, to }` (the callable's response) so the control can show
+ * what actually changed — the confirmed write, not the client's own
+ * (possibly-stale) preview.
+ */
+export function useRecalculateTenancyBalance() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tenancyId }) => {
+      const recalculateTenancyBalance = httpsCallable(
+        functions,
+        'recalculateTenancyBalance',
+      )
+      const result = await recalculateTenancyBalance({ tenancyId })
+      return result.data
+    },
+    onSuccess: (_result, { tenancyId, userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'detail', tenancyId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'active', 'list'],
+      })
+    },
+  })
+}

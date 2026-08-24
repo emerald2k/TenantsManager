@@ -325,6 +325,18 @@
           "saveError": "Decontarea nu a putut fi salvată. Încearcă din nou."
         }
       },
+      "balance": {
+        "title": "Sold",
+        "stored": "Sold stocat",
+        "recomputed": "Sold recalculat",
+        "reportChain": "Din lanțul de rapoarte semnate",
+        "recalculateButton": "Recalculează soldul",
+        "confirmTitle": "Recalculezi acest sold?",
+        "confirmBody": "Se scrie valoarea recalculată peste cea stocată. Modificarea este înregistrată — cine, când, de la ce, la ce.",
+        "confirmButton": "Recalculează",
+        "recalculatedNotice": "Recalculat: {{from}} → {{to}}",
+        "error": "Soldul nu a putut fi recalculat. Încearcă din nou."
+      },
       "account": {
         "title": "Stare cont",
         "resetPasswordTitle": "Resetare parolă",
@@ -549,5 +561,8 @@
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"
+  },
+  "system": {
+    "adminEmailMissing": "Adresa de email a administratorului (ADMIN_EMAIL) nu este configurată. Memento-urile de expirare a contractului, cele de pregătire a raportului și rularea automată zilnică nu mai ajung nicăieri."
   }
 }

@@ -16,6 +16,7 @@ const { buildExpiryReminderEmail } = require('./mail-templates/expiryReminder')
 const {
   buildReportPrepReminderEmail,
 } = require('./mail-templates/reportPrepReminder')
+const { buildDailyHeartbeatEmail } = require('./mail-templates/dailyHeartbeat')
 
 /**
  * dailyScheduler (SRS §7.2, FR-SYS-04). Fires every active tenancy's three
@@ -29,6 +30,13 @@ const {
  * concerns — this file does not compensate for DST in either direction,
  * that would double-correct (or miscorrect) what the other layer already
  * owns.
+ *
+ * Ends every completed run by emailing `ADMIN_EMAIL` a heartbeat (M8 stage
+ * 7, FR-SYS-06, template A12) — tenancies evaluated, emails queued, errors
+ * caught. Its content is almost never interesting; its ABSENCE is: a
+ * scheduler that has died sends nothing, and a quiet month looks identical
+ * to one where everyone paid on time. This is the only mechanism that would
+ * ever surface a dead scheduler.
  */
 
 if (!getApps().length) {
@@ -85,9 +93,17 @@ async function hasSignedReportThisMonth(db, tenancyId, year, month) {
  * missed at first: an orphaned `userId` used to take down family 2's A5
  * (FR-CON-09's 90/60/30-day safety net) for a tenant-data problem that has
  * nothing to do with the admin's contract-expiry warning.
+ *
+ * Returns `{ emailsQueued, errors }` (M8 stage 7, FR-SYS-06) — the run-level
+ * counts the heartbeat reports. Counting here, at the source of each
+ * `mail.set()`/`catch`, is what keeps the heartbeat's numbers honest without
+ * a second pass over `mail` after the fact (which would also double-count
+ * anything a previous, unrelated run had already written).
  */
 async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
   const [year, month] = today.split('-').map(Number)
+  let emailsQueued = 0
+  let errors = 0
 
   // FAMILY 1 — arrears reminder (A4, to the TENANT). `dueDate` is derived
   // from `dueDay` for the CURRENT month of `today` — deliberately NOT from
@@ -124,19 +140,21 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           url: APP_URL,
         }),
       )
+      emailsQueued += 1
     }
   } catch (error) {
     console.error(
       `dailyScheduler: tenancy ${tenancyId}, family 1 (arrears) failed — continuing with the other families.`,
       error,
     )
+    errors += 1
   }
 
   // Families 2 and 3 both go to ADMIN_EMAIL — nothing to evaluate or send
   // for either once it's missing (the run-level console.error already fired
   // once in dailySchedulerHandler; family 1 above never reads adminEmail,
   // so it is entirely unaffected by this return either way).
-  if (!adminEmail) return
+  if (!adminEmail) return { emailsQueued, errors }
 
   // FAMILY 2 — contract expiry reminder (A5, to the admin).
   try {
@@ -151,12 +169,14 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           url: APP_URL,
         }),
       )
+      emailsQueued += 1
     }
   } catch (error) {
     console.error(
       `dailyScheduler: tenancy ${tenancyId}, family 2 (expiry) failed — continuing with the other families.`,
       error,
     )
+    errors += 1
   }
 
   // FAMILY 3 — report preparation reminder (A6, to the admin).
@@ -183,13 +203,17 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           dueDate: nextOccurrenceOfDueDay(today, tenancy.dueDay),
         }),
       )
+      emailsQueued += 1
     }
   } catch (error) {
     console.error(
       `dailyScheduler: tenancy ${tenancyId}, family 3 (report prep) failed — continuing with the other families.`,
       error,
     )
+    errors += 1
   }
+
+  return { emailsQueued, errors }
 }
 
 /**
@@ -225,9 +249,26 @@ async function dailySchedulerHandler(event) {
     .where('status', '==', 'active')
     .get()
 
+  // FR-SYS-06: the heartbeat's three counts, aggregated across the whole
+  // run. `tenanciesEvaluated` is `snap.docs.length` regardless of how any
+  // individual tenancy fares below — a tenancy that throws before even
+  // reaching a family's own try/catch was still EVALUATED, its outcome was
+  // just an error, which the outer catch below already counts.
+  const tenanciesEvaluated = snap.docs.length
+  let totalEmailsQueued = 0
+  let totalErrors = 0
+
   for (const doc of snap.docs) {
     try {
-      await processTenancy(db, doc.id, doc.data(), today, adminEmail)
+      const result = await processTenancy(
+        db,
+        doc.id,
+        doc.data(),
+        today,
+        adminEmail,
+      )
+      totalEmailsQueued += result.emailsQueued
+      totalErrors += result.errors
     } catch (error) {
       // OUTER LAYER — a different role from the per-family try/catch INSIDE
       // processTenancy, not redundant with it: this one is what still
@@ -243,7 +284,25 @@ async function dailySchedulerHandler(event) {
         `dailyScheduler: failed to process tenancy ${doc.id} — continuing with the rest.`,
         error,
       )
+      totalErrors += 1
     }
+  }
+
+  // The heartbeat itself (A12) — sent on every COMPLETED run, unconditionally
+  // of whether any reminder fired. Guarded on `adminEmail` for the same
+  // reason families 2/3 are: nothing to send it to otherwise, and
+  // FR-SYS-07's in-app banner is the substitute alarm for exactly this case.
+  if (adminEmail) {
+    const mailRef = db.collection('mail').doc()
+    await mailRef.set(
+      buildDailyHeartbeatEmail({
+        email: adminEmail,
+        today,
+        tenanciesEvaluated,
+        emailsQueued: totalEmailsQueued,
+        errors: totalErrors,
+      }),
+    )
   }
 }
 

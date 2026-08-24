@@ -14,6 +14,10 @@ vi.mock('@/features/tenants/hooks', () => ({
   useUpdateTenancy: vi.fn(),
   useEndTenancy: vi.fn(),
   useSettleDeposit: vi.fn(),
+  useRecalculateTenancyBalance: vi.fn(),
+}))
+vi.mock('@/features/reports/hooks', () => ({
+  useSignedReportsForTenancy: vi.fn(),
 }))
 vi.mock('@/features/tenants/components/ContractUpload', () => ({
   ContractUpload: ({ tenancyId, documents }) => (
@@ -27,9 +31,11 @@ vi.mock('@/features/tenants/components/ContractUpload', () => ({
 vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
 
 import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
+import { useSignedReportsForTenancy } from '@/features/reports/hooks'
 
 import {
   useEndTenancy,
+  useRecalculateTenancyBalance,
   useSettleDeposit,
   useUpdateTenancy,
   useUserTenancies,
@@ -38,6 +44,7 @@ import {
 const updateTenancyMutateAsync = vi.fn()
 const endTenancyMutateAsync = vi.fn()
 const settleDepositMutateAsync = vi.fn()
+const recalculateMutateAsync = vi.fn()
 
 function activeTenancy(overrides) {
   return {
@@ -87,9 +94,19 @@ beforeEach(() => {
     mutateAsync: settleDepositMutateAsync,
     isPending: false,
   })
+  useRecalculateTenancyBalance.mockReturnValue({
+    mutateAsync: recalculateMutateAsync,
+    isPending: false,
+  })
+  useSignedReportsForTenancy.mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: [],
+  })
   updateTenancyMutateAsync.mockResolvedValue(undefined)
   endTenancyMutateAsync.mockResolvedValue({ data: { tenancyId: 't-active' } })
   settleDepositMutateAsync.mockResolvedValue(undefined)
+  recalculateMutateAsync.mockResolvedValue({ from: 0, to: 0 })
   useAttachmentUrl.mockReturnValue({
     url: undefined,
     isLoading: false,
@@ -412,5 +429,36 @@ describe('TenancyTab — Deposit settlement section (FR-CON-10/11/12, M8 stage 6
       screen.getByRole('button', { name: 'Finalizează decontarea' }),
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Anulează' })).toBeVisible()
+  })
+})
+
+describe('TenancyTab — Recalculate balance section (FR-SYS-05a, M8 stage 7)', () => {
+  it('shows the stored balance for an ACTIVE tenancy', async () => {
+    useUserTenancies.mockReturnValue({
+      data: [activeTenancy({ currentBalance: 250 })],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    expect(screen.getByText('Sold')).toBeVisible()
+    expect(screen.getByText('Sold stocat')).toBeVisible()
+    expect(screen.getByText('250,00 lei')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Recalculează soldul' }),
+    ).toBeVisible()
+  })
+
+  it('shows the stored balance for an ENDED tenancy too — the section is not gated on isActive', async () => {
+    useUserTenancies.mockReturnValue({
+      data: [endedTenancy({ currentBalance: 0 })],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    expect(
+      screen.getByRole('button', { name: 'Recalculează soldul' }),
+    ).toBeVisible()
   })
 })

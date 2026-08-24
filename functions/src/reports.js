@@ -199,29 +199,41 @@ const unlockReport = onCall(unlockReportHandler)
  */
 async function recomputeCurrentBalance(tenancyId) {
   const db = getFirestore()
+  const currentBalance = await computeBalanceFromSignedReports(tenancyId)
+  await db.collection('tenancies').doc(tenancyId).update({ currentBalance })
+}
+
+/**
+ * The READ-ONLY half of the identity above — everything `recomputeCurrentBalance`
+ * does except the `tenancies` write. Extracted at M8 stage 7 (FR-SYS-05):
+ * `reconcileBalances` needs the SAME formula to compare against the stored
+ * value, but must never write — the whole point of reconciliation is that it
+ * reports a divergence instead of silently overwriting a real balance on the
+ * strength of a calculation nobody has reviewed. Sharing this function (both
+ * callers live in `functions/`, so there is no cross-package deploy boundary
+ * forcing a duplicate, unlike the KYC schema or the DST arithmetic) is what
+ * keeps the two from drifting apart the way two independently-typed copies
+ * eventually would.
+ */
+async function computeBalanceFromSignedReports(tenancyId) {
+  const db = getFirestore()
   const snap = await db
     .collection('monthlyReports')
     .where('tenancyId', '==', tenancyId)
     .where('status', '==', 'signed')
     .get()
 
-  if (snap.empty) {
-    await db
-      .collection('tenancies')
-      .doc(tenancyId)
-      .update({ currentBalance: 0 })
-    return
-  }
+  if (snap.empty) return 0
 
   const mostRecent = snap.docs
     .map((doc) => doc.data())
     .sort((a, b) => b.year - a.year || b.month - a.month)[0]
 
-  const currentBalance =
+  return (
     (mostRecent.finalTotal ?? 0) -
     (mostRecent.amountPaid ?? 0) -
     (mostRecent.roundingSurplus ?? 0)
-  await db.collection('tenancies').doc(tenancyId).update({ currentBalance })
+  )
 }
 
 /**
@@ -354,6 +366,7 @@ module.exports = {
   onReportWrite,
   onReportWriteHandler,
   recomputeCurrentBalance,
+  computeBalanceFromSignedReports,
   sendReportNotification,
   sendReportNotificationHandler,
   sendReportNotificationCore,

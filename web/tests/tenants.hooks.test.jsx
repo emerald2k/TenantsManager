@@ -13,6 +13,7 @@ import { renderHookWithProviders } from './renderWithProviders'
 import {
   useActiveTenancies,
   useEndTenancy,
+  useRecalculateTenancyBalance,
   useResetTenantPassword,
   useSetTenantAccountStatus,
   useSettleDeposit,
@@ -589,5 +590,65 @@ describe('useSettleDeposit (FR-CON-10/11/12 — deposit settlement)', () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['tenancies', 'byUser', 'u1'],
     })
+  })
+})
+
+describe('useRecalculateTenancyBalance (FR-SYS-05a — M8 stage 7)', () => {
+  const recalculateMock = vi.fn()
+
+  beforeEach(() => {
+    httpsCallable.mockReturnValue(recalculateMock)
+    recalculateMock.mockResolvedValue({ data: { from: 350, to: 2000 } })
+  })
+
+  it('calls the recalculateTenancyBalance callable with the tenancyId, never a Firestore write', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+
+    const response = await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+    })
+
+    expect(httpsCallable).toHaveBeenCalledWith(
+      { __fake: 'functions' },
+      'recalculateTenancyBalance',
+    )
+    expect(recalculateMock).toHaveBeenCalledWith({ tenancyId: 't1' })
+    expect(updateDoc).not.toHaveBeenCalled()
+    expect(response).toEqual({ from: 350, to: 2000 })
+  })
+
+  it('invalidates the tenancy detail, the user’s history, and the active-tenancies list', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ tenancyId: 't1', userId: 'u1' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'detail', 't1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'byUser', 'u1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'active', 'list'],
+    })
+  })
+
+  it('propagates a permission-denied error without swallowing it', async () => {
+    recalculateMock.mockRejectedValue(
+      Object.assign(new Error('denied'), { code: 'permission-denied' }),
+    )
+    const { result } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+
+    await expect(
+      result.current.mutateAsync({ tenancyId: 't1', userId: 'u1' }),
+    ).rejects.toMatchObject({ code: 'permission-denied' })
   })
 })

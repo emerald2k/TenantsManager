@@ -21,6 +21,7 @@ import {
   useSaveReportDraft,
   useSendReportNotification,
   useShareReport,
+  useSignedReportsForTenancy,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -212,6 +213,39 @@ describe('useReportsForMonth (M4 sub-stage 7)', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual([])
+  })
+})
+
+describe('useSignedReportsForTenancy (M8 stage 7, FR-SYS-05a)', () => {
+  it('queries monthlyReports constrained by tenancyId AND status==signed, no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 't1_2026-07',
+          data: () => ({ tenancyId: 't1', status: 'signed', finalTotal: 2000 }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForTenancy('t1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('tenancyId', '==', 't1')
+    expect(where).toHaveBeenCalledWith('status', '==', 'signed')
+    expect(result.current.data).toEqual([
+      { id: 't1_2026-07', tenancyId: 't1', status: 'signed', finalTotal: 2000 },
+    ])
+  })
+
+  it('does not query until a tenancyId is provided', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForTenancy(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
   })
 })
 

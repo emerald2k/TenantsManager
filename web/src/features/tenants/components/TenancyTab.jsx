@@ -21,6 +21,7 @@ import {
 import { ContractUpload } from '@/features/tenants/components/ContractUpload'
 import { DepositSettlementForm } from '@/features/tenants/components/DepositSettlementForm'
 import { DepositSettlementView } from '@/components/shared/DepositSettlementView'
+import { RecalculateBalanceControl } from '@/features/tenants/components/RecalculateBalanceControl'
 import { formatCurrency } from '@/lib/formatCurrency'
 import {
   useEndTenancy,
@@ -187,6 +188,10 @@ function ContractSummary({ tenancy, userId, isActive }) {
           </div>
         )}
       />
+
+      <Section title={t('tenants.detail.balance.title')}>
+        <RecalculateBalanceControl tenancy={tenancy} userId={userId} />
+      </Section>
 
       {isActive ? (
         <Section title={t('tenants.detail.tenancy.endTitle')}>

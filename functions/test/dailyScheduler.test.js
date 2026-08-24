@@ -93,6 +93,19 @@ async function seedSignedReport(id, overrides = {}) {
     })
 }
 
+// FR-SYS-06 (M8 stage 7): a heartbeat now fires at the end of EVERY
+// completed run where ADMIN_EMAIL is set — one extra `mail` doc on top of
+// whatever family 1/2/3 wrote, in every test below that leaves ADMIN_EMAIL
+// in place. Identified by its subject prefix (A12's SUBJECT, dailyHeartbeat.js)
+// rather than by position — `mail` doc ordering is never guaranteed.
+function isHeartbeat(mailDoc) {
+  return mailDoc.data().message.subject.startsWith('Automatizări OK')
+}
+
+function excludeHeartbeat(mailSnap) {
+  return mailSnap.docs.filter((doc) => !isHeartbeat(doc))
+}
+
 let ambientAdminEmail
 beforeEach(async () => {
   await clearEmulators()
@@ -127,8 +140,12 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
-    expect(mailSnap.size).toBe(1)
-    const mail = mailSnap.docs[0].data()
+    // A4 + the heartbeat (FR-SYS-06) — the heartbeat fires on every
+    // completed run, not just this one.
+    expect(mailSnap.size).toBe(2)
+    const nonHeartbeat = excludeHeartbeat(mailSnap)
+    expect(nonHeartbeat).toHaveLength(1)
+    const mail = nonHeartbeat[0].data()
     expect(mail.to).toEqual(['ion@example.com'])
     expect(mail.message.subject).toContain('Reamintire')
   })
@@ -151,10 +168,12 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
-    expect(mailSnap.size).toBe(0)
+    // No A4 — but the run still completed, so the heartbeat still fires.
+    expect(excludeHeartbeat(mailSnap)).toHaveLength(0)
+    expect(mailSnap.docs.filter(isHeartbeat)).toHaveLength(1)
   })
 
-  it('skips A5 and A6 when ADMIN_EMAIL is unset, logs once, and still sends A4', async () => {
+  it('skips A5, A6 and the heartbeat when ADMIN_EMAIL is unset, logs once, and still sends A4', async () => {
     delete process.env.ADMIN_EMAIL
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -176,8 +195,11 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
+    // Just A4 — no A5/A6 (gated on adminEmail), and no heartbeat either
+    // (same gate, scheduler.js): there is nowhere to send any of the three.
     expect(mailSnap.size).toBe(1)
     expect(mailSnap.docs[0].data().to).toEqual(['ion@example.com'])
+    expect(mailSnap.docs.some(isHeartbeat)).toBe(false)
     expect(errorSpy).toHaveBeenCalledTimes(1)
 
     errorSpy.mockRestore()
@@ -208,8 +230,13 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await expect(dailySchedulerHandler(FAKE_EVENT)).resolves.toBeUndefined()
 
     const mailSnap = await db.collection('mail').get()
-    expect(mailSnap.size).toBe(1)
-    expect(mailSnap.docs[0].data().to).toEqual(['jane@example.com'])
+    const nonHeartbeat = excludeHeartbeat(mailSnap)
+    expect(nonHeartbeat).toHaveLength(1)
+    expect(nonHeartbeat[0].data().to).toEqual(['jane@example.com'])
+    // The run still completed — the heartbeat fires, and its own error
+    // count reflects the one tenancy that threw (proven by the dedicated
+    // heartbeat-content test below, not re-asserted here).
+    expect(mailSnap.docs.filter(isHeartbeat)).toHaveLength(1)
   })
 
   it('isolates family 1 from family 2: a missing `users` doc drops A4 but NOT A5 for the SAME tenancy, and logs the failing family', async () => {
@@ -229,8 +256,9 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
-    expect(mailSnap.size).toBe(1)
-    const mail = mailSnap.docs[0].data()
+    const nonHeartbeat = excludeHeartbeat(mailSnap)
+    expect(nonHeartbeat).toHaveLength(1)
+    const mail = nonHeartbeat[0].data()
     expect(mail.to).toEqual(['admin@example.com'])
     expect(mail.message.subject).toContain('Contract în expirare')
 
@@ -260,10 +288,12 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
-    expect(mailSnap.size).toBe(0)
+    // No A6 — but the heartbeat still fires (the run still completed).
+    expect(excludeHeartbeat(mailSnap)).toHaveLength(0)
+    expect(mailSnap.docs.filter(isHeartbeat)).toHaveLength(1)
   })
 
-  it('writes nothing to mail when no reminder predicate fires for any active tenancy', async () => {
+  it('sends ONLY the heartbeat when no reminder predicate fires for any active tenancy, reporting zero emails/zero errors (FR-SYS-06)', async () => {
     await seedTenancy('tenancy-1', {
       userId: 'user-1',
       dueDay: 1,
@@ -275,6 +305,70 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     await dailySchedulerHandler(FAKE_EVENT)
 
     const mailSnap = await db.collection('mail').get()
+    expect(excludeHeartbeat(mailSnap)).toHaveLength(0)
+    const heartbeats = mailSnap.docs.filter(isHeartbeat)
+    expect(heartbeats).toHaveLength(1)
+    const heartbeat = heartbeats[0].data()
+    expect(heartbeat.to).toEqual(['admin@example.com'])
+    expect(heartbeat.message.text).toBe(
+      'Rulare încheiată: 1 contracte evaluate, 0 emailuri trimise, 0 erori.',
+    )
+  })
+
+  it('reports the real counts on a run with a mix of sends and a failure (FR-SYS-06 anti-vacuity: the numbers are not always 0)', async () => {
+    // tenancy-1: A4 fires (arrears). tenancy-2: throws (missing user), so it
+    // contributes to `errors`, not `emailsQueued`. Two tenancies evaluated,
+    // one email queued (A4 — A5/A6 don't fire for either), one error.
+    await seedUser('user-1', {
+      preferredLanguage: 'ro',
+      email: 'ion@example.com',
+    })
+    await seedTenancy('tenancy-1', {
+      userId: 'user-1',
+      dueDay: 12, // elapsed = 3 -> A4 fires
+      currentBalance: 500,
+      endDate: '2030-01-01',
+      reportReminderDaysBefore: 999,
+    })
+    await seedSignedReport('report-1', { tenancyId: 'tenancy-1' })
+    await seedTenancy('tenancy-2', {
+      userId: 'missing-user',
+      dueDay: 12,
+      currentBalance: 500,
+      endDate: '2030-01-01',
+      reportReminderDaysBefore: 999,
+    })
+    await seedSignedReport('report-2', { tenancyId: 'tenancy-2' })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await dailySchedulerHandler(FAKE_EVENT)
+
+    const mailSnap = await db.collection('mail').get()
+    const heartbeat = mailSnap.docs.find(isHeartbeat).data()
+    expect(heartbeat.message.text).toBe(
+      'Rulare încheiată: 2 contracte evaluate, 1 emailuri trimise, 1 erori.',
+    )
+
+    errorSpy.mockRestore()
+  })
+
+  it('does NOT send the heartbeat when ADMIN_EMAIL is unset, even on an otherwise-quiet run', async () => {
+    delete process.env.ADMIN_EMAIL
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await seedTenancy('tenancy-1', {
+      userId: 'user-1',
+      dueDay: 1,
+      currentBalance: 0,
+      endDate: '2030-01-01',
+      reportReminderDaysBefore: 999,
+    })
+
+    await dailySchedulerHandler(FAKE_EVENT)
+
+    const mailSnap = await db.collection('mail').get()
     expect(mailSnap.size).toBe(0)
+
+    errorSpy.mockRestore()
   })
 })

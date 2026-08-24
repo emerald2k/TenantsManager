@@ -15,6 +15,9 @@ const {
   getSharedReportAttachment,
 } = require('./src/sharedReport')
 const { dailyScheduler } = require('./src/scheduler')
+const { reconcileBalances } = require('./src/reconcileBalances')
+const { checkAdminEmailConfigured } = require('./src/checkAdminEmailConfigured')
+const { recalculateTenancyBalance } = require('./src/recalculateTenancyBalance')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -28,3 +31,6 @@ exports.onPropertyUpdate = onPropertyUpdate
 exports.getSharedReport = getSharedReport
 exports.getSharedReportAttachment = getSharedReportAttachment
 exports.dailyScheduler = dailyScheduler
+exports.reconcileBalances = reconcileBalances
+exports.checkAdminEmailConfigured = checkAdminEmailConfigured
+exports.recalculateTenancyBalance = recalculateTenancyBalance

@@ -52,6 +52,7 @@ export const reportKeys = {
   detail: (id) => [...reportKeys.details(), id],
   lists: () => [...reportKeys.all, 'list'],
   forMonth: (month, year) => [...reportKeys.lists(), 'month', month, year],
+  forTenancy: (tenancyId) => [...reportKeys.lists(), 'tenancy', tenancyId],
 }
 
 function reportRef(id) {
@@ -98,6 +99,34 @@ export function useReportsForMonth(month, year) {
           collection(db, COLLECTION),
           where('month', '==', month),
           where('year', '==', year),
+        ),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+/**
+ * Every SIGNED report for one tenancy (M8 stage 7, FR-SYS-05a) — the "chain
+ * of signed reports" the Recalculate-balance control shows the admin before
+ * they confirm. Same two-equality-filter, no-`orderBy` shape as
+ * `computeBalanceFromSignedReports` (functions/src/reports.js): this is the
+ * CLIENT-side half of that same formula (`balanceRecalculation.js`), reading
+ * the identical set of documents the server will recompute from — the
+ * preview and the eventual write are never looking at different data, only
+ * computing it in two places (the cross-package duplication CLAUDE.md §7
+ * already documents for FINAL_TOTAL_EPSILON/DST arithmetic).
+ */
+export function useSignedReportsForTenancy(tenancyId) {
+  return useQuery({
+    queryKey: reportKeys.forTenancy(tenancyId),
+    enabled: Boolean(tenancyId),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(
+          collection(db, COLLECTION),
+          where('tenancyId', '==', tenancyId),
+          where('status', '==', 'signed'),
         ),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
