@@ -304,6 +304,25 @@
           "upload": "Încarcă document",
           "delete": "Șterge",
           "tooLarge": "Fișierul depășește 10 MB."
+        },
+        "settlement": {
+          "title": "Decontare garanție",
+          "depositHeld": "Garanție reținută: {{value}}",
+          "empty": "Nicio linie de restaurare încă.",
+          "addItem": "Adaugă linie de restaurare",
+          "removeItem": "Elimină",
+          "deducted": "Dedus",
+          "toReturn": "Sumă de returnat",
+          "ownerBears": "Depășește garanția (cost al proprietarului)",
+          "settledAt": "Decontat la {{date}}",
+          "downloadLabel": "Descarcă documentul",
+          "completeButton": "Finalizează decontarea",
+          "editButton": "Editează decontarea",
+          "confirmTitle": "Finalizezi decontarea garanției?",
+          "confirmBody": "Se înregistrează deducerile de restaurare și suma de returnat. Chiriașul o va vedea, cu documentele aferente, în portalul său.",
+          "confirmBodyArrears": "Chiriașul mai are de plătit {{balance}}. Această decontare NU achită acel sold — el rămâne vizibil și continuă să fie urmărit separat (FR-CON-11). Acțiunea nu poate fi anulată din acest ecran.",
+          "confirmButton": "Finalizează decontarea",
+          "saveError": "Decontarea nu a putut fi salvată. Încearcă din nou."
         }
       },
       "account": {

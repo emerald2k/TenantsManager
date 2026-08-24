@@ -19,6 +19,8 @@ import {
   Section,
 } from '@/features/tenants/components/ProfileTab'
 import { ContractUpload } from '@/features/tenants/components/ContractUpload'
+import { DepositSettlementForm } from '@/features/tenants/components/DepositSettlementForm'
+import { DepositSettlementView } from '@/components/shared/DepositSettlementView'
 import { formatCurrency } from '@/lib/formatCurrency'
 import {
   useEndTenancy,
@@ -66,6 +68,50 @@ function closingBalanceKey(currentBalance) {
   if (currentBalance > 0) return 'tenants.detail.tenancy.endBalanceOwed'
   if (currentBalance < 0) return 'tenants.detail.tenancy.endBalanceCredit'
   return 'tenants.detail.tenancy.endBalanceSettled'
+}
+
+/**
+ * The deposit-settlement section (FR-CON-10/11/12, M8 stage 6) — a completely
+ * separate action from "End contract" (Bogdan's explicit call): it appears
+ * once the tenancy is ended, fillable whenever the administrator has
+ * actually inspected the property. Toggles between the read-only view (once
+ * a settlement exists) and the editable form — "Edit" reopens the form
+ * pre-filled, since a settlement is a correctable record, not a one-shot.
+ */
+function DepositSettlementSection({ tenancy, userId }) {
+  const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const settlement = tenancy.depositSettlement
+
+  if (settlement && !editing) {
+    return (
+      <div className="flex flex-col gap-2">
+        <DepositSettlementView
+          securityDeposit={tenancy.securityDeposit}
+          depositSettlement={settlement}
+        />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+          >
+            {t('tenants.detail.tenancy.settlement.editButton')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <DepositSettlementForm
+      tenancy={tenancy}
+      userId={userId}
+      onDone={() => setEditing(false)}
+      onCancel={settlement ? () => setEditing(false) : undefined}
+    />
+  )
 }
 
 function ContractSummary({ tenancy, userId, isActive }) {
@@ -153,9 +199,12 @@ function ContractSummary({ tenancy, userId, isActive }) {
           </Button>
         </Section>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          {t('tenants.detail.tenancy.notActiveNotice')}
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground">
+            {t('tenants.detail.tenancy.notActiveNotice')}
+          </p>
+          <DepositSettlementSection tenancy={tenancy} userId={userId} />
+        </>
       )}
 
       <Section title={t('tenants.detail.tenancy.documentsTitle')}>

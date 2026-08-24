@@ -5,11 +5,13 @@ import {
   getDoc,
   getDocs,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/lib/firebase'
+import { deleteAttachmentBestEffort, uploadAttachment } from '@/lib/fileUpload'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 import { propertyKeys } from '@/features/properties/hooks'
 
@@ -289,6 +291,112 @@ export function useSetTenantAccountStatus() {
     onSuccess: (_result, { userId }) => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
       queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId] })
+    },
+  })
+}
+
+// ───────────────────────── useSettleDeposit ──────────────────────
+/**
+ * Writes `tenancies/{id}.depositSettlement` (FR-CON-10/11/12, M8 stage 6). A
+ * PLAIN `updateDoc`, not a callable — same call as `useUpdateTenancy`, for the
+ * same reason: this touches exactly one document, under the single-trusted-
+ * admin model already established there. `endTenancy` needed a callable
+ * because it touches three documents atomically and enforces the arrears
+ * guard's removal server-side; nothing here needs a transaction.
+ *
+ * Never writes `currentBalance`/`closingBalance` — FR-CON-11's whole point is
+ * that a settlement is completely independent of the arrears ledger.
+ *
+ * Storage choreography mirrors `useSaveReportDraft` (reports/hooks.js)
+ * exactly, at a smaller scale (one array of items, not four cost-line
+ * shapes): upload every `file`-bearing attachment under
+ * `tenancies/{id}/settlement`, write the document, and on failure delete only
+ * what THIS call just uploaded (never anything from a previously saved
+ * settlement). On success, best-effort delete whatever attachment the admin
+ * removed (`previousAttachmentPaths` diffed against what survived) — the
+ * page computes that snapshot via `collectSettlementAttachmentPaths` before
+ * calling this, same convention as the report page's `previousAttachmentPaths`.
+ *
+ * `existingSettledAt` is the settlement's ORIGINAL `settledAt` (a Firestore
+ * Timestamp) when this is a correction to an already-completed settlement —
+ * carried over so editing a typo doesn't reset "when this was settled";
+ * `null`/`undefined` (first-ever completion) stamps a fresh
+ * `serverTimestamp()`.
+ */
+export function useSettleDeposit() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tenancyId,
+      items,
+      securityDeposit,
+      previousAttachmentPaths = [],
+      existingSettledAt,
+    }) => {
+      const basePath = `tenancies/${tenancyId}/settlement`
+      const newPaths = []
+
+      const uploadedItems = await Promise.all(
+        items.map(async (item) => {
+          const attachments = await Promise.all(
+            (item.attachments ?? []).map(async (attachment) => {
+              if (!attachment.file) {
+                return {
+                  path: attachment.path,
+                  name: attachment.name,
+                  type: attachment.type,
+                }
+              }
+              const path = `${basePath}/${crypto.randomUUID()}-${attachment.file.name}`
+              const uploaded = await uploadAttachment(path, attachment.file)
+              newPaths.push(uploaded.path)
+              return uploaded
+            }),
+          )
+          return {
+            description: item.description,
+            amount: Number(item.amount) || 0,
+            attachments,
+          }
+        }),
+      )
+
+      const deducted = uploadedItems.reduce((sum, item) => sum + item.amount, 0)
+      const deposit = securityDeposit ?? 0
+      const depositSettlement = stripUndefinedDeep({
+        items: uploadedItems,
+        deducted,
+        toReturn: Math.max(deposit - deducted, 0),
+        ownerBears: Math.max(deducted - deposit, 0),
+        settledAt: existingSettledAt ?? serverTimestamp(),
+      })
+
+      try {
+        await updateDoc(tenancyRef(tenancyId), { depositSettlement })
+      } catch (error) {
+        await Promise.allSettled(
+          newPaths.map((url) => deleteAttachmentBestEffort(url)),
+        )
+        throw error
+      }
+
+      const survivingPaths = uploadedItems.flatMap((item) =>
+        item.attachments.map((attachment) => attachment.path).filter(Boolean),
+      )
+      const removedPaths = previousAttachmentPaths.filter(
+        (url) => !survivingPaths.includes(url),
+      )
+      await Promise.allSettled(
+        removedPaths.map((url) => deleteAttachmentBestEffort(url)),
+      )
+
+      return tenancyId
+    },
+    onSuccess: (_result, { userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
     },
   })
 }

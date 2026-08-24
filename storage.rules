@@ -55,6 +55,20 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // /tenancies/{tenancyId}/settlement/* — admin write; the tenant that
+    // tenancy belongs to may also READ (FR-CON-12: the deposit settlement is
+    // visible to the tenant, with its documents — the tenant's money, so the
+    // invoices behind each deduction must be reachable, not just the
+    // numbers). Identical shape to the contract rule above, same
+    // firestore.get() cross-service ownership check, same reason: Storage
+    // Rules have no Firestore `resource` to read `userId` off directly.
+    match /tenancies/{tenancyId}/settlement/{fileName} {
+      allow read: if isAdmin() ||
+        (request.auth != null &&
+          firestore.get(/databases/(default)/documents/tenancies/$(tenancyId)).data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     // /reports/{reportId}/invoices/* — admin write; the tenant that report
     // belongs to may READ, ONLY once it is signed (FR-DOC-01…05, mirrors the
     // tenancies/contract rule's firestore.get() pattern, SRS §6). An unsigned

@@ -13,6 +13,7 @@ vi.mock('@/features/tenants/hooks', () => ({
   useUserTenancies: vi.fn(),
   useUpdateTenancy: vi.fn(),
   useEndTenancy: vi.fn(),
+  useSettleDeposit: vi.fn(),
 }))
 vi.mock('@/features/tenants/components/ContractUpload', () => ({
   ContractUpload: ({ tenancyId, documents }) => (
@@ -21,15 +22,22 @@ vi.mock('@/features/tenants/components/ContractUpload', () => ({
     </div>
   ),
 }))
+// DepositSettlementForm/View resolve attachment paths -> urls via this hook
+// (same boundary every other attachment-rendering test mocks).
+vi.mock('@/lib/useAttachmentUrl', () => ({ useAttachmentUrl: vi.fn() }))
+
+import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
 
 import {
   useEndTenancy,
+  useSettleDeposit,
   useUpdateTenancy,
   useUserTenancies,
 } from '@/features/tenants/hooks'
 
 const updateTenancyMutateAsync = vi.fn()
 const endTenancyMutateAsync = vi.fn()
+const settleDepositMutateAsync = vi.fn()
 
 function activeTenancy(overrides) {
   return {
@@ -75,8 +83,18 @@ beforeEach(() => {
     mutateAsync: endTenancyMutateAsync,
     isPending: false,
   })
+  useSettleDeposit.mockReturnValue({
+    mutateAsync: settleDepositMutateAsync,
+    isPending: false,
+  })
   updateTenancyMutateAsync.mockResolvedValue(undefined)
   endTenancyMutateAsync.mockResolvedValue({ data: { tenancyId: 't-active' } })
+  settleDepositMutateAsync.mockResolvedValue(undefined)
+  useAttachmentUrl.mockReturnValue({
+    url: undefined,
+    isLoading: false,
+    isError: false,
+  })
 })
 
 describe('TenancyTab — rendering (SRS §5.3)', () => {
@@ -300,5 +318,99 @@ describe('TenancyTab — End Contract (FR-CON-03/05)', () => {
         'Contractul nu a putut fi terminat. Încearcă din nou.',
       ),
     ).toBeVisible()
+  })
+})
+
+describe('TenancyTab — Deposit settlement section (FR-CON-10/11/12, M8 stage 6)', () => {
+  function settlementFixture() {
+    return {
+      items: [
+        {
+          description: 'Curățenie generală la predare',
+          amount: 200,
+          attachments: [],
+        },
+      ],
+      deducted: 200,
+      toReturn: 1600,
+      ownerBears: 0,
+      settledAt: { toDate: () => new Date('2026-07-15') },
+    }
+  }
+
+  it('does NOT render a settlement section for the active tenancy — it only applies once ended', async () => {
+    useUserTenancies.mockReturnValue({
+      data: [activeTenancy()],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    expect(screen.queryByText('Decontare garanție')).not.toBeInTheDocument()
+  })
+
+  it('shows the editable settlement form for an ended tenancy with no settlement yet', async () => {
+    useUserTenancies.mockReturnValue({
+      data: [endedTenancy({ securityDeposit: 1800 })],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    expect(screen.getByText('Decontare garanție')).toBeVisible()
+    expect(screen.getByText('Nicio linie de restaurare încă.')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Finalizează decontarea' }),
+    ).toBeVisible()
+  })
+
+  it('shows the read-only settlement view + an Edit button once a settlement exists', async () => {
+    useUserTenancies.mockReturnValue({
+      data: [
+        endedTenancy({
+          securityDeposit: 1800,
+          depositSettlement: settlementFixture(),
+        }),
+      ],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    expect(screen.getByText('Curățenie generală la predare')).toBeVisible()
+    expect(screen.getByText('1.600,00 lei')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Finalizează decontarea' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Editează decontarea' }),
+    ).toBeVisible()
+  })
+
+  it('clicking Edit reopens the form, pre-filled with the existing settlement, with a Cancel button back to the view', async () => {
+    const user = userEvent.setup()
+    useUserTenancies.mockReturnValue({
+      data: [
+        endedTenancy({
+          securityDeposit: 1800,
+          depositSettlement: settlementFixture(),
+        }),
+      ],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Editează decontarea' }),
+    )
+
+    expect(
+      screen.getByDisplayValue('Curățenie generală la predare'),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Finalizează decontarea' }),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Anulează' })).toBeVisible()
   })
 })

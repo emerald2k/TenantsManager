@@ -304,6 +304,25 @@
           "upload": "Upload document",
           "delete": "Delete",
           "tooLarge": "The file exceeds 10 MB."
+        },
+        "settlement": {
+          "title": "Deposit settlement",
+          "depositHeld": "Deposit held: {{value}}",
+          "empty": "No restoration lines yet.",
+          "addItem": "Add restoration line",
+          "removeItem": "Remove",
+          "deducted": "Deducted",
+          "toReturn": "Amount to return",
+          "ownerBears": "Exceeds the deposit (owner cost)",
+          "settledAt": "Settled on {{date}}",
+          "downloadLabel": "Download attachment",
+          "completeButton": "Complete settlement",
+          "editButton": "Edit settlement",
+          "confirmTitle": "Complete the deposit settlement?",
+          "confirmBody": "This records the restoration deductions and the amount to return. The tenant will see it, with its documents, in their portal.",
+          "confirmBodyArrears": "The tenant still owes {{balance}}. This settlement does NOT clear that balance — it stays visible and continues to be chased separately (FR-CON-11). This cannot be undone from this screen.",
+          "confirmButton": "Complete settlement",
+          "saveError": "The settlement could not be saved. Please try again."
         }
       },
       "account": {

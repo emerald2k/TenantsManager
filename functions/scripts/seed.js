@@ -606,9 +606,14 @@ function emptyTenancy(ownerId, property) {
  * `closingBalance` freezes `currentBalance` at termination — `0` here,
  * matching the invariant above. `depositSettlement` is a real restoration
  * line against the `securityDeposit`, deducted, with the remainder
- * `toReturn`. **`ownerBears` is `0`, never a debt on the tenant (FR-CON-10)
- * — a deposit settlement is deliberately never a source of arrears.**
+ * `toReturn`. **`ownerBears` is `0` here, never a debt on the tenant
+ * (FR-CON-10) — a deposit settlement is deliberately never a source of
+ * arrears.** The `ownerBears > 0` case (deductions exceeding the deposit)
+ * is seeded separately, on `handoverOutTenancy()` below — deliberately a
+ * DIFFERENT fixture, so both shapes of the same requirement are reachable
+ * rather than one silently standing in for the other.
  *
+
  * The comment this replaces said termination is IMPOSSIBLE with an unpaid
  * balance — true before M8, reversed at M8: `FR-CON-04` no longer blocks
  * `endTenancy` on arrears, specifically so a departed non-payer does not
@@ -682,6 +687,27 @@ function handoverOutTenancy(ownerId, property) {
     // HANDOVER_OUT_REPORT's roundingSurplus) is known.
     currentBalance: 0,
     closingBalance: 0,
+    // `depositSettlement` (M8 stage 6, FR-CON-10/11/12): the seed's ONE
+    // `ownerBears > 0` case — Bogdan's own call, folded into this existing
+    // fixture rather than a sixth seed graph. Restoration work (2800 lei)
+    // exceeds the 2100-lei deposit: `toReturn` is 0, `ownerBears` is 700 —
+    // a cost the owner bears, never a debt written back onto this tenant
+    // (FR-CON-10). `settledAt` postdates `endedAt` by six days, matching
+    // the "separate action, filled in after inspection" flow decided for
+    // stage 6 — never the same moment as termination.
+    depositSettlement: {
+      items: [
+        {
+          description: 'Refacere pardoseală și zugrăveli după degradări',
+          amount: 2800,
+          attachments: [],
+        },
+      ],
+      deducted: 2800,
+      toReturn: 0,
+      ownerBears: 700,
+      settledAt: Timestamp.fromDate(new Date('2026-07-20')),
+    },
     attachedDocuments: [],
   }
 }
