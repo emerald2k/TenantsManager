@@ -23,7 +23,7 @@
     "dashboard": "Dashboard",
     "currentMonth": "Current month",
     "properties": "Properties",
-    "tenants": "Tenants",
+    "tenants": "Renters",
     "payments": "Payments",
     "notifications": "Notifications",
     "home": "Home",
@@ -36,17 +36,17 @@
     "propertiesList": "Admin — Properties list",
     "newProperty": "Admin — New property",
     "propertyDetail": "Admin — Property detail",
-    "tenantsList": "Admin — Tenants list",
-    "onboardingWizard": "Admin — Tenant onboarding (wizard)",
-    "tenantDetail": "Admin — Tenant detail",
+    "tenantsList": "Admin — Renters list",
+    "onboardingWizard": "Admin — Renter onboarding (wizard)",
+    "tenantDetail": "Admin — Renter detail",
     "monthlyReportForm": "Admin — Monthly report",
     "reportsListPhase2": "Admin — Reports list (Phase 2)",
     "annualReportPhase2": "Admin — Annual report (Phase 2)",
     "paymentsComingSoon": "Admin — Payments (coming soon)",
     "notificationsComingSoon": "Admin — Notifications (coming soon)",
-    "tenantDashboard": "Tenant — Home",
-    "tenantHistory": "Tenant — History",
-    "tenantContract": "Tenant — Contract",
+    "tenantDashboard": "Renter — Home",
+    "tenantHistory": "Renter — History",
+    "tenantContract": "Renter — Contract",
     "sharedReport": "Shared report (public, no sign-in)"
   },
   "properties": {
@@ -207,10 +207,10 @@
         "delete": "Delete",
         "tooLarge": "The file exceeds 10 MB."
       },
-      "existingTenantTitle": "Existing tenant — new tenancy",
+      "existingTenantTitle": "Existing renter — new tenancy",
       "existingTenantDescription": "An account already exists for this email, under the name \"{{name}}\". Confirm to start a new tenancy on this account.",
       "existingTenantConfirm": "Confirm",
-      "cnpConflict": "A tenant with this CNP already exists: \"{{name}}\".",
+      "cnpConflict": "A renter with this CNP already exists: \"{{name}}\".",
       "autosaveFailed": "Autosave failed — check your connection."
     },
     "stepContract": {
@@ -221,7 +221,7 @@
       "password": "Password",
       "copyPassword": "Copy",
       "successExistingTitle": "Tenancy created for {{name}}",
-      "goToTenants": "Go to tenant list",
+      "goToTenants": "Go to renter list",
       "cnpDialogTitle": "Duplicate CNP",
       "viewProfile": "View profile",
       "errors": {
@@ -233,18 +233,18 @@
   },
   "tenants": {
     "list": {
-      "title": "Tenants",
-      "add": "New tenant onboarding",
-      "search": "Search tenants",
+      "title": "Renters",
+      "add": "New renter onboarding",
+      "search": "Search renters",
       "showArchived": "Show archived",
-      "empty": "No tenants yet.",
-      "noMatches": "No tenants match your search.",
+      "empty": "No renters yet.",
+      "noMatches": "No renters match your search.",
       "continue": "Continue",
       "deleteDraft": "Delete draft",
       "deleteDraftTitle": "Delete draft",
       "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
       "deleteDraftConfirm": "Delete draft",
-      "loadError": "The tenants could not be loaded. Please try again.",
+      "loadError": "The renters could not be loaded. Please try again.",
       "error": "The draft could not be created. Please try again."
     },
     "fields": {
@@ -263,7 +263,7 @@
       "inProgress": "In progress"
     },
     "detail": {
-      "notFound": "This tenant does not exist.",
+      "notFound": "This renter does not exist.",
       "tabs": {
         "profile": "Profile",
         "tenancy": "Tenancy & contract",
@@ -291,15 +291,15 @@
         "property": "Property",
         "documentsTitle": "Documents",
         "historyTitle": "Tenancy history",
-        "none": "This tenant has no tenancy yet.",
+        "none": "This renter has no tenancy yet.",
         "endTitle": "End contract",
         "endButton": "End contract",
         "endConfirmTitle": "End this contract?",
         "endConfirmBody": "The property will become free and the account will move to inactive-readonly. This cannot be undone.",
         "endConfirmButton": "End contract",
         "endGenericError": "The contract could not be ended. Please try again.",
-        "endBalanceOwed": "The tenant still owes {{balance}}. This amount stays visible after the contract ends.",
-        "endBalanceCredit": "The tenant has a credit of {{balance}}, which will remain unconsumed after the contract ends.",
+        "endBalanceOwed": "The renter still owes {{balance}}. This amount stays visible after the contract ends.",
+        "endBalanceCredit": "The renter has a credit of {{balance}}, which will remain unconsumed after the contract ends.",
         "endBalanceSettled": "The balance is fully settled.",
         "endAcknowledge": "I acknowledge the balance above and confirm ending the contract.",
         "notActiveNotice": "This tenancy has already ended.",
@@ -323,8 +323,8 @@
           "completeButton": "Complete settlement",
           "editButton": "Edit settlement",
           "confirmTitle": "Complete the deposit settlement?",
-          "confirmBody": "This records the restoration deductions and the amount to return. The tenant will see it, with its documents, in their portal.",
-          "confirmBodyArrears": "The tenant still owes {{balance}}. This settlement does NOT clear that balance — it stays visible and continues to be chased separately (FR-CON-11). This cannot be undone from this screen.",
+          "confirmBody": "This records the restoration deductions and the amount to return. The renter will see it, with its documents, in their portal.",
+          "confirmBodyArrears": "The renter still owes {{balance}}. This settlement does NOT clear that balance — it stays visible and continues to be chased separately (FR-CON-11). This cannot be undone from this screen.",
           "confirmButton": "Complete settlement",
           "saveError": "The settlement could not be saved. Please try again."
         }
@@ -351,14 +351,14 @@
         "disableButton": "Disable",
         "enableButton": "Re-enable",
         "disableConfirmTitle": "Disable this account?",
-        "disableConfirmBody": "Any open session ends immediately — the tenant will not be able to log in until re-enabled.",
+        "disableConfirmBody": "Any open session ends immediately — the renter will not be able to log in until re-enabled.",
         "enableConfirmTitle": "Re-enable this account?",
-        "enableConfirmBody": "The tenant will be able to log in again.",
+        "enableConfirmBody": "The renter will be able to log in again.",
         "statusActionError": "The action could not be completed. Please try again.",
         "archiveTitle": "Archiving",
         "archiveButton": "Archive",
         "archiveConfirmTitle": "Archive this account?",
-        "archiveConfirmBody": "The account is hidden from the default tenant list. This cannot be undone from this page.",
+        "archiveConfirmBody": "The account is hidden from the default renter list. This cannot be undone from this page.",
         "archiveBlocked": {
           "activeTenancy": "End the contract first.",
           "disabled": "Re-enable the account first."
@@ -426,7 +426,7 @@
     "unlock": {
       "button": "Unlock for correction",
       "confirmTitle": "Unlock for correction",
-      "confirmBody": "The report becomes editable again and is no longer visible to the tenant until re-signed.",
+      "confirmBody": "The report becomes editable again and is no longer visible to the renter until re-signed.",
       "confirmButton": "Unlock",
       "error": "The report could not be unlocked. Please try again."
     },
@@ -454,7 +454,7 @@
     "notify": {
       "button": "Send by email",
       "dialogTitle": "Send notification",
-      "dialogBody": "Choose which report type to send the tenant.",
+      "dialogBody": "Choose which report type to send the renter.",
       "templateNew": "New report",
       "templateUpdated": "Updated report",
       "success": "The email has been sent.",
@@ -539,7 +539,7 @@
     "emptyState": {
       "title": "Welcome — let's get started",
       "addProperty": "Add property",
-      "enrollTenant": "Enroll tenant"
+      "enrollTenant": "Enroll renter"
     },
     "currentMonth": {
       "title": "Current month",
@@ -549,7 +549,7 @@
       "noOccupiedProperties": "No occupied properties yet.",
       "columns": {
         "property": "Property",
-        "tenant": "Tenant",
+        "tenant": "Renter",
         "status": "Status",
         "total": "Total"
       },
