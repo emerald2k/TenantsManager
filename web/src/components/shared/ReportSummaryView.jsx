@@ -22,6 +22,33 @@ import { FINAL_TOTAL_EPSILON } from '@/features/reports/schema'
  * where it's actually needed, is a separate concern the caller owns (see
  * SharedReportPage's own Attachments section, proxied through
  * getSharedReportAttachment).
+ *
+ * Pinned light (NFR-UX-05, M8 stage 9) via the `force-light` class on the
+ * root element below — index.css's `.force-light` re-declares the light
+ * color tokens directly on this subtree, overriding whatever an ancestor
+ * `.dark` (admin/tenant chrome, OS preference) would otherwise inherit down.
+ * This is why the component itself, and everything it imports, must never
+ * use a `dark:` Tailwind variant: a `dark:` utility switches on the `.dark`
+ * ancestor's presence in the DOM, which `.force-light`'s custom-property
+ * override cannot suppress — only token-driven classes (bg-background,
+ * text-foreground, …) are affected by it. web/tests/reportSummaryView.
+ * forceLight.test.js guards both halves: the class is present, and no
+ * `dark:` token exists anywhere in this file or its local imports.
+ *
+ * The root element ALSO needs `text-foreground` explicitly, not just
+ * `force-light` — `color` is an inherited property whose value is resolved
+ * ONCE, at the nearest ancestor that actually declares it, then handed down
+ * as-is. That ancestor is `<body>` (`@layer base` applies `text-foreground`
+ * there), which sits OUTSIDE `.force-light`'s subtree — so without a fresh
+ * `color` declaration inside this subtree, every element here that doesn't
+ * set its own text-color utility (the amount cells, the arrears/credit/
+ * due-date/payment-status rows) would inherit body's already-dark-mode-
+ * resolved color, near-invisible against this component's forced-white
+ * background. Caught by actually opening a dark-mode PDF/PNG export (M8
+ * stage 9's G2) — every row with its own explicit color utility (labels,
+ * the Total final row) rendered fine, which is what made the pattern
+ * legible: the bug was never "the mechanism doesn't work", it was "the
+ * mechanism only reaches elements that ask it to".
  */
 
 function AttachmentBadge({ name, type }) {
@@ -97,7 +124,7 @@ export function ReportSummaryView({
   const paymentStatusKey = PAYMENT_STATUS_KEY[data.paymentStatus ?? 'unpaid']
 
   return (
-    <div className="flex flex-col gap-4 bg-background p-6 text-sm">
+    <div className="force-light flex flex-col gap-4 bg-background p-6 text-sm text-foreground">
       {showHeader && (
         <div>
           <h2 className="text-lg font-semibold text-foreground">

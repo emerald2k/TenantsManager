@@ -125,6 +125,37 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* NFR-UX-05 (M8 stage 9) — pins `ReportSummaryView` to the light palette
+   regardless of an ancestor `.dark` (admin/tenant chrome, OS preference).
+   Custom properties inherit down the tree; a `.dark` ancestor's values reach
+   this subtree by inheritance only, so re-declaring them directly on the
+   element carrying this class overrides that inheritance without needing to
+   out-specificity `.dark` itself — the same "@theme inline over custom
+   properties" mechanism, applied one level deeper. Mirrors :root's full
+   color block, not just the tokens the component happens to use today, so a
+   future style addition inside ReportSummaryView can't silently regress
+   this by reaching for a token this rule never pinned. */
+.force-light {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
