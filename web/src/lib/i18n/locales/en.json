@@ -562,6 +562,44 @@
       }
     }
   },
+  "payments": {
+    "title": "Payments ledger",
+    "error": "The payments ledger could not be loaded.",
+    "empty": "No reports for the selected period.",
+    "periodMode": "Period type",
+    "modeMonth": "Month",
+    "modeYear": "Year",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "previousYear": "Previous year",
+    "nextYear": "Next year",
+    "allProperties": "All properties",
+    "allStatuses": "All statuses",
+    "columns": {
+      "property": "Property",
+      "tenant": "Renter",
+      "period": "Period",
+      "amountDue": "Amount due",
+      "amountPaid": "Amount paid",
+      "paymentDate": "Payment date",
+      "status": "Status"
+    },
+    "badge": {
+      "paid": "Paid",
+      "partial": "Partial",
+      "unpaid": "Unpaid",
+      "notRecorded": "Not recorded",
+      "overdue": "Overdue"
+    },
+    "footer": {
+      "billed": "Billed",
+      "collected": "Collected",
+      "stillOutstanding": "Still outstanding",
+      "creditOwed": "Credit owed to renters",
+      "rentTotal": "Total rent ({{year}})",
+      "excludedNotice": "{{count}} unsigned reports from {{year}} are not included in the totals."
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"

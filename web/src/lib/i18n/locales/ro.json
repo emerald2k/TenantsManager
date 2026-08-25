@@ -562,6 +562,44 @@
       }
     }
   },
+  "payments": {
+    "title": "Registrul plăților",
+    "error": "Registrul plăților nu a putut fi încărcat.",
+    "empty": "Niciun raport pentru perioada selectată.",
+    "periodMode": "Tip perioadă",
+    "modeMonth": "Lună",
+    "modeYear": "An",
+    "previousMonth": "Luna anterioară",
+    "nextMonth": "Luna următoare",
+    "previousYear": "Anul anterior",
+    "nextYear": "Anul următor",
+    "allProperties": "Toate proprietățile",
+    "allStatuses": "Toate stările",
+    "columns": {
+      "property": "Proprietate",
+      "tenant": "Chiriaș",
+      "period": "Perioadă",
+      "amountDue": "Sumă datorată",
+      "amountPaid": "Sumă încasată",
+      "paymentDate": "Data plății",
+      "status": "Status"
+    },
+    "badge": {
+      "paid": "Plătit",
+      "partial": "Parțial",
+      "unpaid": "Neplătit",
+      "notRecorded": "Neînregistrat",
+      "overdue": "Restant"
+    },
+    "footer": {
+      "billed": "Facturat",
+      "collected": "Încasat",
+      "stillOutstanding": "Rest de încasat",
+      "creditOwed": "Credit către chiriași",
+      "rentTotal": "Total chirie ({{year}})",
+      "excludedNotice": "{{count}} rapoarte nesemnate din {{year}} nu sunt incluse în totaluri."
+    }
+  },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"

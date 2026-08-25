@@ -128,6 +128,27 @@ export function useActiveTenancies() {
   })
 }
 
+// ─────────────────────────── useAllTenancies ─────────────────────
+/**
+ * Every tenancy, ANY status — active and ended alike, unlike
+ * `useActiveTenancies` above. The payments ledger (FR-PAY-07/08, M8 stage
+ * 12) is report-driven, and a report can belong to a tenancy that has since
+ * ended (a signed month billed before termination does not stop existing);
+ * `useActiveTenancies` would silently drop those rows' property/renter-name
+ * join. Whole-collection read, same shape and same NFR-PERF-01 scale
+ * argument as `useUsers` above (5-20 properties → a handful to a few dozen
+ * tenancies, cheaper than a status index).
+ */
+export function useAllTenancies() {
+  return useQuery({
+    queryKey: ['tenancies', 'all', 'list'],
+    queryFn: async () => {
+      const snap = await getDocs(collection(db, TENANCIES))
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
 // ─────────────────────────── useTenancy ──────────────────────────
 /**
  * A single tenancy by id (FR-REP-14, M8): backs the monthly report form,

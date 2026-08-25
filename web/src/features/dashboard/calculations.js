@@ -51,8 +51,13 @@ export function deriveReportStatusBadge(report, referenceDate = new Date()) {
  * parses as UTC and would misreport the day near midnight in Bucharest —
  * same reasoning as functions/src/mail-templates/reportNotification.js's
  * formatDueDate). Compares local midnight-to-midnight: the due date itself
- * is never "overdue" yet. */
-function isPastDueDate(dueDate, referenceDate) {
+ * is never "overdue" yet.
+ *
+ * Exported (M8 stage 12): the payments ledger's own overdue derivation
+ * (`features/payments/calculations.js`) reuses this exact comparison rather
+ * than re-implementing it — same reasoning as `billedForReport` being
+ * shared rather than duplicated. */
+export function isPastDueDate(dueDate, referenceDate) {
   const [year, month, day] = dueDate.split('-').map(Number)
   const due = new Date(year, month - 1, day)
   const today = new Date(

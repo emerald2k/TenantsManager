@@ -52,6 +52,7 @@ export const reportKeys = {
   detail: (id) => [...reportKeys.details(), id],
   lists: () => [...reportKeys.all, 'list'],
   forMonth: (month, year) => [...reportKeys.lists(), 'month', month, year],
+  forYear: (year) => [...reportKeys.lists(), 'year', year],
   forTenancy: (tenancyId) => [...reportKeys.lists(), 'tenancy', tenancyId],
 }
 
@@ -100,6 +101,27 @@ export function useReportsForMonth(month, year) {
           where('month', '==', month),
           where('year', '==', year),
         ),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+/**
+ * Every report (any status) for one CALENDAR YEAR, across ALL properties —
+ * the payments ledger's year mode (FR-PAY-07/FR-PROP-12, M8 stage 12). Same
+ * shape and same reasoning as `useReportsForMonth` above: one equality
+ * filter (`year`), no `orderBy` — `FR-PAY-07`'s own sort (`paymentDate`,
+ * JS-side, unpaid rows last) would silently lose every unpaid row if it
+ * were a Firestore `orderBy` instead, and status/property filtering happens
+ * in memory on the page, same division of labour as `useReportsForMonth`.
+ */
+export function useReportsForYear(year) {
+  return useQuery({
+    queryKey: reportKeys.forYear(year),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(collection(db, COLLECTION), where('year', '==', year)),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
     },

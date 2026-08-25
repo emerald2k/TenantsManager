@@ -17,6 +17,7 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useReportsForMonth,
+  useReportsForYear,
   useRevokeShareLink,
   useSaveReportDraft,
   useSendReportNotification,
@@ -209,6 +210,70 @@ describe('useReportsForMonth (M4 sub-stage 7)', () => {
 
     const { result } = await renderHookWithProviders(() =>
       useReportsForMonth(7, 2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+})
+
+describe('useReportsForYear (M8 stage 12, FR-PAY-07/FR-PROP-12)', () => {
+  it('queries monthlyReports with ONE equality filter (year), no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 't1_2026-07',
+          data: () => ({
+            tenancyId: 't1',
+            propertyId: 'p1',
+            month: 7,
+            year: 2026,
+            status: 'signed',
+          }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('year', '==', 2026)
+    expect(where).not.toHaveBeenCalledWith('month', '==', expect.anything())
+    expect(result.current.data).toEqual([
+      {
+        id: 't1_2026-07',
+        tenancyId: 't1',
+        propertyId: 'p1',
+        month: 7,
+        year: 2026,
+        status: 'signed',
+      },
+    ])
+  })
+
+  it('returns every status (draft AND signed), across every month of the year', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        { id: 'a', data: () => ({ status: 'draft', month: 8 }) },
+        { id: 'b', data: () => ({ status: 'signed', month: 1 }) },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toHaveLength(2)
+  })
+
+  it('returns an empty array, not an error, when no report exists for the year', async () => {
+    getDocs.mockResolvedValue({ docs: [] })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))

@@ -12,6 +12,7 @@ import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   useActiveTenancies,
+  useAllTenancies,
   useEndTenancy,
   useRecalculateTenancyBalance,
   useResetTenantPassword,
@@ -104,6 +105,35 @@ describe('useActiveTenancies (FR-CON-02 — join for property + balance)', () =>
       { __collection: 'tenancies' },
       { __where: ['status', '==', 'active'] },
     )
+  })
+})
+
+describe('useAllTenancies (M8 stage 12 — payments ledger property/renter join)', () => {
+  it('reads the WHOLE collection, any status — no WHERE, unlike useActiveTenancies', async () => {
+    const TENANCIES = [
+      {
+        id: 't1',
+        tenantName: 'Ion Popescu',
+        property: { name: 'Apartament Centru' },
+        status: 'active',
+        currentBalance: 0,
+      },
+      {
+        id: 't2',
+        tenantName: 'Maria Ionescu',
+        property: { name: 'Casa Zorilor' },
+        status: 'ended',
+        currentBalance: 0,
+      },
+    ]
+    getDocs.mockResolvedValue(listSnapshot(TENANCIES))
+
+    const { result } = await renderHookWithProviders(() => useAllTenancies())
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual(TENANCIES)
+    expect(getDocs).toHaveBeenCalledWith({ __collection: 'tenancies' })
+    expect(where).not.toHaveBeenCalled()
   })
 })
 
