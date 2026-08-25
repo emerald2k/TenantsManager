@@ -187,7 +187,9 @@
       "monthlyRent": "Monthly rent",
       "securityDeposit": "Security deposit",
       "dueDay": "Due day",
-      "reportReminderDaysBefore": "Report reminder (days before due date)"
+      "reportReminderDaysBefore": "Report prep reminder (days before) — to the admin",
+      "paymentReminderDaysBefore": "Payment reminder (days before) — to the renter",
+      "paymentReminderDaysBeforeHelp": "The value means one email per day to the renter, through the due date."
     },
     "placeholders": {
       "cnp": "e.g. 1234567890123",

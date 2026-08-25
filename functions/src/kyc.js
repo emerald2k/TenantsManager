@@ -150,6 +150,7 @@ function toTenancyDocument(draft, { userId, ownerId, tenantName, property }) {
     monthlyRent: draft.monthlyRent,
     dueDay: draft.dueDay,
     reportReminderDaysBefore: draft.reportReminderDaysBefore,
+    paymentReminderDaysBefore: draft.paymentReminderDaysBefore,
     currentBalance: 0,
     status: 'active',
     attachedDocuments: [],

@@ -187,7 +187,9 @@
       "monthlyRent": "Chirie lunară",
       "securityDeposit": "Garanție",
       "dueDay": "Zi scadentă",
-      "reportReminderDaysBefore": "Reminder raport (zile înainte de scadență)"
+      "reportReminderDaysBefore": "Memento pregătire raport (zile înainte) — către administrator",
+      "paymentReminderDaysBefore": "Memento plată (zile înainte) — către chiriaș",
+      "paymentReminderDaysBeforeHelp": "Valoarea înseamnă un email pe zi către chiriaș, până la scadență."
     },
     "placeholders": {
       "cnp": "ex: 1234567890123",

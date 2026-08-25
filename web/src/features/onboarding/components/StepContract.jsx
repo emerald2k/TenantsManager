@@ -232,6 +232,23 @@ export function StepContract({ draftId, onBeforeFinalize }) {
         <FieldError error={errors.reportReminderDaysBefore} t={t} />
       </div>
 
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="paymentReminderDaysBefore">
+          {t('onboarding.fields.paymentReminderDaysBefore')}
+        </Label>
+        <Input
+          id="paymentReminderDaysBefore"
+          type="number"
+          min="1"
+          max="10"
+          {...register('paymentReminderDaysBefore', { valueAsNumber: true })}
+        />
+        <p className="text-xs text-muted-foreground">
+          {t('onboarding.fields.paymentReminderDaysBeforeHelp')}
+        </p>
+        <FieldError error={errors.paymentReminderDaysBefore} t={t} />
+      </div>
+
       {(classifiedError?.kind === 'occupied' ||
         classifiedError?.kind === 'activeTenancy' ||
         classifiedError?.kind === 'generic') && (

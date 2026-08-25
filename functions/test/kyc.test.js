@@ -64,6 +64,7 @@ function completeDraft(overrides = {}) {
     securityDeposit: 2000,
     dueDay: 5,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
     status: 'in_progress',
     currentStep: 4,
     ...overrides,
@@ -129,6 +130,7 @@ function existingUserDraft(overrides = {}) {
     monthlyRent: 2000,
     dueDay: 5,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
     status: 'in_progress',
     currentStep: 4,
     ...overrides,
@@ -245,6 +247,7 @@ describe('finalizeKyc — happy path (FR-TEN-16/18)', () => {
       status: 'active',
       currentBalance: 0,
       reportReminderDaysBefore: 3,
+      paymentReminderDaysBefore: 3,
       // Sub-stage E: numeric fields land as REAL numbers in Firestore, not strings
       // (the M4 report-arithmetic bug this sub-stage fixes).
       monthlyRent: 2000,
@@ -454,6 +457,7 @@ describe('finalizeKyc — existing-user branch (FR-TEN-07)', () => {
       status: 'active',
       currentBalance: 0,
       reportReminderDaysBefore: 3,
+      paymentReminderDaysBefore: 3,
     })
 
     // property flips to occupied (FR-PROP-05), same as the new-tenant branch.

@@ -107,6 +107,7 @@ describe('finalizeKyc — bucket resolution under the real Functions ambient def
       securityDeposit: 2000,
       dueDay: 5,
       reportReminderDaysBefore: 3,
+      paymentReminderDaysBefore: 3,
       status: 'in_progress',
       currentStep: 4,
       ...overrides,

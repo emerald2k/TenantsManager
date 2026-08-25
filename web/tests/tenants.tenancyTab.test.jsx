@@ -58,6 +58,7 @@ function activeTenancy(overrides) {
     securityDeposit: 2500,
     dueDay: 5,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 7,
     status: 'active',
     attachedDocuments: [],
     ...overrides,
@@ -172,9 +173,18 @@ describe('TenancyTab — rendering (SRS §5.3)', () => {
     // FR-CON-01 (audit fix, D#1): reportReminderDaysBefore is part of the
     // contract fields but was missing from this summary.
     expect(
-      screen.getByText('Reminder raport (zile înainte de scadență)'),
+      screen.getByText(
+        'Memento pregătire raport (zile înainte) — către administrator',
+      ),
     ).toBeVisible()
     expect(screen.getByText('3')).toBeVisible()
+    // M8 stage 13b: paymentReminderDaysBefore's twin, view-only here too —
+    // the tenancy tab does not let the admin EDIT either field, only view
+    // it (verified: `renderFields` above only ever touches `endDate`).
+    expect(
+      screen.getByText('Memento plată (zile înainte) — către chiriaș'),
+    ).toBeVisible()
+    expect(screen.getByText('7')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Termină contractul' }),
     ).toBeVisible()

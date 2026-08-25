@@ -416,6 +416,33 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       expect(mail.message.subject).toContain('plata pentru')
     })
 
+    it('reads the TENANCY-specific paymentReminderDaysBefore (7), not the default (3) — M8 stage 13b gate', async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        currentBalance: 0,
+        paymentReminderDaysBefore: 7, // NOT the default (3)
+      })
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 7), // 7 days out — would NOT fire at the
+        // default window (3), only at the tenancy's own value (7). If the
+        // scheduler silently fell back to the default instead of reading
+        // this field, `mail` would stay empty (elapsed=-7 is outside [-3,0]).
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      const nonHeartbeat = excludeHeartbeat(mailSnap)
+      expect(nonHeartbeat).toHaveLength(1)
+      expect(nonHeartbeat[0].data().message.subject).toContain('plata pentru')
+    })
+
     it('does NOT send A8 for an ENDED tenancy, even with an otherwise-qualifying report (structural — the active-only query, same as FR-PAY-04)', async () => {
       await seedUser('user-1', {
         preferredLanguage: 'ro',
