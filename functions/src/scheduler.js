@@ -8,6 +8,7 @@ const {
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
+  shouldSendPreDueReminder,
 } = require('./schedulerLogic')
 const {
   buildArrearsReminderEmail,
@@ -16,13 +17,15 @@ const { buildExpiryReminderEmail } = require('./mail-templates/expiryReminder')
 const {
   buildReportPrepReminderEmail,
 } = require('./mail-templates/reportPrepReminder')
+const { buildPreDueReminderEmail } = require('./mail-templates/preDueReminder')
 const { buildDailyHeartbeatEmail } = require('./mail-templates/dailyHeartbeat')
 
 /**
- * dailyScheduler (SRS §7.2, FR-SYS-04). Fires every active tenancy's three
+ * dailyScheduler (SRS §7.2, FR-SYS-04). Fires every active tenancy's four
  * reminder families through the pure predicates in `schedulerLogic.js`
- * (sub-stage 2, pinned at ab88cb6) and writes the matching template
- * (sub-stage 3a, pinned at 914ad90) into `mail`.
+ * (sub-stage 2, pinned at ab88cb6; family 4 added M8 stage 13, FR-PAY-10)
+ * and writes the matching template (sub-stage 3a, pinned at 914ad90) into
+ * `mail`.
  *
  * `{ schedule: '0 9 * * *', timeZone: 'Europe/Bucharest' }` — the platform
  * (Cloud Scheduler) handles DST for WHEN this fires; `schedulerLogic.js`'s
@@ -83,10 +86,39 @@ async function hasSignedReportThisMonth(db, tenancyId, year, month) {
 }
 
 /**
- * Evaluates and sends all three reminder families for ONE active tenancy.
+ * The tenancy's most recent SIGNED report, or `null` if none exists —
+ * FR-PAY-10a's anchor. Same two-equality-filter, no-`orderBy` query shape
+ * as `hasSignedReportThisMonth`/`hasAnySignedReport`; "most recent" is
+ * resolved in memory by (year, month), the same no-composite-index
+ * discipline as the rest of this codebase (SRS §6). A single Firestore read
+ * of every signed report on the tenancy — cheap at NFR-PERF-01's scale, and
+ * the same set `hasAnySignedReport` would otherwise fetch redundantly for
+ * FAMILY 1, so FAMILY 4 does its own fetch rather than trying to share it:
+ * FAMILY 1 only needs EXISTENCE, FAMILY 4 needs the actual latest document.
+ */
+async function mostRecentSignedReport(db, tenancyId) {
+  const snap = await db
+    .collection('monthlyReports')
+    .where('tenancyId', '==', tenancyId)
+    .where('status', '==', 'signed')
+    .get()
+  if (snap.empty) return null
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .reduce((latest, report) => {
+      if (!latest) return report
+      if (report.year !== latest.year) {
+        return report.year > latest.year ? report : latest
+      }
+      return report.month > latest.month ? report : latest
+    }, null)
+}
+
+/**
+ * Evaluates and sends all four reminder families for ONE active tenancy.
  * Called from a per-tenancy try/catch (see `dailySchedulerHandler`) — but
  * EACH family below ALSO has its own try/catch, isolating it from the
- * other two: a failure specific to one reminder (e.g. family 1's dangling
+ * others: a failure specific to one reminder (e.g. family 1's dangling
  * `userId`) must not cost the OTHER families their reminder for this SAME
  * tenancy. Same "a channel degrades, not two" principle SRS §7.5 already
  * states for ADMIN_EMAIL (cf3b238), applied here in the other direction —
@@ -150,10 +182,62 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
     errors += 1
   }
 
+  // FAMILY 4 — pre-due payment reminder (A8, to the TENANT). Anchored on
+  // the tenancy's most recent SIGNED report's own `dueDate` (FR-PAY-10a),
+  // never `dueDay` — a fresh fetch per tenancy, not shared with family 1's
+  // `hasAnySignedReport`, which only needs existence, not the document
+  // itself. `mailRef` uses a DETERMINISTIC id (FR-PAY-10e:
+  // `{reportId}_predue_{today}`) rather than `.doc()`'s auto id — the one
+  // reminder family in this file where a doubled run must overwrite
+  // instead of duplicating, because it is the only DAILY-repeating,
+  // tenant-facing job (every other family here fires at most once per
+  // cycle for a given date).
+  try {
+    const report = await mostRecentSignedReport(db, tenancyId)
+    if (
+      report &&
+      shouldSendPreDueReminder({
+        today,
+        dueDate: report.dueDate,
+        finalTotal: report.finalTotal,
+        amountPaid: report.amountPaid,
+        paymentReminderDaysBefore: tenancy.paymentReminderDaysBefore ?? 3,
+      })
+    ) {
+      const userSnap = await db.collection('users').doc(tenancy.userId).get()
+      if (!userSnap.exists) {
+        throw new Error(
+          `tenancy ${tenancyId} references users/${tenancy.userId}, which does not exist.`,
+        )
+      }
+      const user = userSnap.data()
+      const mailRef = db.collection('mail').doc(`${report.id}_predue_${today}`)
+      await mailRef.set(
+        buildPreDueReminderEmail(user.preferredLanguage, {
+          name: tenancy.tenantName,
+          email: user.email,
+          property: tenancy.property.name,
+          month: report.month,
+          year: report.year,
+          dueDate: report.dueDate,
+          finalTotal: report.finalTotal,
+          url: APP_URL,
+        }),
+      )
+      emailsQueued += 1
+    }
+  } catch (error) {
+    console.error(
+      `dailyScheduler: tenancy ${tenancyId}, family 4 (pre-due) failed — continuing with the other families.`,
+      error,
+    )
+    errors += 1
+  }
+
   // Families 2 and 3 both go to ADMIN_EMAIL — nothing to evaluate or send
   // for either once it's missing (the run-level console.error already fired
-  // once in dailySchedulerHandler; family 1 above never reads adminEmail,
-  // so it is entirely unaffected by this return either way).
+  // once in dailySchedulerHandler; families 1 and 4 above never read
+  // adminEmail, so neither is affected by this return either way).
   if (!adminEmail) return { emailsQueued, errors }
 
   // FAMILY 2 — contract expiry reminder (A5, to the admin).

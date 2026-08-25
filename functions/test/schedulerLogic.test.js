@@ -7,6 +7,7 @@ import {
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
+  shouldSendPreDueReminder,
 } from '../src/schedulerLogic.js'
 
 // Pure-function tests — no emulator, no Firestore, no I/O. Sub-stage 2 of M6:
@@ -335,6 +336,117 @@ describe('shouldSendReportReminder (FR-REP-15, A6, to the admin)', () => {
         hasSignedReportThisMonth: false,
       }),
     ).toBe(false)
+  })
+})
+
+describe('shouldSendPreDueReminder (FR-PAY-10, A8, to the tenant)', () => {
+  const dueDate = '2026-08-15'
+
+  it.each([
+    [-4, 3, false], // 4 days before due, window is 3 -> too early
+    [-3, 3, true], // exactly paymentReminderDaysBefore days before -> fires
+    [-2, 3, true],
+    [-1, 3, true],
+    [0, 3, true], // ON the due date -> fires (inclusive, FR-PAY-10b)
+    [1, 3, false], // the day AFTER due -> silent (FR-PAY-04 takes over at +3)
+    [2, 3, false],
+    [3, 3, false], // FR-PAY-04's own territory now, not this family's
+  ])(
+    'elapsed=%i days relative to due date, paymentReminderDaysBefore=%i -> %s',
+    (elapsedDays, paymentReminderDaysBefore, expected) => {
+      const today = addDays(dueDate, elapsedDays)
+      expect(
+        shouldSendPreDueReminder({
+          today,
+          dueDate,
+          finalTotal: 1000,
+          amountPaid: 0,
+          paymentReminderDaysBefore,
+        }),
+      ).toBe(expected)
+    },
+  )
+
+  it('a wider window (paymentReminderDaysBefore=7) fires 7 days out, not just 3', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: addDays(dueDate, -7),
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 7,
+      }),
+    ).toBe(true)
+    // One day further out than the window -> silent.
+    expect(
+      shouldSendPreDueReminder({
+        today: addDays(dueDate, -8),
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 7,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false once the bill is fully paid (finalTotal - amountPaid <= epsilon)', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 1000,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false for a sub-epsilon remainder (NFR-VAL-03: money never compared exactly)', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 999.999,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('treats a missing amountPaid as 0 — the full finalTotal is still owed', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: undefined,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(true)
+  })
+
+  it('is false for a credit report (finalTotal - amountPaid negative, FR-PAY-11) — nothing is owed to remind about', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: -200,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('a partial payment that still leaves a real remainder still fires within the window', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 400,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(true)
   })
 })
 

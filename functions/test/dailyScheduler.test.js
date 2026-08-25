@@ -55,6 +55,7 @@ function tenancy(overrides = {}) {
     monthlyRent: 2000,
     dueDay: 12,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
     currentBalance: 0,
     status: 'active',
     attachedDocuments: [],
@@ -79,6 +80,12 @@ async function seedUser(id, overrides = {}) {
     })
 }
 
+// `dueDate: '2030-01-01'` — far outside FAMILY 4's window for every test in
+// this file that does not override it (mirrors `tenancy()`'s own
+// far-future `endDate` default for the same reason: existing tests written
+// before FAMILY 4 existed must stay behaviourally unchanged, not gain a
+// stray A8 email or, worse, a stray FAMILY 4 error from a missing
+// `dueDate` crashing `daysBetween`).
 async function seedSignedReport(id, overrides = {}) {
   await db
     .collection('monthlyReports')
@@ -89,6 +96,7 @@ async function seedSignedReport(id, overrides = {}) {
       year: 2026,
       month: 8,
       finalTotal: 2000,
+      dueDate: '2030-01-01',
       ...overrides,
     })
 }
@@ -370,5 +378,172 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
     expect(mailSnap.size).toBe(0)
 
     errorSpy.mockRestore()
+  })
+
+  describe('FAMILY 4 — pre-due payment reminder (FR-PAY-10, A8, to the tenant, M8 stage 13)', () => {
+    /** A8's subject reads "plata pentru" — A4's reads "plată restantă"
+     * (arrearsReminder.js). Distinct enough to tell the two tenant-facing
+     * families apart in a mail snapshot without relying on doc ordering. */
+    function isPreDue(mailDoc) {
+      return mailDoc.data().message.subject.includes('plata pentru')
+    }
+
+    it("sends exactly one A8 email, in the tenant's language, anchored on the REPORT's own dueDate", async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        dueDay: 1, // deliberately mismatched — FR-PAY-10a anchors on the
+        // REPORT's dueDate below, never on this field.
+        currentBalance: 0, // A4 must not also fire and confuse the count
+        paymentReminderDaysBefore: 3,
+      })
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3), // exactly 3 days out -> fires
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      const nonHeartbeat = excludeHeartbeat(mailSnap)
+      expect(nonHeartbeat).toHaveLength(1)
+      const mail = nonHeartbeat[0].data()
+      expect(mail.to).toEqual(['ion@example.com'])
+      expect(mail.message.subject).toContain('plata pentru')
+    })
+
+    it('does NOT send A8 for an ENDED tenancy, even with an otherwise-qualifying report (structural — the active-only query, same as FR-PAY-04)', async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        status: 'ended',
+        currentBalance: 0,
+        paymentReminderDaysBefore: 3,
+      })
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3),
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      // Nothing at all — an ended tenancy is never even fetched by the
+      // scheduler's own query, so the heartbeat is the ONLY doc: zero
+      // tenancies evaluated for this one.
+      expect(excludeHeartbeat(mailSnap)).toHaveLength(0)
+    })
+
+    it('does NOT send A8 once the bill is fully paid (wiring reads report.amountPaid, not just the pure predicate)', async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        currentBalance: 0,
+        paymentReminderDaysBefore: 3,
+      })
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3),
+        finalTotal: 2000,
+        amountPaid: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      expect(excludeHeartbeat(mailSnap)).toHaveLength(0)
+    })
+
+    it('FR-PAY-04 unregressed: A4 (arrears) and A8 (pre-due) each fire independently for the SAME tenancy, isolated by their own try/catch', async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        dueDay: 12, // TODAY(15) - 3 = 12 -> A4 fires (elapsed=3)
+        currentBalance: 500, // A4's own precondition
+        paymentReminderDaysBefore: 3,
+      })
+      // The SAME report anchors A8 (its own dueDate, unrelated to dueDay
+      // above) — a hand-over month easily produces exactly this shape.
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3),
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      const nonHeartbeat = excludeHeartbeat(mailSnap)
+      expect(nonHeartbeat).toHaveLength(2)
+      expect(nonHeartbeat.some(isPreDue)).toBe(true)
+      expect(nonHeartbeat.some((doc) => !isPreDue(doc))).toBe(true)
+    })
+
+    it('idempotency (FR-PAY-10e): running the scheduler twice on the SAME day writes only ONE A8 mail doc, not two', async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        currentBalance: 0,
+        paymentReminderDaysBefore: 3,
+      })
+      await seedSignedReport('report-1', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3),
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+      await dailySchedulerHandler(FAKE_EVENT) // a second run, same date
+
+      const mailSnap = await db.collection('mail').get()
+      const preDue = mailSnap.docs.filter(isPreDue)
+      expect(preDue).toHaveLength(1)
+      // The heartbeat, by contrast, has NO dedup (FR-PAY-10e is the ONLY
+      // send in the system with this guarantee) — two runs write two.
+      expect(mailSnap.docs.filter(isHeartbeat)).toHaveLength(2)
+    })
+
+    it("the deterministic mail id is keyed on the report's id and today's date, exactly {reportId}_predue_{today}", async () => {
+      await seedUser('user-1', {
+        preferredLanguage: 'ro',
+        email: 'ion@example.com',
+      })
+      await seedTenancy('tenancy-1', {
+        userId: 'user-1',
+        currentBalance: 0,
+        paymentReminderDaysBefore: 3,
+      })
+      await seedSignedReport('report-fixed-id', {
+        tenancyId: 'tenancy-1',
+        dueDate: addDays(TODAY, 3),
+        finalTotal: 2000,
+      })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const doc = await db
+        .collection('mail')
+        .doc(`report-fixed-id_predue_${TODAY}`)
+        .get()
+      expect(doc.exists).toBe(true)
+      expect(doc.data().message.subject).toContain('plata pentru')
+    })
   })
 })
