@@ -45,6 +45,7 @@ vi.mock('@/features/reports/hooks', () => ({
   useMarkPayment: vi.fn(),
   useCancelPayment: vi.fn(),
   useSendReportNotification: vi.fn(),
+  useSendPaymentConfirmation: vi.fn(),
   useShareReport: vi.fn(),
   useRevokeShareLink: vi.fn(),
 }))

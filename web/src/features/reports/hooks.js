@@ -313,6 +313,27 @@ export function useSendReportNotification() {
   })
 }
 
+/**
+ * The A10 "payment recorded" confirmation email (FR-PAY-01, SRS Appendix
+ * A10, M8 stage 14). A callable, not a plain `updateDoc` like
+ * `useMarkPayment` — `mail` is closed to every client (NFR-SEC-02), so the
+ * write can only come from a trusted server. Same shape as
+ * `useSendReportNotification`: explicit admin action, no template choice
+ * (A10 has one form), no `invalidateQueries` (nothing the client reads
+ * changes).
+ */
+export function useSendPaymentConfirmation() {
+  return useMutation({
+    mutationFn: ({ id }) => {
+      const sendPaymentConfirmation = httpsCallable(
+        functions,
+        'sendPaymentConfirmation',
+      )
+      return sendPaymentConfirmation({ reportId: id })
+    },
+  })
+}
+
 // ─────────────────────────── useMarkPayment ──────────────────────
 /**
  * Records/corrects a payment on a SIGNED report (FR-PAY-01/02/05/06) via a

@@ -14,6 +14,7 @@ import { PropertyReportRedirectPage } from '@/features/reports/pages/PropertyRep
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { CurrentMonthPage } from '@/features/dashboard/pages/CurrentMonthPage'
 import { PaymentsLedgerPage } from '@/features/payments/pages/PaymentsLedgerPage'
+import { NotificationLogPage } from '@/features/notifications/pages/NotificationLogPage'
 import { SharedReportPage } from '@/features/sharedReport/pages/SharedReportPage'
 import { TenantDashboardPage } from '@/features/tenantApp/pages/TenantDashboardPage'
 import { TenantHistoryPage } from '@/features/tenantApp/pages/TenantHistoryPage'
@@ -85,15 +86,9 @@ export function AppRoutes() {
                 element={<PropertyReportRedirectPage />}
               />
               <Route path="/admin/payments" element={<PaymentsLedgerPage />} />
-              {/* Placeholder ahead of its own stage (M8 stage 10's six-item
-                  sidebar links to it already) — the notification log lands
-                  at stage 14. Not "Phase 2": in scope for THIS milestone,
-                  just not built yet, unlike the two below. */}
               <Route
                 path="/admin/notifications"
-                element={
-                  <PlaceholderPage titleKey="pages.notificationsComingSoon" />
-                }
+                element={<NotificationLogPage />}
               />
               {/* Phase 2 */}
               <Route

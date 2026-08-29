@@ -43,7 +43,6 @@
     "reportsListPhase2": "Admin — Listă rapoarte (Faza 2)",
     "annualReportPhase2": "Admin — Raport anual (Faza 2)",
     "paymentsComingSoon": "Admin — Plăți (în curând)",
-    "notificationsComingSoon": "Admin — Notificări (în curând)",
     "tenantDashboard": "Chiriaș — Acasă",
     "tenantHistory": "Chiriaș — Istoric",
     "tenantContract": "Chiriaș — Contract",
@@ -451,7 +450,13 @@
       "statusNotRecorded": "Fără plată înregistrată",
       "creditNotice": "Suprasumă de {{amount}} — apare drept credit pe raportul lunii următoare.",
       "markError": "Plata nu a putut fi înregistrată. Încearcă din nou.",
-      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou."
+      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou.",
+      "confirmButton": "Trimite confirmarea plății",
+      "confirmSuccess": "Confirmarea plății a fost trimisă chiriașului.",
+      "confirmError": "Confirmarea nu a putut fi trimisă. Încearcă din nou.",
+      "confirmDialogTitle": "Trimite confirmarea plății",
+      "confirmDialogBody": "Chiriașul primește pe email un mesaj cu suma și data plății înregistrate.",
+      "confirmDialogButton": "Trimite emailul"
     },
     "notify": {
       "button": "Trimite pe email",
@@ -600,6 +605,48 @@
       "creditOwed": "Credit către chiriași",
       "rentTotal": "Total chirie ({{year}})",
       "excludedNotice": "{{count}} rapoarte nesemnate din {{year}} nu sunt incluse în totaluri."
+    }
+  },
+  "notifications": {
+    "title": "Jurnalul notificărilor",
+    "windowNotice": "Se afișează emailurile trimise în ultimele {{months}} luni. Cele mai recente apar primele.",
+    "loading": "Se încarcă...",
+    "error": "Jurnalul notificărilor nu a putut fi încărcat.",
+    "emptyStartsEmpty": "Jurnalul este gol. Se completează pe măsură ce sistemul trimite emailuri.",
+    "emptyNoneInWindow": "Niciun email trimis în ultimele 12 luni.",
+    "columns": {
+      "sentAt": "Trimis la",
+      "type": "Tip",
+      "audience": "Destinatar",
+      "subject": "Subiect",
+      "recipient": "Adresă",
+      "deliveryState": "Livrare"
+    },
+    "audience": {
+      "tenant": "Chiriaș",
+      "admin": "Administrator"
+    },
+    "delivery": {
+      "pending": "În așteptare",
+      "processing": "În procesare",
+      "success": "Livrat",
+      "error": "Eșuat",
+      "retry": "Reîncercare"
+    },
+    "type": {
+      "credentials": "Date de autentificare",
+      "credentialsResent": "Retrimitere date de autentificare",
+      "reportNew": "Raport nou",
+      "reportUpdated": "Raport actualizat",
+      "arrearsReminder": "Memento restanță",
+      "contractExpiry": "Contract în expirare",
+      "reportPreparation": "Memento pregătire raport",
+      "tenancyAssigned": "Contract atribuit",
+      "paymentUpcoming": "Memento plată apropiată",
+      "paymentRecorded": "Plată înregistrată",
+      "contractExpired": "Contract expirat, încă activ",
+      "dailyHeartbeat": "Raport zilnic automatizări",
+      "balanceMismatch": "Neconcordanță de sold"
     }
   },
   "notFound": {

@@ -43,7 +43,6 @@
     "reportsListPhase2": "Admin — Reports list (Phase 2)",
     "annualReportPhase2": "Admin — Annual report (Phase 2)",
     "paymentsComingSoon": "Admin — Payments (coming soon)",
-    "notificationsComingSoon": "Admin — Notifications (coming soon)",
     "tenantDashboard": "Renter — Home",
     "tenantHistory": "Renter — History",
     "tenantContract": "Renter — Contract",
@@ -451,7 +450,13 @@
       "statusNotRecorded": "No payment recorded yet",
       "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
       "markError": "The payment could not be recorded. Please try again.",
-      "cancelError": "The payment could not be cancelled. Please try again."
+      "cancelError": "The payment could not be cancelled. Please try again.",
+      "confirmButton": "Send payment confirmation",
+      "confirmSuccess": "The payment confirmation was sent to the renter.",
+      "confirmError": "The confirmation could not be sent. Please try again.",
+      "confirmDialogTitle": "Send payment confirmation",
+      "confirmDialogBody": "The renter receives an email with the recorded amount and payment date.",
+      "confirmDialogButton": "Send the email"
     },
     "notify": {
       "button": "Send by email",
@@ -600,6 +605,48 @@
       "creditOwed": "Credit owed to renters",
       "rentTotal": "Total rent ({{year}})",
       "excludedNotice": "{{count}} unsigned reports from {{year}} are not included in the totals."
+    }
+  },
+  "notifications": {
+    "title": "Notification log",
+    "windowNotice": "Showing emails sent in the last {{months}} months. Most recent first.",
+    "loading": "Loading...",
+    "error": "The notification log could not be loaded.",
+    "emptyStartsEmpty": "The log is empty. It fills up as the system sends email.",
+    "emptyNoneInWindow": "No emails sent in the last 12 months.",
+    "columns": {
+      "sentAt": "Sent at",
+      "type": "Type",
+      "audience": "Recipient",
+      "subject": "Subject",
+      "recipient": "Address",
+      "deliveryState": "Delivery"
+    },
+    "audience": {
+      "tenant": "Renter",
+      "admin": "Administrator"
+    },
+    "delivery": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "success": "Delivered",
+      "error": "Failed",
+      "retry": "Retrying"
+    },
+    "type": {
+      "credentials": "Login details",
+      "credentialsResent": "Login details resent",
+      "reportNew": "New report",
+      "reportUpdated": "Report updated",
+      "arrearsReminder": "Arrears reminder",
+      "contractExpiry": "Contract expiring",
+      "reportPreparation": "Report preparation reminder",
+      "tenancyAssigned": "Tenancy assigned",
+      "paymentUpcoming": "Upcoming payment reminder",
+      "paymentRecorded": "Payment recorded",
+      "contractExpired": "Contract expired, still active",
+      "dailyHeartbeat": "Daily automation report",
+      "balanceMismatch": "Balance mismatch"
     }
   },
   "notFound": {

@@ -3,15 +3,21 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { PaymentSection } from '@/features/reports/components/PaymentSection'
-import { useCancelPayment, useMarkPayment } from '@/features/reports/hooks'
+import {
+  useCancelPayment,
+  useMarkPayment,
+  useSendPaymentConfirmation,
+} from '@/features/reports/hooks'
 
 vi.mock('@/features/reports/hooks', () => ({
   useMarkPayment: vi.fn(),
   useCancelPayment: vi.fn(),
+  useSendPaymentConfirmation: vi.fn(),
 }))
 
 const markMutateAsync = vi.fn()
 const cancelMutateAsync = vi.fn()
+const confirmMutateAsync = vi.fn()
 
 const UNPAID_REPORT = {
   id: 'r1',
@@ -26,12 +32,17 @@ beforeEach(() => {
   vi.clearAllMocks()
   markMutateAsync.mockResolvedValue({})
   cancelMutateAsync.mockResolvedValue({})
+  confirmMutateAsync.mockResolvedValue({})
   useMarkPayment.mockReturnValue({
     mutateAsync: markMutateAsync,
     isPending: false,
   })
   useCancelPayment.mockReturnValue({
     mutateAsync: cancelMutateAsync,
+    isPending: false,
+  })
+  useSendPaymentConfirmation.mockReturnValue({
+    mutateAsync: confirmMutateAsync,
     isPending: false,
   })
 })

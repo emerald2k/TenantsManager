@@ -27,10 +27,9 @@ import { cn } from '@/lib/utils'
  * where they disagree" rule — correctly applying the rule against a
  * source that itself hadn't been brought forward. The rule stands; this
  * commit just follows the corrected SRS instead of the stale one.
- * Payments and Notifications route to `PlaceholderPage` until stages 12
- * and 14 build their real pages — the sidebar is greenfield ahead of
- * both, by design (the plan's own stage 10 row says "sidebar (6 items)"),
- * not a dangling link.
+ * The sidebar was greenfield ahead of Payments (stage 12) and
+ * Notifications (stage 14) by design — the plan's own stage 10 row says
+ * "sidebar (6 items)". Both now route to their real pages.
  *
  * Not adopted: the mockup's badge pill on "Current month" (would need
  * this-month's unsigned-report count, a data feature this shell stage
