@@ -8,6 +8,7 @@ const {
   unlockReport,
   onReportWrite,
   sendReportNotification,
+  sendPaymentConfirmation,
 } = require('./src/reports')
 const { onPropertyUpdate } = require('./src/properties')
 const {
@@ -18,6 +19,7 @@ const { dailyScheduler } = require('./src/scheduler')
 const { reconcileBalances } = require('./src/reconcileBalances')
 const { checkAdminEmailConfigured } = require('./src/checkAdminEmailConfigured')
 const { recalculateTenancyBalance } = require('./src/recalculateTenancyBalance')
+const { onMailWrite } = require('./src/notifications')
 
 exports.finalizeKyc = finalizeKyc
 exports.endTenancy = endTenancy
@@ -27,6 +29,7 @@ exports.signReport = signReport
 exports.unlockReport = unlockReport
 exports.onReportWrite = onReportWrite
 exports.sendReportNotification = sendReportNotification
+exports.sendPaymentConfirmation = sendPaymentConfirmation
 exports.onPropertyUpdate = onPropertyUpdate
 exports.getSharedReport = getSharedReport
 exports.getSharedReportAttachment = getSharedReportAttachment
@@ -34,3 +37,4 @@ exports.dailyScheduler = dailyScheduler
 exports.reconcileBalances = reconcileBalances
 exports.checkAdminEmailConfigured = checkAdminEmailConfigured
 exports.recalculateTenancyBalance = recalculateTenancyBalance
+exports.onMailWrite = onMailWrite

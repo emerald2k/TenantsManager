@@ -9,6 +9,7 @@ const {
   shouldSendExpiryReminder,
   shouldSendReportReminder,
   shouldSendPreDueReminder,
+  shouldSendContractExpiredBackstop,
 } = require('./schedulerLogic')
 const {
   buildArrearsReminderEmail,
@@ -18,14 +19,17 @@ const {
   buildReportPrepReminderEmail,
 } = require('./mail-templates/reportPrepReminder')
 const { buildPreDueReminderEmail } = require('./mail-templates/preDueReminder')
+const {
+  buildContractExpiredBackstopEmail,
+} = require('./mail-templates/contractExpiredBackstop')
 const { buildDailyHeartbeatEmail } = require('./mail-templates/dailyHeartbeat')
 
 /**
- * dailyScheduler (SRS §7.2, FR-SYS-04). Fires every active tenancy's four
+ * dailyScheduler (SRS §7.2, FR-SYS-04). Fires every active tenancy's five
  * reminder families through the pure predicates in `schedulerLogic.js`
- * (sub-stage 2, pinned at ab88cb6; family 4 added M8 stage 13, FR-PAY-10)
- * and writes the matching template (sub-stage 3a, pinned at 914ad90) into
- * `mail`.
+ * (sub-stage 2, pinned at ab88cb6; family 4 added M8 stage 13, FR-PAY-10;
+ * family 5 added M8 stage 14, FR-CON-08) and writes the matching template
+ * (sub-stage 3a, pinned at 914ad90) into `mail`.
  *
  * `{ schedule: '0 9 * * *', timeZone: 'Europe/Bucharest' }` — the platform
  * (Cloud Scheduler) handles DST for WHEN this fires; `schedulerLogic.js`'s
@@ -115,7 +119,7 @@ async function mostRecentSignedReport(db, tenancyId) {
 }
 
 /**
- * Evaluates and sends all four reminder families for ONE active tenancy.
+ * Evaluates and sends all five reminder families for ONE active tenancy.
  * Called from a per-tenancy try/catch (see `dailySchedulerHandler`) — but
  * EACH family below ALSO has its own try/catch, isolating it from the
  * others: a failure specific to one reminder (e.g. family 1's dangling
@@ -170,6 +174,8 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           property: tenancy.property.name,
           dueDate: arrearsDueDate,
           url: APP_URL,
+          relatedId: tenancyId,
+          ownerId: tenancy.ownerId,
         }),
       )
       emailsQueued += 1
@@ -222,6 +228,8 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           dueDate: report.dueDate,
           finalTotal: report.finalTotal,
           url: APP_URL,
+          relatedId: report.id,
+          ownerId: tenancy.ownerId,
         }),
       )
       emailsQueued += 1
@@ -251,6 +259,8 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           property: tenancy.property.name,
           endDate: tenancy.endDate,
           url: APP_URL,
+          relatedId: tenancyId,
+          ownerId: tenancy.ownerId,
         }),
       )
       emailsQueued += 1
@@ -285,6 +295,8 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
           email: adminEmail,
           property: tenancy.property.name,
           dueDate: nextOccurrenceOfDueDay(today, tenancy.dueDay),
+          relatedId: tenancyId,
+          ownerId: tenancy.ownerId,
         }),
       )
       emailsQueued += 1
@@ -292,6 +304,35 @@ async function processTenancy(db, tenancyId, tenancy, today, adminEmail) {
   } catch (error) {
     console.error(
       `dailyScheduler: tenancy ${tenancyId}, family 3 (report prep) failed — continuing with the other families.`,
+      error,
+    )
+    errors += 1
+  }
+
+  // FAMILY 5 — expired-contract backstop (A11, to the admin, FR-CON-08).
+  // Weekly, for as long as the tenancy stays active past its own `endDate`.
+  // Never terminates anything — FR-CON-08's manual-only rule stands.
+  try {
+    if (
+      shouldSendContractExpiredBackstop({ today, endDate: tenancy.endDate })
+    ) {
+      const mailRef = db.collection('mail').doc()
+      await mailRef.set(
+        buildContractExpiredBackstopEmail({
+          name: tenancy.tenantName,
+          email: adminEmail,
+          property: tenancy.property.name,
+          endDate: tenancy.endDate,
+          url: APP_URL,
+          relatedId: tenancyId,
+          ownerId: tenancy.ownerId,
+        }),
+      )
+      emailsQueued += 1
+    }
+  } catch (error) {
+    console.error(
+      `dailyScheduler: tenancy ${tenancyId}, family 5 (contract-expired backstop) failed — continuing with the other families.`,
       error,
     )
     errors += 1

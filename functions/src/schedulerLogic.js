@@ -201,6 +201,30 @@ function shouldSendPreDueReminder({
   return elapsed >= -paymentReminderDaysBefore && elapsed <= 0
 }
 
+/**
+ * FAMILY 5 — the expired-contract backstop (FR-CON-08, template A11, to the
+ * admin). Fires weekly for as long as `endDate` has passed: on the day it
+ * passes (elapsed 0), then every 7 days after (7, 14, 21, ...) — the same
+ * "elapsed since an anchor date, on a fixed cycle" shape as
+ * `shouldSendArrearsReminder`'s 3-day cycle, with two differences the SRS
+ * does not spell out and which are recorded here as IMPLEMENTATION
+ * DECISIONS: the cycle starts at elapsed 0 rather than one cycle-length in
+ * (A11 is itself the backstop for three missed warnings — nothing else
+ * would catch the expiry on the day it actually happens), and it never
+ * stops on its own (unlike arrears, which stops once `currentBalance`
+ * clears) — FR-CON-08 keeps the tenancy active until a MANUAL termination,
+ * so nothing here can observe "resolved" the way a balance can.
+ *
+ * The THIRD precondition — the tenancy must still be `active` — is
+ * structural, not checked here, same split every other family in this file
+ * already uses: `dailyScheduler` only ever queries `tenancies` where
+ * `status == 'active'`.
+ */
+function shouldSendContractExpiredBackstop({ today, endDate }) {
+  const elapsed = daysBetween(endDate, today)
+  return elapsed >= 0 && elapsed % 7 === 0
+}
+
 module.exports = {
   todayInBucharest,
   daysBetween,
@@ -210,5 +234,6 @@ module.exports = {
   shouldSendExpiryReminder,
   shouldSendReportReminder,
   shouldSendPreDueReminder,
+  shouldSendContractExpiredBackstop,
   FINAL_TOTAL_EPSILON,
 }

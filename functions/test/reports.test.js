@@ -9,6 +9,8 @@ import {
   onReportWriteHandler,
   sendReportNotificationCore,
   sendReportNotificationHandler,
+  sendPaymentConfirmationCore,
+  sendPaymentConfirmationHandler,
 } from '../src/reports.js'
 
 // Functions tests — the REAL boundary (Firestore emulator), no mocks of the
@@ -981,5 +983,134 @@ describe('sendReportNotification — callable guard', () => {
     ).rejects.toMatchObject({ code: 'invalid-argument' })
 
     expect((await db.collection('mail').get()).size).toBe(0)
+  })
+})
+
+describe('sendReportNotification — relatedId/ownerId (FR-NLOG-03/04, M8 stage 14)', () => {
+  it('the mail document carries the reportId as relatedId and the caller uid as ownerId', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+
+    await sendReportNotificationHandler({
+      auth: { token: { admin: true }, uid: 'admin-uid' },
+      data: { reportId: 'report-1', template: 'new' },
+    })
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.relatedId).toBe('report-1')
+    expect(mail.ownerId).toBe('admin-uid')
+    expect(mail.type).toBe('report-new')
+    expect(mail.audience).toBe('tenant')
+  })
+})
+
+describe('sendPaymentConfirmationCore (SRS §7.2, FR-PAY-01, Appendix A10, M8 stage 14)', () => {
+  it('rejects a report that does not exist', async () => {
+    await expect(
+      sendPaymentConfirmationCore('does-not-exist', 'admin-uid'),
+    ).rejects.toMatchObject({ code: 'not-found' })
+  })
+
+  it('REJECTS a report with no payment recorded yet — nothing to confirm', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    await expect(
+      sendPaymentConfirmationCore('report-1', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'no-payment' },
+    })
+    expect((await db.collection('mail').get()).size).toBe(0)
+  })
+
+  it('writes an A10 email carrying the amount PAID and the payment DATE, not finalTotal/dueDate', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      month: 7,
+      year: 2026,
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'partial',
+    })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    const result = await sendPaymentConfirmationCore('report-1', 'admin-uid')
+    expect(result).toEqual({ reportId: 'report-1' })
+
+    const mailSnap = await db.collection('mail').get()
+    expect(mailSnap.size).toBe(1)
+    const mail = mailSnap.docs[0].data()
+    expect(mail.to).toEqual(['ion@example.com'])
+    expect(mail.type).toBe('payment-recorded')
+    expect(mail.audience).toBe('tenant')
+    expect(mail.relatedId).toBe('report-1')
+    expect(mail.ownerId).toBe('admin-uid')
+    expect(mail.message.text).toContain('800,00')
+    expect(mail.message.text).not.toContain('1.500,00')
+    expect(mail.message.text).toContain('03.07.2026')
+    expect(mail.message.text).not.toContain('05.07.2026')
+  })
+
+  it('sends in the tenant preferred language (NFR-LOC-04)', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'paid',
+    })
+    await seedUser('user-1', { preferredLanguage: 'en' })
+    await seedTenancy('tenancy-1', {
+      property: { name: 'City Center Flat' },
+    })
+
+    await sendPaymentConfirmationCore('report-1', 'admin-uid')
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.message.subject).toContain('has been recorded')
+  })
+})
+
+describe('sendPaymentConfirmation — callable guard', () => {
+  it('rejects a non-admin caller — nothing written to mail', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'paid',
+    })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    await expect(
+      sendPaymentConfirmationHandler({
+        auth: { token: {}, uid: 'x' },
+        data: { reportId: 'report-1' },
+      }),
+    ).rejects.toMatchObject({ code: 'permission-denied' })
+
+    expect((await db.collection('mail').get()).size).toBe(0)
+  })
+
+  it('rejects a missing reportId argument', async () => {
+    await expect(
+      sendPaymentConfirmationHandler({
+        auth: { token: { admin: true }, uid: 'admin-uid' },
+        data: {},
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
   })
 })

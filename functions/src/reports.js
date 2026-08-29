@@ -5,6 +5,9 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore')
 const {
   buildReportNotificationEmail,
 } = require('./mail-templates/reportNotification')
+const {
+  buildPaymentRecordedEmail,
+} = require('./mail-templates/paymentRecorded')
 
 /**
  * signReport / unlockReport (SRS §7.2, FR-REP-07/07a).
@@ -299,7 +302,7 @@ const onReportWrite = onDocumentWritten(
  * harmless and the admin just re-sends, the same tolerance the "no
  * tracking, manual every time" pin already assumes.
  */
-async function sendReportNotificationCore(reportId, template) {
+async function sendReportNotificationCore(reportId, template, adminUid) {
   const db = getFirestore()
   const reportSnap = await db.collection('monthlyReports').doc(reportId).get()
   if (!reportSnap.exists) {
@@ -330,6 +333,8 @@ async function sendReportNotificationCore(reportId, template) {
       finalTotal: report.finalTotal,
       dueDate: report.dueDate,
       url: APP_URL,
+      relatedId: reportId,
+      ownerId: adminUid,
     }),
   )
 
@@ -351,10 +356,93 @@ async function sendReportNotificationHandler(request) {
       "template must be 'new' or 'updated'.",
     )
   }
-  return sendReportNotificationCore(reportId, template)
+  return sendReportNotificationCore(reportId, template, request.auth.uid)
 }
 
 const sendReportNotification = onCall(sendReportNotificationHandler)
+
+/**
+ * sendPaymentConfirmation (SRS §7.2, FR-PAY-01, Appendix A10) — "the payment
+ * action" in the twelve-write-sites table. On the administrator's explicit
+ * request ONLY, from the payment section — the same discipline as A2/A3
+ * (FR-REP-06): the product never emails the tenant behind the
+ * administrator's back. NOT wired into `useMarkPayment` (a plain client
+ * `updateDoc`, per M4 sub-stage 5 Decision 1) because `mail` is closed to
+ * every client, admin included (SRS §7.3) — a client write can never reach
+ * it, so this has to be its own callable, mirroring
+ * `sendReportNotification`'s exact "separate, on-demand action, not
+ * automatic" shape.
+ *
+ * REJECTS a report with no payment recorded yet (failed-precondition,
+ * reason 'no-payment') — `paymentStatus` is written for the first time by
+ * `useMarkPayment`, so its absence (or `'unpaid'`, never actually written
+ * by that hook but checked defensively) means there is nothing to confirm.
+ *
+ * `{total}`/`{dueDate}` in the A10 template are the amount actually PAID
+ * and the payment DATE — never `finalTotal`/the report's own `dueDate`,
+ * which A2/A3/A4/A8 give those same placeholder names.
+ */
+async function sendPaymentConfirmationCore(reportId, adminUid) {
+  const db = getFirestore()
+  const reportSnap = await db.collection('monthlyReports').doc(reportId).get()
+  if (!reportSnap.exists) {
+    throw new HttpsError('not-found', `Report ${reportId} does not exist.`)
+  }
+  const report = reportSnap.data()
+  if (report.paymentStatus !== 'partial' && report.paymentStatus !== 'paid') {
+    throw new HttpsError(
+      'failed-precondition',
+      'This report has no payment recorded yet.',
+      { reason: 'no-payment' },
+    )
+  }
+
+  const userSnap = await db.collection('users').doc(report.userId).get()
+  if (!userSnap.exists) {
+    throw new HttpsError('not-found', 'The tenant account does not exist.')
+  }
+  const user = userSnap.data()
+
+  const tenancySnap = await db
+    .collection('tenancies')
+    .doc(report.tenancyId)
+    .get()
+  if (!tenancySnap.exists) {
+    throw new HttpsError('not-found', 'The tenancy does not exist.')
+  }
+  const tenancy = tenancySnap.data()
+
+  const mailRef = db.collection('mail').doc()
+  await mailRef.set(
+    buildPaymentRecordedEmail(user.preferredLanguage, {
+      name: user.name,
+      email: user.email,
+      property: tenancy.property.name,
+      month: report.month,
+      year: report.year,
+      amountPaid: report.amountPaid,
+      paymentDate: report.paymentDate,
+      url: APP_URL,
+      relatedId: reportId,
+      ownerId: adminUid,
+    }),
+  )
+
+  return { reportId }
+}
+
+async function sendPaymentConfirmationHandler(request) {
+  if (request.auth?.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Admin access required.')
+  }
+  const reportId = request.data?.reportId
+  if (!reportId) {
+    throw new HttpsError('invalid-argument', 'reportId is required.')
+  }
+  return sendPaymentConfirmationCore(reportId, request.auth.uid)
+}
+
+const sendPaymentConfirmation = onCall(sendPaymentConfirmationHandler)
 
 module.exports = {
   signReport,
@@ -370,4 +458,7 @@ module.exports = {
   sendReportNotification,
   sendReportNotificationHandler,
   sendReportNotificationCore,
+  sendPaymentConfirmation,
+  sendPaymentConfirmationHandler,
+  sendPaymentConfirmationCore,
 }

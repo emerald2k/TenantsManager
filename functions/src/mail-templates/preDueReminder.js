@@ -80,10 +80,17 @@ function formatDueDate(isoDate, language) {
  * shape). Falls back to English if `language` is not one of ro/en — same
  * convention as every other bilingual template in this directory.
  *
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId`/`ownerId` come from the caller: `dailyScheduler` anchors this
+ * reminder on a specific report, so `relatedId` is the report's ID, not the
+ * tenancy's — matching FAMILY 4's own "anchor on the report" rule
+ * (FR-PAY-10a).
+ *
  * @param language  'ro' | 'en' — the tenant's preferred language
  * @param fields    { name, email, property, month, year, dueDate,
- *                    finalTotal, url } — RAW, unformatted; this function
- *                    does all localization internally.
+ *                    finalTotal, url, relatedId, ownerId } — RAW,
+ *                    unformatted; this function does all localization
+ *                    internally.
  */
 function buildPreDueReminderEmail(language, fields) {
   const lang = TEMPLATES[language] ? language : 'en'
@@ -102,6 +109,10 @@ function buildPreDueReminderEmail(language, fields) {
       subject: tpl.subject(values),
       text: tpl.body(values),
     },
+    type: 'payment-upcoming',
+    audience: 'tenant',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

@@ -78,6 +78,8 @@ async function reconcileBalancesCore() {
             total: stored,
             arrearsAmount: recomputed,
             url: APP_URL,
+            relatedId: doc.id,
+            ownerId: tenancy.ownerId,
           }),
         )
       }

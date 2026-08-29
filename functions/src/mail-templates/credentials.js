@@ -34,8 +34,15 @@ const TEMPLATES = {
  * Email" extension consumes: `{ to, message: { subject, text } }` (SRS §5.7). Falls
  * back to English if the language is not one of ro/en.
  *
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, not at the call site —
+ * one place per template, so a call site cannot forget them (SRS §7.2).
+ * `relatedId`/`ownerId` come from the caller (`fields`): `finalizeKyc` knows
+ * the new tenancy's ID and the admin's own uid; this builder just copies
+ * them through.
+ *
  * @param language  'ro' | 'en' — the tenant's preferred language
- * @param fields    { name, email, password, property, url }
+ * @param fields    { name, email, password, property, url, relatedId,
+ *                    ownerId }
  */
 function buildCredentialsEmail(language, fields) {
   const template = TEMPLATES[language] ?? TEMPLATES.en
@@ -45,6 +52,16 @@ function buildCredentialsEmail(language, fields) {
       subject: template.subject,
       text: template.body(fields),
     },
+    type: 'credentials',
+    audience: 'tenant',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
+    // FR-NLOG-09: the body interpolates {password} in clear text. The flag
+    // sits on the same object as the secret — the one place the template
+    // author is guaranteed to be looking — so `onMailWrite` can empty the
+    // body once delivered WITHOUT deciding by `type` (a type list drifts the
+    // moment a template is added). A9 (credentialsResent.js) sets it too.
+    redactAfterDelivery: true,
   }
 }
 

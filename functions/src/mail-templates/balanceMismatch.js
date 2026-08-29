@@ -36,10 +36,19 @@ function formatAmount(amount) {
  * Builds the `mail` document for the balance-mismatch report (SRS §5.7
  * shape). Always Romanian.
  *
- * @param fields  { email, name, property, total, arrearsAmount, url } —
- *                `email` is ADMIN_EMAIL; `name` is the tenant's name;
- *                `total` is the STORED `currentBalance`; `arrearsAmount` is
- *                the RECOMPUTED balance — both RAW, formatted here.
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId` is the tenancy's ID: unlike the heartbeat, this template
+ * always names ONE specific tenancy (`reconcileBalances` sends one email
+ * per mismatch found, in its per-tenancy loop) — a real referent, not a
+ * run-level summary. `ownerId` comes from that same tenancy's own
+ * `ownerId` field (the single admin's uid), since there is no caller uid
+ * to copy on a scheduled function.
+ *
+ * @param fields  { email, name, property, total, arrearsAmount, url,
+ *                  relatedId, ownerId } — `email` is ADMIN_EMAIL; `name` is
+ *                the tenant's name; `total` is the STORED `currentBalance`;
+ *                `arrearsAmount` is the RECOMPUTED balance — both RAW,
+ *                formatted here.
  */
 function buildBalanceMismatchEmail(fields) {
   const values = {
@@ -55,6 +64,10 @@ function buildBalanceMismatchEmail(fields) {
       subject: SUBJECT(values),
       text: BODY(values),
     },
+    type: 'balance-mismatch',
+    audience: 'admin',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

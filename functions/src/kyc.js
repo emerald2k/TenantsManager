@@ -241,6 +241,8 @@ async function finalizeExistingUserTenancy(db, draft, draftRef, adminUid) {
         email: user.email,
         property: property.name,
         url: APP_URL,
+        relatedId: tenancyRef.id,
+        ownerId: adminUid,
       }),
     )
     tx.update(propertyRef, { status: 'occupied' })
@@ -409,6 +411,8 @@ async function finalizeNewTenant(db, auth, draft, draftRef, adminUid) {
           password,
           property: property.name,
           url: APP_URL,
+          relatedId: tenancyRef.id,
+          ownerId: adminUid,
         }),
       )
       tx.update(propertyRef, { status: 'occupied' })

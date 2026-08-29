@@ -8,6 +8,7 @@ import {
   shouldSendExpiryReminder,
   shouldSendReportReminder,
   shouldSendPreDueReminder,
+  shouldSendContractExpiredBackstop,
 } from '../src/schedulerLogic.js'
 
 // Pure-function tests — no emulator, no Firestore, no I/O. Sub-stage 2 of M6:
@@ -445,6 +446,55 @@ describe('shouldSendPreDueReminder (FR-PAY-10, A8, to the tenant)', () => {
         finalTotal: 1000,
         amountPaid: 400,
         paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('shouldSendContractExpiredBackstop (FR-CON-08, A11, to the admin)', () => {
+  it('does NOT fire before endDate', () => {
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: '2026-06-25',
+        endDate: '2026-07-01',
+      }),
+    ).toBe(false)
+  })
+
+  it('fires on the day endDate passes (elapsed 0) — the backstop for three missed A5 warnings', () => {
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: '2026-07-01',
+        endDate: '2026-07-01',
+      }),
+    ).toBe(true)
+  })
+
+  it('does NOT fire again until a full week later (elapsed 1..6)', () => {
+    for (let elapsed = 1; elapsed <= 6; elapsed += 1) {
+      const today = addDays('2026-07-01', elapsed)
+      expect(
+        shouldSendContractExpiredBackstop({ today, endDate: '2026-07-01' }),
+      ).toBe(false)
+    }
+  })
+
+  it('fires again every 7 days after (elapsed 7, 14, 21)', () => {
+    for (const elapsed of [7, 14, 21]) {
+      const today = addDays('2026-07-01', elapsed)
+      expect(
+        shouldSendContractExpiredBackstop({ today, endDate: '2026-07-01' }),
+      ).toBe(true)
+    }
+  })
+
+  it('never stops on its own — FR-CON-08 keeps firing until manual termination (checked far out)', () => {
+    // 700 = 100 whole weeks past endDate — a far-out point that still lands
+    // on the weekly cadence (365 does NOT: 365 % 7 === 1).
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: addDays('2026-07-01', 700),
+        endDate: '2026-07-01',
       }),
     ).toBe(true)
   })

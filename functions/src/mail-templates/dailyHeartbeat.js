@@ -41,6 +41,14 @@ function formatMonthYear(today) {
  * Builds the `mail` document for the daily heartbeat (SRS §5.7 shape).
  * Always Romanian.
  *
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId` is always `null` — a run-level summary has no single
+ * report/tenancy/user referent, unlike every other write site in
+ * `dailyScheduler`. `ownerId` likewise has no caller uid to copy (no admin
+ * request, no per-tenancy document to read one from); left `null`, same as
+ * `relatedId` — consistent with the schema's own "not queried on in M8"
+ * note (SRS §6).
+ *
  * @param fields  { email, today, tenanciesEvaluated, emailsQueued, errors } —
  *                `email` is ADMIN_EMAIL; `today` is 'YYYY-MM-DD'
  *                (schedulerLogic.js's `todayInBucharest`); the three counts
@@ -59,6 +67,10 @@ function buildDailyHeartbeatEmail(fields) {
       subject: SUBJECT(values),
       text: BODY(values),
     },
+    type: 'daily-heartbeat',
+    audience: 'admin',
+    relatedId: null,
+    ownerId: null,
   }
 }
 

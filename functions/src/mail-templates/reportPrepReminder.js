@@ -32,8 +32,12 @@ function formatDueDate(isoDate) {
  * Builds the `mail` document for the report preparation reminder (SRS §5.7
  * shape). Always Romanian.
  *
- * @param fields  { email, property, dueDate } — RAW, unformatted; `email`
- *                is ADMIN_EMAIL.
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId`/`ownerId` come from the caller: `dailyScheduler` knows the
+ * tenancy's ID and its `ownerId` (the single admin's uid).
+ *
+ * @param fields  { email, property, dueDate, relatedId, ownerId } — RAW,
+ *                unformatted; `email` is ADMIN_EMAIL.
  */
 function buildReportPrepReminderEmail(fields) {
   const values = {
@@ -46,6 +50,10 @@ function buildReportPrepReminderEmail(fields) {
       subject: SUBJECT(values),
       text: BODY(values),
     },
+    type: 'report-preparation',
+    audience: 'admin',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

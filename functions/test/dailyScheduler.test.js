@@ -573,4 +573,76 @@ describe('dailySchedulerHandler (FR-SYS-04)', () => {
       expect(doc.data().message.subject).toContain('plata pentru')
     })
   })
+
+  describe('FAMILY 5 — expired-contract backstop (FR-CON-08, A11, to the admin, M8 stage 14)', () => {
+    /** A11's subject is "Contract expirat, încă activ: ..."; A5's is
+     * "Contract în expirare: ..." (expiryReminder.js). Both open with
+     * "Contract ", so match on the phrase only A11 carries — no reliance on
+     * `mail` doc ordering. */
+    function isExpiredBackstop(mailDoc) {
+      return mailDoc.data().message.subject.includes('expirat, încă activ')
+    }
+
+    it('sends exactly one A11 email to the admin the day endDate passes, carrying type/audience/relatedId/ownerId', async () => {
+      // elapsed 0 — the day the contract expires. Default tenancy: no
+      // arrears, no signed report, dueDay far from a family-3 window, so
+      // A11 is the only non-heartbeat send.
+      await seedTenancy('tenancy-1', { endDate: TODAY })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const mailSnap = await db.collection('mail').get()
+      const nonHeartbeat = excludeHeartbeat(mailSnap)
+      expect(nonHeartbeat).toHaveLength(1)
+      expect(isExpiredBackstop(nonHeartbeat[0])).toBe(true)
+      const mail = nonHeartbeat[0].data()
+      // Wiring the integration test pins, over the pure predicate: the
+      // scheduler passes the tenancy's OWN id and ownerId through to the
+      // builder. Mutation check (CLAUDE.md §7): deleting the `relatedId` /
+      // `ownerId` lines from scheduler.js's FAMILY 5 block made these two
+      // assertions fail, confirmed, then reverted.
+      expect(mail.to).toEqual(['admin@example.com'])
+      expect(mail.type).toBe('contract-expired')
+      expect(mail.audience).toBe('admin')
+      expect(mail.relatedId).toBe('tenancy-1')
+      expect(mail.ownerId).toBe('admin-uid')
+    })
+
+    it('fires again exactly 7 days after endDate (the weekly cadence, still active)', async () => {
+      await seedTenancy('tenancy-1', { endDate: addDays(TODAY, -7) })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      const nonHeartbeat = excludeHeartbeat(await db.collection('mail').get())
+      expect(nonHeartbeat).toHaveLength(1)
+      expect(isExpiredBackstop(nonHeartbeat[0])).toBe(true)
+    })
+
+    it('stays silent on the days between weekly sends (elapsed 4)', async () => {
+      await seedTenancy('tenancy-1', { endDate: addDays(TODAY, -4) })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      // Mutation check (CLAUDE.md §7): weakening schedulerLogic.js's guard
+      // from `elapsed >= 0 && elapsed % 7 === 0` to just `elapsed >= 0`
+      // made this test fail (one A11 sent on a between-week day), confirmed,
+      // then reverted.
+      expect(excludeHeartbeat(await db.collection('mail').get())).toHaveLength(
+        0,
+      )
+    })
+
+    it('does NOT fire for a tenancy whose endDate is still in the future', async () => {
+      // +45, deliberately NOT 90/60/30 — those exact offsets would trip
+      // FAMILY 2's A5 expiry reminder and put a non-heartbeat doc in `mail`
+      // for an unrelated reason.
+      await seedTenancy('tenancy-1', { endDate: addDays(TODAY, 45) })
+
+      await dailySchedulerHandler(FAKE_EVENT)
+
+      expect(excludeHeartbeat(await db.collection('mail').get())).toHaveLength(
+        0,
+      )
+    })
+  })
 })
