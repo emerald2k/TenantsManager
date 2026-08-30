@@ -257,6 +257,7 @@
       "deleteDraftTitle": "Șterge draftul",
       "deleteDraftDescription": "Acest draft de onboarding va fi șters. Acțiunea nu poate fi anulată.",
       "deleteDraftConfirm": "Șterge draftul",
+      "deleteDraftError": "Draftul nu a putut fi șters complet. Încearcă din nou — reluarea este sigură.",
       "loadError": "Chiriașii nu au putut fi încărcați. Încearcă din nou.",
       "error": "Draftul nu a putut fi creat. Încearcă din nou."
     },

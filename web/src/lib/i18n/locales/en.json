@@ -257,6 +257,7 @@
       "deleteDraftTitle": "Delete draft",
       "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
       "deleteDraftConfirm": "Delete draft",
+      "deleteDraftError": "The draft could not be fully deleted. Try again — re-running is safe.",
       "loadError": "The renters could not be loaded. Please try again.",
       "error": "The draft could not be created. Please try again."
     },

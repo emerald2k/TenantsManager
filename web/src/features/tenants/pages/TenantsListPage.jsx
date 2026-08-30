@@ -164,8 +164,14 @@ export function TenantsListPage() {
   }
 
   async function confirmDelete() {
-    await deleteDraft.mutateAsync(deleteTarget)
-    setDeleteTarget(null)
+    try {
+      await deleteDraft.mutateAsync(deleteTarget)
+      setDeleteTarget(null)
+    } catch {
+      // FR-TEN-25: `deleteOnboardingDraft` now surfaces a Storage failure
+      // instead of swallowing it. Keep the dialog open and let
+      // `deleteDraft.isError` show the message below — the admin can retry.
+    }
   }
 
   return (
@@ -321,14 +327,23 @@ export function TenantsListPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
+          if (!open) {
+            setDeleteTarget(null)
+            deleteDraft.reset()
+          }
         }}
         titleKey="tenants.list.deleteDraftTitle"
         descriptionKey="tenants.list.deleteDraftDescription"
         confirmKey="tenants.list.deleteDraftConfirm"
         onConfirm={confirmDelete}
         isPending={deleteDraft.isPending}
-      />
+      >
+        {deleteDraft.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {t('tenants.list.deleteDraftError')}
+          </p>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

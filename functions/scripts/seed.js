@@ -1291,6 +1291,24 @@ async function uploadSeedIdPhoto(bucket, userId, downloadToken) {
   return [{ path: filePath, name: 'ci-front.jpg', type: 'image' }]
 }
 
+/** As `uploadSeedIdPhoto`, for a GUARANTOR photo — at the real destination
+ * `copyPhotosToUser` uses (`users/{userId}/guarantor/{filename}`). Guarantor
+ * photos are optional (FR-TEN-04/06), but the one rich seed tenant carries one
+ * so FR-TEN-26's export manifest has a `source: 'guarantor-id'` entry
+ * reachable in seeded data, not only in a unit test. */
+async function uploadSeedGuarantorPhoto(bucket, userId, downloadToken) {
+  const prefix = `users/${userId}/guarantor/`
+  await clearSeedAttachments(bucket, prefix)
+  const filePath = await uploadSeedAttachment(
+    bucket,
+    `${prefix}guarantor-ci.jpg`,
+    'seed guarantor ID photo — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    downloadToken,
+  )
+  return [{ path: filePath, name: 'guarantor-ci.jpg', type: 'image' }]
+}
+
 /**
  * Scenario 1: `seed-tenant`, active tenancy, the 2-year/7-report history.
  *
@@ -1359,6 +1377,11 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     SEED_TENANT.uid,
     'seed-idphoto-occupied-token',
   )
+  const guarantorPhotos = await uploadSeedGuarantorPhoto(
+    bucket,
+    SEED_TENANT.uid,
+    'seed-guarantorphoto-occupied-token',
+  )
 
   // The July report's 2 real Storage attachments, uploaded BEFORE the
   // report doc is built below — their paths must exist so they can be
@@ -1383,7 +1406,12 @@ async function reseedOccupiedScenario(ownerId, bucket) {
 
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
-  writeBatch.set(userRef, { ...tenantUser(), idDocumentPhotos })
+  const seededUser = tenantUser()
+  writeBatch.set(userRef, {
+    ...seededUser,
+    idDocumentPhotos,
+    guarantor: { ...seededUser.guarantor, idDocumentPhotos: guarantorPhotos },
+  })
   writeBatch.set(tenancyRef, {
     ...tenancy,
     attachedDocuments: contractDocuments,
