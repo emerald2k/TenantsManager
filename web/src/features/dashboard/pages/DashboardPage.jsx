@@ -34,8 +34,10 @@ import {
   shiftMonth,
   unsignedReportStats,
 } from '@/features/dashboard/calculations'
-import { CurrentMonthTable } from '@/features/dashboard/components/CurrentMonthTable'
+import { CurrentMonthList } from '@/features/dashboard/components/CurrentMonthList'
 import { BilledHistoryChart } from '@/features/dashboard/components/BilledHistoryChart'
+import { BilledHistoryChartMobile } from '@/features/dashboard/components/BilledHistoryChartMobile'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 
 const DASHBOARD_NOTIFICATION_LIMIT = 6
 
@@ -61,6 +63,9 @@ export function DashboardPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const createDraft = useCreateDraft()
+  // Below 700 px the whole admin shell is the phone layout (NFR-UX-03); the
+  // history chart switches to the finger-dragged strip at the same width.
+  const isPhone = useMediaQuery('(max-width: 699px)')
 
   const now = useMemo(() => new Date(), [])
   const current = { month: now.getMonth() + 1, year: now.getFullYear() }
@@ -232,7 +237,10 @@ export function DashboardPage() {
       <PageHeader
         title={t('dashboard.title')}
         actions={
-          <div className="flex items-center gap-2">
+          // flex-wrap so the two buttons + label fold onto a second line
+          // rather than forcing the page wider than the phone viewport
+          // (verified at 320 px — NFR-UX-03).
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -242,7 +250,7 @@ export function DashboardPage() {
             >
               {t('dashboard.selector.previous')}
             </Button>
-            <span className="min-w-36 text-center text-sm font-medium text-foreground">
+            <span className="min-w-32 text-center text-sm font-medium text-foreground">
               {formatMonthYearLabel(
                 selected.month,
                 selected.year,
@@ -399,7 +407,7 @@ export function DashboardPage() {
             {t('dashboard.currentMonth.noOccupiedProperties')}
           </p>
         ) : (
-          <CurrentMonthTable
+          <CurrentMonthList
             rows={model.currentMonthRows}
             onRowClick={(row) =>
               navigate(
@@ -410,11 +418,20 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* SUBORDINATE — the history chart. Always the trailing 12 months. */}
-      <BilledHistoryChart
-        data={model.history}
-        hasSignedReports={model.hasSignedReports}
-      />
+      {/* SUBORDINATE — the history chart. Always the trailing 12 months.
+          Recharts on desktop/tablet, a finger-dragged strip on the phone
+          (NFR-UX-03) — both one series, Billed (FR-DASH-09b). */}
+      {isPhone ? (
+        <BilledHistoryChartMobile
+          data={model.history}
+          hasSignedReports={model.hasSignedReports}
+        />
+      ) : (
+        <BilledHistoryChart
+          data={model.history}
+          hasSignedReports={model.hasSignedReports}
+        />
+      )}
 
       {/* SUBORDINATE — the notification list, last few sends. */}
       <section className="flex flex-col gap-3">

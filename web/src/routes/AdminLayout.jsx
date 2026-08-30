@@ -1,60 +1,35 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import {
-  Bell,
-  Building2,
-  CalendarDays,
-  LayoutDashboard,
-  LogOut,
-  Users,
-  Wallet,
-} from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AdminConfigBanner } from '@/components/shared/AdminConfigBanner'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { useAuth } from '@/features/auth/useAuth'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
+import { NAV_ITEMS } from '@/routes/adminNav'
+import { AdminPhoneShell } from '@/routes/AdminPhoneShell'
 
 /**
- * The admin shell's sidebar (M8 stage 10, SRS §5.1/§5.3) — six items, in
- * the order SRS §5.1 lists them: Dashboard, Current month, Properties,
- * Renters, Payments, Notifications. Current month sits second, directly
- * under Dashboard — corrected in the SRS on 2026-08-25 to match the
- * administrator's own ordering decision made on the approved mockup
- * (comment `1d5e7bcd`), which the SRS text had not caught up with yet.
- * The first pass here followed the SRS's OLD order under the "SRS wins
- * where they disagree" rule — correctly applying the rule against a
- * source that itself hadn't been brought forward. The rule stands; this
- * commit just follows the corrected SRS instead of the stale one.
- * The sidebar was greenfield ahead of Payments (stage 12) and
- * Notifications (stage 14) by design — the plan's own stage 10 row says
- * "sidebar (6 items)". Both now route to their real pages.
+ * The admin shell. Two layouts, chosen by viewport width (NFR-UX-03):
  *
- * Not adopted: the mockup's badge pill on "Current month" (would need
- * this-month's unsigned-report count, a data feature this shell stage
- * does not own) and the sub-700px phone shell (bottom tab bar, bell,
- * "More" sheet, NFR-UX-03) — neither is named in the plan's stage 10 row;
- * the plan's stage 15b now names the phone shell explicitly, after stage
- * 15 (Dashboard), not started yet. What IS built here, because NFR-UX-03
- * names it directly: below 880px the dark rail collapses into a
- * horizontal scroller instead of a fixed side column, still above the
- * main content, not yet the phone shell.
+ * - **≥ 700 px** — the dark side rail below, unchanged since M8 stage 10.
+ *   Below 880 px it collapses into a horizontal scroller (still the desktop
+ *   shell, just narrower).
+ * - **< 700 px** — `AdminPhoneShell`: a bottom tab bar of five, a title-bar
+ *   bell + theme icon, and a "More" sheet. Built at M8 stage 15b.
+ *
+ * The switch is a JS media query, not a CSS `hidden` swap, so only one shell
+ * is ever in the DOM — see `useMediaQuery`'s note. `<Outlet/>` renders exactly
+ * once, inside whichever shell is active.
  */
-const NAV_ITEMS = [
-  { to: '/admin', label: 'nav.dashboard', end: true, Icon: LayoutDashboard },
-  {
-    to: '/admin/current-month',
-    label: 'nav.currentMonth',
-    Icon: CalendarDays,
-  },
-  { to: '/admin/properties', label: 'nav.properties', Icon: Building2 },
-  { to: '/admin/tenants', label: 'nav.tenants', Icon: Users },
-  { to: '/admin/payments', label: 'nav.payments', Icon: Wallet },
-  { to: '/admin/notifications', label: 'nav.notifications', Icon: Bell },
-]
+export function AdminLayout() {
+  const isPhone = useMediaQuery('(max-width: 699px)')
+  return isPhone ? <AdminPhoneShell /> : <AdminDesktopShell />
+}
 
-/** One sidebar entry. Reads its icon off `item.Icon` as a JSX member
+/** One side-rail entry. Reads its icon off `item.Icon` as a JSX member
  * expression (`<item.Icon .../>`), never destructured into its own `Icon`
  * binding — this project's eslint config has no `eslint-plugin-react`, so
  * plain `no-unused-vars` cannot see a JSX tag as a "use" of a destructured
@@ -84,7 +59,7 @@ function NavItem({ item }) {
   )
 }
 
-export function AdminLayout() {
+function AdminDesktopShell() {
   const { t } = useTranslation()
   const { logout } = useAuth()
 

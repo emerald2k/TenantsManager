@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
@@ -386,5 +386,59 @@ describe('DashboardPage — loading and error', () => {
     await vi.waitFor(() =>
       expect(navigate).toHaveBeenCalledWith('/admin/onboarding/draft-9'),
     )
+  })
+})
+
+describe('DashboardPage — the history chart follows the viewport (NFR-UX-03)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('desktop (no matchMedia): the Recharts chart, no swipe hint', async () => {
+    mockData({
+      yearReports: [
+        {
+          id: 'r1',
+          tenancyId: 't1',
+          status: 'signed',
+          month: thisMonth,
+          year: thisYear,
+          billedForReport: 1000,
+          finalTotal: 1000,
+        },
+      ],
+    })
+    await renderWithProviders(<DashboardPage />)
+    expect(
+      screen.queryByText('Trage lateral · apasă o lună pentru cifre'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('phone (max-width: 699px): the finger-dragged strip with its hint', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((q) => ({
+        matches: q === '(max-width: 699px)',
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    )
+    mockData({
+      yearReports: [
+        {
+          id: 'r1',
+          tenancyId: 't1',
+          status: 'signed',
+          month: thisMonth,
+          year: thisYear,
+          billedForReport: 1000,
+          finalTotal: 1000,
+        },
+      ],
+    })
+    await renderWithProviders(<DashboardPage />)
+    expect(
+      screen.getByText('Trage lateral · apasă o lună pentru cifre'),
+    ).toBeInTheDocument()
   })
 })

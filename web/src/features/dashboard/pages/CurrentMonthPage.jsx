@@ -13,14 +13,15 @@ import {
   isMonthBefore,
   shiftMonth,
 } from '@/features/dashboard/calculations'
-import { CurrentMonthTable } from '@/features/dashboard/components/CurrentMonthTable'
+import { CurrentMonthList } from '@/features/dashboard/components/CurrentMonthList'
 
 /**
  * The standalone Current-month page (FR-DASH-02, SRS §5.3). Since M8 stage
- * 15a it is the SAME seven-column list, from the SAME component
- * (`CurrentMonthTable`) and the SAME data (`buildCurrentMonthRows`) as the
- * dashboard's inline section — FR-DASH-02a / FR-DASH-02b: "both render the
- * same rows … not a reduced variant". That data now includes the tenancy's
+ * 15a it is the SAME list, from the SAME component (`CurrentMonthList` — the
+ * seven-column table above ~1100 px, cards below, stage 15b) and the SAME
+ * data (`buildCurrentMonthRows`) as the dashboard's inline section —
+ * FR-DASH-02a / FR-DASH-02b: "both render the same rows … not a reduced
+ * variant". That data now includes the tenancy's
  * signed-report history (for `balanceAsOf` and the oldest-unsettled due
  * date), so this page fetches the two year queries the dashboard does and
  * bounds its selector to the same window — stepping past it would make
@@ -127,7 +128,7 @@ export function CurrentMonthPage() {
           {t('dashboard.currentMonth.noOccupiedProperties')}
         </p>
       ) : (
-        <CurrentMonthTable
+        <CurrentMonthList
           rows={rows}
           onRowClick={(row) =>
             navigate(

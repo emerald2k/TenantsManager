@@ -4,6 +4,7 @@
     "logout": "Log out",
     "loading": "Loading...",
     "cancel": "Cancel",
+    "close": "Close",
     "attachmentUnavailable": "Unavailable",
     "retry": "Retry"
   },
@@ -28,7 +29,14 @@
     "notifications": "Notifications",
     "home": "Home",
     "history": "History",
-    "contract": "Contract"
+    "contract": "Contract",
+    "more": "More",
+    "tab": {
+      "dashboard": "Home",
+      "currentMonth": "Month",
+      "payments": "Payments",
+      "tenants": "Renters"
+    }
   },
   "pages": {
     "adminDashboard": "Admin — Dashboard",
@@ -576,6 +584,8 @@
     "history": {
       "title": "Billed per month",
       "subtitle": "Last 12 months",
+      "mobileHint": "Swipe sideways · tap a month for its figure",
+      "barLabel": "{{month}} {{year}}: {{amount}} billed",
       "billedLabel": "Billed",
       "empty": "No signed report yet — the chart fills in after the first signing.",
       "monthOpen": "month not closed",
@@ -716,7 +726,8 @@
   },
   "theme": {
     "stateDark": "Theme · Dark",
-    "stateLight": "Theme · Light"
+    "stateLight": "Theme · Light",
+    "ariaLabel": "Toggle theme"
   },
   "system": {
     "adminEmailMissing": "The administrator's email address (ADMIN_EMAIL) is not configured. Contract-expiry reminders, report-preparation reminders and the daily automation heartbeat are not being delivered anywhere."

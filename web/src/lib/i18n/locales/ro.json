@@ -4,6 +4,7 @@
     "logout": "Deconectare",
     "loading": "Se încarcă...",
     "cancel": "Anulează",
+    "close": "Închide",
     "attachmentUnavailable": "Indisponibil",
     "retry": "Încearcă din nou"
   },
@@ -28,7 +29,14 @@
     "notifications": "Notificări",
     "home": "Acasă",
     "history": "Istoric",
-    "contract": "Contract"
+    "contract": "Contract",
+    "more": "Mai multe",
+    "tab": {
+      "dashboard": "Panou",
+      "currentMonth": "Luna",
+      "payments": "Plăți",
+      "tenants": "Chiriași"
+    }
   },
   "pages": {
     "adminDashboard": "Admin — Dashboard",
@@ -576,6 +584,8 @@
     "history": {
       "title": "Facturat pe lună",
       "subtitle": "Ultimele 12 luni",
+      "mobileHint": "Trage lateral · apasă o lună pentru cifre",
+      "barLabel": "{{month}} {{year}}: {{amount}} facturat",
       "billedLabel": "Facturat",
       "empty": "Niciun raport semnat încă — graficul se completează după prima semnare.",
       "monthOpen": "luna nu s-a încheiat",
@@ -716,7 +726,8 @@
   },
   "theme": {
     "stateDark": "Temă · Închisă",
-    "stateLight": "Temă · Deschisă"
+    "stateLight": "Temă · Deschisă",
+    "ariaLabel": "Comută tema"
   },
   "system": {
     "adminEmailMissing": "Adresa de email a administratorului (ADMIN_EMAIL) nu este configurată. Memento-urile de expirare a contractului, cele de pregătire a raportului și rularea automată zilnică nu mai ajung nicăieri."
