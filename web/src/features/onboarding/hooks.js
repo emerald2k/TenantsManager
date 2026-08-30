@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -12,8 +11,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import { deleteObject, listAll, ref } from 'firebase/storage'
-import { db, storage } from '@/lib/firebase'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from '@/lib/firebase'
 
 /**
  * The data access layer for onboarding drafts (FR-TEN-17…21, SRS §6).
@@ -184,35 +183,31 @@ export function useUpdateDraft() {
 
 // ─────────────────────────── useDeleteDraft ──────────────────────
 /**
- * Best-effort cleanup of the draft's Storage folder (/drafts/{draftId}/). The
- * photos live there (uploaded in Sub-stage D); when the draft is discarded they are
- * orphaned otherwise. There is no onDelete Cloud Function — cleanup is client-side
- * only, by decision, so this runs here.
- */
-async function deleteDraftStorage(id) {
-  const folder = ref(storage, `drafts/${id}`)
-  const listing = await listAll(folder)
-  await Promise.all(listing.items.map((item) => deleteObject(item)))
-}
-
-/**
- * Deletes a draft manually (FR-TEN-20). It removes the Firestore document AND the
- * Storage folder. The Storage cleanup is BEST-EFFORT: if it fails (rules, network,
- * nothing there yet), the document deletion still goes through — a failed cleanup
- * must never leave an undeletable draft. The Storage rule for /drafts/ is added at
- * Sub-stage D, so until then this cleanup is expected to no-op or fail quietly.
+ * Deletes a draft manually (FR-TEN-20). Delegates to the `deleteOnboardingDraft`
+ * Cloud Function (functions/src/deleteOnboardingDraft.js), which removes the
+ * Firestore document AND every object under `drafts/{draftId}/` in one
+ * operation.
+ *
+ * Server-side by decision (FR-TEN-25): the previous client-side cleanup listed
+ * the folder and deleted each item, swallowing any failure so the document was
+ * always removed — which meant a transient Storage error left a full set of
+ * photographed identity documents orphaned in the bucket with no draft left to
+ * reach them from. The callable does the delete on the Admin SDK (past the
+ * Storage rules, nested and paginated), Storage first, and only deletes the
+ * document if that succeeded. A failure now surfaces as `onError` and leaves
+ * the draft in place, deletable again — the orphan state is no longer
+ * reachable.
  */
 export function useDeleteDraft() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (id) => {
-      try {
-        await deleteDraftStorage(id)
-      } catch {
-        // Swallowed on purpose: the document must be deletable regardless.
-      }
-      await deleteDoc(draftRef(id))
+      const deleteOnboardingDraft = httpsCallable(
+        functions,
+        'deleteOnboardingDraft',
+      )
+      await deleteOnboardingDraft({ draftId: id })
     },
     onSuccess: (_result, id) => {
       queryClient.invalidateQueries({ queryKey: draftKeys.lists() })

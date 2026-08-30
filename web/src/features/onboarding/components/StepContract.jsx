@@ -56,6 +56,14 @@ function classifyError(error) {
   if (error.details?.reason === 'property-occupied') return { kind: 'occupied' }
   if (error.details?.reason === 'active-tenancy')
     return { kind: 'activeTenancy' }
+  // FR-TEN-27 — the ONE place two rejection paths must be distinguishable
+  // (the opposite of /r/:shareToken's deliberately-identical three): `disabled`
+  // is recoverable and the wizard offers re-enabling inline; `archived` is
+  // terminal and no action changes it.
+  if (error.details?.reason === 'account-disabled')
+    return { kind: 'accountDisabled' }
+  if (error.details?.reason === 'account-archived')
+    return { kind: 'accountArchived' }
   return { kind: 'generic' }
 }
 
@@ -90,6 +98,8 @@ export function StepContract({ draftId, onBeforeFinalize }) {
   const [isFinalizing, setIsFinalizing] = useState(false)
   const [result, setResult] = useState(null)
   const [submitError, setSubmitError] = useState(null)
+  const [isReenabling, setIsReenabling] = useState(false)
+  const [reenableDone, setReenableDone] = useState(false)
   const classifiedError = classifyError(submitError)
 
   async function handleFinalize() {
@@ -127,6 +137,26 @@ export function StepContract({ draftId, onBeforeFinalize }) {
 
   function handleCopyPassword() {
     navigator.clipboard.writeText(result.password)
+  }
+
+  // FR-TEN-27 — inline recovery for a `disabled` existing account: re-enable it
+  // (setTenantAccountStatus recalculates `users.status` from a fresh
+  // active-tenancy query), clear the error, and let the admin press Finalize
+  // again. `archived` has no such path — it is terminal.
+  async function handleReenable() {
+    setIsReenabling(true)
+    try {
+      const setStatus = httpsCallable(functions, 'setTenantAccountStatus')
+      await setStatus({ userId: existingUserId, action: 'enable' })
+      // Keep the error block visible so the confirmation shows in place; the
+      // stale `account-disabled` message is cleared by handleFinalize the
+      // moment the admin presses Finalize again.
+      setReenableDone(true)
+    } catch (error) {
+      setSubmitError(error)
+    } finally {
+      setIsReenabling(false)
+    }
   }
 
   return (
@@ -248,6 +278,39 @@ export function StepContract({ draftId, onBeforeFinalize }) {
         </p>
         <FieldError error={errors.paymentReminderDaysBefore} t={t} />
       </div>
+
+      {classifiedError?.kind === 'accountDisabled' &&
+        (reenableDone ? (
+          <p role="alert" className="text-sm text-muted-foreground">
+            {t('onboarding.stepContract.reenableDone')}
+          </p>
+        ) : (
+          <div
+            role="alert"
+            className="flex flex-col gap-2 text-sm text-destructive"
+          >
+            <p>{t('onboarding.stepContract.errors.accountDisabled')}</p>
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReenable}
+                disabled={isReenabling}
+              >
+                {isReenabling
+                  ? t('common.loading')
+                  : t('onboarding.stepContract.reenableAccount')}
+              </Button>
+            </div>
+          </div>
+        ))}
+
+      {classifiedError?.kind === 'accountArchived' && (
+        <p role="alert" className="text-sm text-destructive">
+          {t('onboarding.stepContract.errors.accountArchived')}
+        </p>
+      )}
 
       {(classifiedError?.kind === 'occupied' ||
         classifiedError?.kind === 'activeTenancy' ||

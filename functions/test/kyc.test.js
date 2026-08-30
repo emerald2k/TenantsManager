@@ -567,6 +567,63 @@ describe('finalizeKyc — existing-user branch (FR-TEN-07)', () => {
       finalizeKycCore('draft-ghost', 'admin-uid'),
     ).rejects.toMatchObject({ code: 'not-found' })
   })
+
+  // FR-TEN-27 — a tenancy is never attached to an account that cannot be used.
+  it('rejects a DISABLED existing account, naming the reason, and creates nothing', async () => {
+    await seedExistingUser('existing-uid', {
+      ...EXISTING_USER,
+      status: 'disabled',
+    })
+    await seedDraft('draft-disabled', existingUserDraft())
+
+    await expect(
+      finalizeKycCore('draft-disabled', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'account-disabled' },
+    })
+
+    // Nothing created: no tenancy, the draft survives, the property stays free.
+    expect((await db.collection('tenancies').get()).size).toBe(0)
+    expect(
+      (await db.collection('onboardingDrafts').doc('draft-disabled').get())
+        .exists,
+    ).toBe(true)
+    expect(
+      (await db.collection('properties').doc('prop-seed').get()).data().status,
+    ).toBe('free')
+  })
+
+  it('rejects an ARCHIVED existing account with a DISTINCT reason from disabled (terminal)', async () => {
+    await seedExistingUser('existing-uid', {
+      ...EXISTING_USER,
+      status: 'archived',
+    })
+    await seedDraft('draft-archived', existingUserDraft())
+
+    await expect(
+      finalizeKycCore('draft-archived', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'account-archived' },
+    })
+    expect((await db.collection('tenancies').get()).size).toBe(0)
+  })
+
+  it('ALLOWS an inactive-readonly existing account — the returning-tenant case (denylist, not allowlist)', async () => {
+    await seedExistingUser('existing-uid', {
+      ...EXISTING_USER,
+      status: 'inactive-readonly',
+    })
+    await seedDraft('draft-readonly', existingUserDraft())
+
+    const result = await finalizeKycCore('draft-readonly', 'admin-uid')
+    expect(result).toMatchObject({
+      accountCreated: false,
+      userId: 'existing-uid',
+    })
+    expect((await db.collection('tenancies').get()).size).toBe(1)
+  })
 })
 
 describe('finalizeKyc — guards', () => {

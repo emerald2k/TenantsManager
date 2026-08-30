@@ -203,6 +203,29 @@ async function finalizeExistingUserTenancy(db, draft, draftRef, adminUid) {
         'The linked tenant account does not exist.',
       )
     }
+    // FR-TEN-27: never attach a tenancy to an account that cannot be used.
+    // A DENYLIST, deliberately — a returning tenant's old account is normally
+    // `inactive-readonly` (FR-CON-05 puts it there on termination), which is a
+    // perfectly valid target; an allowlist of `active` would reject exactly the
+    // case this branch exists to serve. Only the two unusable states are
+    // rejected, and the message names which: `disabled` is recoverable (the
+    // wizard offers re-enabling inline), `archived` is terminal — no admin
+    // action changes it (setTenantAccountStatus's own guard).
+    const existingStatus = userSnap.data().status
+    if (existingStatus === 'disabled') {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account is disabled; re-enable it before assigning a tenancy.',
+        { reason: 'account-disabled' },
+      )
+    }
+    if (existingStatus === 'archived') {
+      throw new HttpsError(
+        'failed-precondition',
+        'This account is archived, a terminal state; a new tenancy cannot be assigned to it.',
+        { reason: 'account-archived' },
+      )
+    }
     if (!propertySnap.exists) {
       throw new HttpsError('not-found', 'The selected property does not exist.')
     }

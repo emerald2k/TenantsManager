@@ -467,3 +467,74 @@ describe('StepContract — finalize errors', () => {
     })
   })
 })
+
+describe('StepContract — FR-TEN-27 (no tenancy on an unusable account)', () => {
+  function accountErr(reason) {
+    return Object.assign(new Error(reason), {
+      code: 'functions/failed-precondition',
+      details: { reason },
+    })
+  }
+
+  it('a DISABLED account shows a naming message and an inline re-enable action', async () => {
+    const user = userEvent.setup()
+    const setStatusMock = vi
+      .fn()
+      .mockResolvedValue({ data: { status: 'active' } })
+    httpsCallable.mockImplementation((_fns, name) =>
+      name === 'setTenantAccountStatus' ? setStatusMock : finalizeKycMock,
+    )
+    finalizeKycMock.mockRejectedValue(accountErr('account-disabled'))
+    useUserById.mockReturnValue({
+      data: { id: 'user-1', name: 'Maria Ionescu', email: 'maria@example.com' },
+      isPending: false,
+    })
+    await renderStepContract({
+      defaultValues: { ...CONTRACT_FILLED, existingUserId: 'user-1' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Acest cont este dezactivat',
+      )
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reactivează contul' }))
+
+    await waitFor(() => {
+      expect(setStatusMock).toHaveBeenCalledWith({
+        userId: 'user-1',
+        action: 'enable',
+      })
+    })
+    // The error clears and the retry hint appears.
+    expect(
+      screen.getByText(/Cont reactivat\. Apasă din nou Finalizează/),
+    ).toBeInTheDocument()
+  })
+
+  it('an ARCHIVED account shows a terminal message and NO re-enable action', async () => {
+    const user = userEvent.setup()
+    finalizeKycMock.mockRejectedValue(accountErr('account-archived'))
+    useUserById.mockReturnValue({
+      data: { id: 'user-1', name: 'Maria Ionescu', email: 'maria@example.com' },
+      isPending: false,
+    })
+    await renderStepContract({
+      defaultValues: { ...CONTRACT_FILLED, existingUserId: 'user-1' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Acest cont este arhivat',
+      )
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Reactivează contul' }),
+    ).toBeNull()
+  })
+})

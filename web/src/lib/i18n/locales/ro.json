@@ -233,9 +233,13 @@
       "goToTenants": "Către lista de chiriași",
       "cnpDialogTitle": "CNP duplicat",
       "viewProfile": "Vezi profilul",
+      "reenableAccount": "Reactivează contul",
+      "reenableDone": "Cont reactivat. Apasă din nou Finalizează pentru a asigna tenanța.",
       "errors": {
         "occupied": "Proprietatea selectată este deja ocupată de o altă tenanță activă.",
         "activeTenancy": "Acest cont are deja o tenanță activă. Încheie-o înainte de a continua.",
+        "accountDisabled": "Acest cont este dezactivat. Reactivează-l înainte de a asigna o tenanță.",
+        "accountArchived": "Acest cont este arhivat — o stare terminală. Nu i se poate asigna o tenanță.",
         "generic": "Finalizarea a eșuat. Încearcă din nou."
       }
     }

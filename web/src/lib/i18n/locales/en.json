@@ -233,9 +233,13 @@
       "goToTenants": "Go to renter list",
       "cnpDialogTitle": "Duplicate CNP",
       "viewProfile": "View profile",
+      "reenableAccount": "Re-enable account",
+      "reenableDone": "Account re-enabled. Press Finalize again to assign the tenancy.",
       "errors": {
         "occupied": "The selected property is already occupied by another active tenancy.",
         "activeTenancy": "This account already has an active tenancy. End it before continuing.",
+        "accountDisabled": "This account is disabled. Re-enable it before assigning a tenancy.",
+        "accountArchived": "This account is archived — a terminal state. A tenancy cannot be assigned to it.",
         "generic": "Finalization failed. Please try again."
       }
     }

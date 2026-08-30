@@ -157,6 +157,19 @@ const SEED_TENANCY_HANDOVER_OUT_ID = 'seed-tenancy-handover-out'
 const SEED_TENANCY_HANDOVER_IN_ID = 'seed-tenancy-handover-in'
 const SEED_HANDOVER_DATE = '2026-07-15'
 
+// ─────────────────────────── Scenario 6: an in-progress onboarding draft ───────
+//
+// FR-TEN-17/19: an unfinished onboarding, saved as a draft, resumable — it
+// appears in the renter list with "Continue" / "Delete draft". Until M8 the
+// seed wrote NO draft at all, so both that list row and FR-TEN-25 (deleting a
+// draft deletes its photographs) had never been exercised against local data.
+//
+// The draft carries photographs for BOTH the tenant and the guarantor, flat
+// under `drafts/{draftId}/` (the prefix `PhotoCapture.jsx` writes to and
+// `deleteOnboardingDraft` clears). The multi-file case is deliberate: it is
+// what a cleanup that only removes the first match would fail.
+const SEED_DRAFT_ID = 'seed-draft-in-progress'
+
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
  * by `useCreateProperty` (web/src/features/properties/hooks.js) over the form values
@@ -1100,6 +1113,91 @@ async function reseedTenantNoTenancy(bucket) {
   )
 }
 
+/** Scenario 6: `seed-draft-in-progress` — an unfinished onboarding (FR-TEN-17/19).
+ * Delete-then-write, same deterministic pattern as the rest of this file, and
+ * the Storage prefix is cleared first so a re-run does not accumulate photos.
+ *
+ * Writes THREE real Storage objects under `drafts/{draftId}/` — two tenant ID
+ * photos and one guarantor ID photo — so FR-TEN-25's multi-file case (a
+ * cleanup that removes only the first match is the bug) is reachable locally.
+ * The draft stops at step 3: steps 1-3 filled, step 4 (contract) untouched,
+ * `currentStep: 3`. */
+async function reseedOnboardingDraft(bucket) {
+  const db = getFirestore()
+  const draftRef = db.collection('onboardingDrafts').doc(SEED_DRAFT_ID)
+  const prefix = `drafts/${SEED_DRAFT_ID}/`
+
+  await draftRef.delete()
+  await clearSeedAttachments(bucket, prefix)
+
+  const tenantFront = await uploadSeedAttachment(
+    bucket,
+    `${prefix}tenant-ci-front.jpg`,
+    'seed draft ID photo (tenant, front) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-tenant-front-token',
+  )
+  const tenantBack = await uploadSeedAttachment(
+    bucket,
+    `${prefix}tenant-ci-back.jpg`,
+    'seed draft ID photo (tenant, back) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-tenant-back-token',
+  )
+  const guarantorPhoto = await uploadSeedAttachment(
+    bucket,
+    `${prefix}guarantor-ci.jpg`,
+    'seed draft ID photo (guarantor) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-guarantor-token',
+  )
+
+  const draft = {
+    status: 'in_progress',
+    currentStep: 3,
+    // Step 1
+    name: 'Andrei Draftescu',
+    dateOfBirth: '1992-04-11',
+    cnp: '1920411223344',
+    phone: '0722333444',
+    email: 'andrei.draft@test.ro',
+    preferredLanguage: 'ro',
+    previousAddress: 'Str. Veche 3, Cluj-Napoca',
+    emergencyContact: { name: 'Ioana Draftescu', phone: '0733444555' },
+    occupantCount: 2,
+    smoker: false,
+    pets: { has: false, type: '' },
+    vehicle: { has: true, make: 'Dacia', plateNumber: 'CJ-01-ABC' },
+    // Step 2
+    idDocumentPhotos: [
+      { path: tenantFront, name: 'tenant-ci-front.jpg', type: 'image' },
+      { path: tenantBack, name: 'tenant-ci-back.jpg', type: 'image' },
+    ],
+    // Step 3
+    employer: 'Firma SRL',
+    occupation: 'Analist',
+    employmentDuration: '3 ani',
+    monthlyIncome: { source: 'salariu', amount: 6500 },
+    guarantor: {
+      name: 'Vasile Garant',
+      cnp: '1650102334455',
+      phone: '0744555666',
+      idDocumentPhotos: [
+        { path: guarantorPhoto, name: 'guarantor-ci.jpg', type: 'image' },
+      ],
+    },
+    previousReference: { name: 'Georgeta Fostă', phone: '0755666777' },
+    createdAt: new Date('2026-08-20T09:00:00Z'),
+    updatedAt: new Date('2026-08-22T14:30:00Z'),
+  }
+  await draftRef.set(draft)
+
+  console.log(
+    `  - draft ${SEED_DRAFT_ID}: "${draft.name}" at step ${draft.currentStep}, ` +
+      `3 Storage objects under ${prefix} (2 tenant + 1 guarantor)`,
+  )
+}
+
 /** Deletes every object under `prefix` — idempotent Storage cleanup, same
  * discipline as the Firestore delete-then-write pattern used everywhere
  * else in this file. A missing object is not an error (`.catch(() => {})`),
@@ -1809,6 +1907,8 @@ async function main() {
 
   await ensureTenantAccount(SEED_TENANT_NO_TENANCY, tenantNoTenancyUser().name)
   await reseedTenantNoTenancy(bucket)
+
+  await reseedOnboardingDraft(bucket)
 
   console.log('\n✅ Seed complete.')
   console.log(`   Admin sign-in: ${ADMIN.email} / ${ADMIN.password}`)
