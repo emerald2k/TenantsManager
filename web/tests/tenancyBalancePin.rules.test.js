@@ -111,6 +111,33 @@ describe('firestore.rules — tenancies.currentBalance/closingBalance pinned on 
     )
   })
 
+  it('allows the stage-16b lead-time edit (endDate + both reminder fields, no balance)', async () => {
+    await seed(ACTIVE_TENANCY)
+
+    await assertSucceeds(
+      updateDoc(doc(adminDb(), 'tenancies', TENANCY_ID), {
+        endDate: '2028-01-01',
+        reportReminderDaysBefore: 6,
+        paymentReminderDaysBefore: 9,
+      }),
+    )
+  })
+
+  it('denies a lead-time edit that ALSO carries currentBalance — permission-denied, over a seeded doc', async () => {
+    await seed(ACTIVE_TENANCY) // seeded, so a failure is the PIN, not not-found
+
+    let code
+    try {
+      await updateDoc(doc(adminDb(), 'tenancies', TENANCY_ID), {
+        reportReminderDaysBefore: 6,
+        currentBalance: 999,
+      })
+    } catch (err) {
+      code = err.code
+    }
+    expect(code).toBe('permission-denied')
+  })
+
   it('allows the deposit settlement write on an ended tenancy, leaving its existing closingBalance untouched', async () => {
     await seed(ENDED_TENANCY)
 

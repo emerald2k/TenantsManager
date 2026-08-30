@@ -178,9 +178,9 @@ describe('TenancyTab — rendering (SRS §5.3)', () => {
       ),
     ).toBeVisible()
     expect(screen.getByText('3')).toBeVisible()
-    // M8 stage 13b: paymentReminderDaysBefore's twin, view-only here too —
-    // the tenancy tab does not let the admin EDIT either field, only view
-    // it (verified: `renderFields` above only ever touches `endDate`).
+    // M8 stage 16b: both lead times are now EDITABLE here (SRS §6, "at
+    // assignment or later") — the read-only view still shows them; the
+    // editable half is covered by the Extend tests below.
     expect(
       screen.getByText('Memento plată (zile înainte) — către chiriaș'),
     ).toBeVisible()
@@ -230,8 +230,8 @@ describe('TenancyTab — rendering (SRS §5.3)', () => {
   })
 })
 
-describe('TenancyTab — Extend (FR-CON-06)', () => {
-  it('saves only endDate through useUpdateTenancy', async () => {
+describe('TenancyTab — Extend + the two reminder lead times (FR-CON-06, §6, stage 16b)', () => {
+  it('saves endDate + both reminder lead times, and no balance field, through useUpdateTenancy', async () => {
     const user = userEvent.setup()
     useUserTenancies.mockReturnValue({
       data: [activeTenancy()],
@@ -246,11 +246,107 @@ describe('TenancyTab — Extend (FR-CON-06)', () => {
     await user.type(endDateInput, '2028-01-01')
     await user.click(screen.getByRole('button', { name: 'Salvează' }))
 
+    // EditableSection submits the whole picked schema — endDate plus the two
+    // lead times (unchanged values re-sent). Never currentBalance /
+    // closingBalance (NFR-SEC-12).
     await waitFor(() =>
       expect(updateTenancyMutateAsync).toHaveBeenCalledWith({
         id: 't-active',
         userId: 'u1',
-        values: { endDate: '2028-01-01' },
+        values: {
+          endDate: '2028-01-01',
+          reportReminderDaysBefore: 3,
+          paymentReminderDaysBefore: 7,
+        },
+      }),
+    )
+  })
+
+  it('edits both lead times and writes the new values', async () => {
+    const user = userEvent.setup()
+    useUserTenancies.mockReturnValue({
+      data: [activeTenancy()],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Editează' }))
+    const report = screen.getByLabelText(
+      'Memento pregătire raport (zile înainte) — către administrator',
+    )
+    const payment = screen.getByLabelText(
+      'Memento plată (zile înainte) — către chiriaș',
+    )
+    await user.clear(report)
+    await user.type(report, '6')
+    await user.clear(payment)
+    await user.type(payment, '9')
+    await user.click(screen.getByRole('button', { name: 'Salvează' }))
+
+    await waitFor(() =>
+      expect(updateTenancyMutateAsync).toHaveBeenCalledWith({
+        id: 't-active',
+        userId: 'u1',
+        values: {
+          endDate: '2027-01-01',
+          reportReminderDaysBefore: 6,
+          paymentReminderDaysBefore: 9,
+        },
+      }),
+    )
+  })
+
+  it('rejects paymentReminderDaysBefore outside 1-10 with an inline error and no save (NFR-VAL-02)', async () => {
+    const user = userEvent.setup()
+    useUserTenancies.mockReturnValue({
+      data: [activeTenancy()],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Editează' }))
+    const payment = screen.getByLabelText(
+      'Memento plată (zile înainte) — către chiriaș',
+    )
+    for (const bad of ['11', '0']) {
+      await user.clear(payment)
+      await user.type(payment, bad)
+      await user.click(screen.getByRole('button', { name: 'Salvează' }))
+      await waitFor(() =>
+        expect(screen.getByText('Câmp obligatoriu')).toBeVisible(),
+      )
+      expect(updateTenancyMutateAsync).not.toHaveBeenCalled()
+    }
+  })
+
+  it('accepts reportReminderDaysBefore = 11 — it is NOT bounded to 1-10 (only its tenant-facing twin is)', async () => {
+    const user = userEvent.setup()
+    useUserTenancies.mockReturnValue({
+      data: [activeTenancy()],
+      isPending: false,
+      isError: false,
+    })
+    await renderWithProviders(<TenancyTab userId="u1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Editează' }))
+    const report = screen.getByLabelText(
+      'Memento pregătire raport (zile înainte) — către administrator',
+    )
+    await user.clear(report)
+    await user.type(report, '11')
+    await user.click(screen.getByRole('button', { name: 'Salvează' }))
+
+    await waitFor(() =>
+      expect(updateTenancyMutateAsync).toHaveBeenCalledWith({
+        id: 't-active',
+        userId: 'u1',
+        values: {
+          endDate: '2027-01-01',
+          reportReminderDaysBefore: 11,
+          paymentReminderDaysBefore: 7,
+        },
       }),
     )
   })

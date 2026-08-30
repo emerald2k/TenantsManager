@@ -239,6 +239,15 @@ describe('onboarding schema — reportReminderDaysBefore (FR-CON-01)', () => {
     ).toBe(false)
   })
 
+  it('is NOT bounded to 1-10 — 11 is valid (only its tenant-facing twin has that bound, NFR-VAL-02)', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        reportReminderDaysBefore: 11,
+      }).success,
+    ).toBe(true)
+  })
+
   it('partial validation accepts it absent or as a number', () => {
     expect(partialDraftSchema.safeParse({}).success).toBe(true)
     expect(

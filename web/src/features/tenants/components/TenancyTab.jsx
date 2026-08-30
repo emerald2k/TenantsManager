@@ -35,12 +35,24 @@ import { step4Schema } from '@/features/onboarding/schema'
  * active (or last) contract, its documents, "Extend", "End contract", and the
  * history of past tenancies (FR-TEN-15).
  *
- * `endDate` alone — presence-only, same discipline as the rest of the KYC/
- * contract fields (NFR-VAL-01). Reused from `step4Schema` (onboarding/schema.js)
- * via `.pick()`, the same composition pattern `tenants/profileSchema.js`
- * already uses for the Profile tab — no new validation rule declared here.
+ * `endDate` plus both reminder lead times — editable "at assignment or later"
+ * (SRS §6, §5.3). Reused from `step4Schema` (onboarding/schema.js) via
+ * `.pick()`, the SAME schema the onboarding wizard's step 4 validates, so the
+ * two surfaces cannot drift: `reportReminderDaysBefore` stays unbounded
+ * (FR-REP-15, one admin-facing email), `paymentReminderDaysBefore` stays
+ * 1-10 (NFR-VAL-02 — it drives automated outbound volume at the tenant). No
+ * new validation rule is declared here.
+ *
+ * `EditableSection` submits the whole picked schema, so a plain "Extend" now
+ * writes `endDate` + both lead times back (unchanged values re-sent) — never
+ * `currentBalance`/`closingBalance`, which `useUpdateTenancy`'s `updateDoc`
+ * merge leaves untouched and NFR-SEC-12 would reject anyway.
  */
-const extendTenancySchema = step4Schema.pick({ endDate: true })
+const tenancyContractSchema = step4Schema.pick({
+  endDate: true,
+  reportReminderDaysBefore: true,
+  paymentReminderDaysBefore: true,
+})
 
 /** Which tenancy to show as "the contract": the active one if there is one,
  * otherwise the MOST RECENTLY ended one (SRS §5.3: "active/last contract") —
@@ -143,8 +155,14 @@ function ContractSummary({ tenancy, userId, isActive }) {
     <>
       <EditableSection
         titleKey="tenants.detail.tenancy.title"
-        schema={extendTenancySchema}
-        defaultValues={{ endDate: tenancy.endDate ?? '' }}
+        schema={tenancyContractSchema}
+        defaultValues={{
+          endDate: tenancy.endDate ?? '',
+          // Tolerate absence (CLAUDE.md §10.5): a tenancy created before the
+          // M6/M8 fields, or restored from an older backup, may lack them.
+          reportReminderDaysBefore: tenancy.reportReminderDaysBefore ?? 3,
+          paymentReminderDaysBefore: tenancy.paymentReminderDaysBefore ?? 3,
+        }}
         onSave={(values) =>
           updateTenancy.mutateAsync({ id: tenancy.id, userId, values })
         }
@@ -185,10 +203,51 @@ function ContractSummary({ tenancy, userId, isActive }) {
           </div>
         )}
         renderFields={({ register, errors, t: tt }) => (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
-            <Input id="endDate" type="date" {...register('endDate')} />
-            <FieldError error={errors.endDate} t={tt} />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
+              <Input id="endDate" type="date" {...register('endDate')} />
+              <FieldError error={errors.endDate} t={tt} />
+            </div>
+
+            {/* Mirrors the onboarding wizard step 4 field for field (SRS §5.2
+                step 4) — same labels, same helper text, same order, same
+                validation. The report field is admin-facing (preparing the
+                list, FR-REP-15) and unbounded; the payment field is
+                tenant-facing (paying the bill, FR-PAY-10) and 1-10. */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reportReminderDaysBefore">
+                {tt('onboarding.fields.reportReminderDaysBefore')}
+              </Label>
+              <Input
+                id="reportReminderDaysBefore"
+                type="number"
+                min="1"
+                {...register('reportReminderDaysBefore', {
+                  valueAsNumber: true,
+                })}
+              />
+              <FieldError error={errors.reportReminderDaysBefore} t={tt} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="paymentReminderDaysBefore">
+                {tt('onboarding.fields.paymentReminderDaysBefore')}
+              </Label>
+              <Input
+                id="paymentReminderDaysBefore"
+                type="number"
+                min="1"
+                max="10"
+                {...register('paymentReminderDaysBefore', {
+                  valueAsNumber: true,
+                })}
+              />
+              <p className="text-xs text-muted-foreground">
+                {tt('onboarding.fields.paymentReminderDaysBeforeHelp')}
+              </p>
+              <FieldError error={errors.paymentReminderDaysBefore} t={tt} />
+            </div>
           </div>
         )}
       />

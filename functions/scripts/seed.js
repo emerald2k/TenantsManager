@@ -539,12 +539,15 @@ function tenantNoTenancyUser() {
  * tenancy's reports are written (`reseedOccupiedScenario`), not here.
  *
  * `reportReminderDaysBefore`/`paymentReminderDaysBefore` (M8, FR-CON-01/
- * NFR-VAL-02): both fields were never seeded before this rewrite, so neither
- * M6's report-preparation reminder nor M8's pre-due reminder was ever
- * exercisable against local data. `paymentReminderDaysBefore: 5` here is
- * deliberately NOT the default (3) — a fixture that only ever uses the
- * default cannot tell "the field is read" from "the field is absent and the
- * app silently fell back".
+ * NFR-VAL-02): both fields were never seeded before the stage-15 rewrite, so
+ * neither M6's report-preparation reminder nor M8's pre-due reminder was ever
+ * exercisable against local data. Both are deliberately NOT the default (3)
+ * on THIS one tenancy — `reportReminderDaysBefore: 4`,
+ * `paymentReminderDaysBefore: 5` — and they are different from each other, so
+ * a fixture cannot tell "the field is read" from "the field is absent and the
+ * app fell back", and a label swapped between the two editable fields (M8
+ * stage 16b) shows up in seeded data rather than passing silently. Every
+ * other seeded tenancy keeps both at 3.
  */
 function activeTenancy(ownerId, property) {
   return {
@@ -558,7 +561,7 @@ function activeTenancy(ownerId, property) {
     monthlyRent: 2500,
     securityDeposit: 2500,
     dueDay: 10,
-    reportReminderDaysBefore: 3,
+    reportReminderDaysBefore: 4,
     paymentReminderDaysBefore: 5,
     currentBalance: 0,
     status: 'active',

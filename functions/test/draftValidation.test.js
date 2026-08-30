@@ -102,6 +102,15 @@ describe('draftValidation — reportReminderDaysBefore (FR-CON-01)', () => {
       }).success,
     ).toBe(false)
   })
+
+  it('is NOT bounded to 1-10 — 11 is valid (NFR-VAL-02 bounds only paymentReminderDaysBefore)', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        reportReminderDaysBefore: 11,
+      }).success,
+    ).toBe(true)
+  })
 })
 
 describe('draftValidation — paymentReminderDaysBefore (FR-PAY-10, NFR-VAL-02, M8 stage 13b)', () => {
