@@ -161,11 +161,14 @@ export function expectedForMonth(activeTenancies, signedReportsByTenancy, M) {
 
 /**
  * The reference instant FR-DASH-06 ages against: "the past, relative to the
- * end of the selected month". For the CURRENT month that is `today` (a
- * report due later this month is not overdue yet — the parenthetical in
- * FR-DASH-06). For a PAST month it is the last day of that month (`today`
- * is already beyond it, so `min(today, endOfMonth(M))` collapses to the
- * month end). Future months never reach here — the selector is bounded.
+ * end of the selected month", computed as `min(today, endOfMonth(M))`. For
+ * the CURRENT month that is `today` (a report due later this month is not
+ * overdue yet — the parenthetical in FR-DASH-06). For a PAST month it is the
+ * last day of that month (`today` is already beyond it). The selector's
+ * forward control is disabled at the current month, so M is not normally a
+ * future month; if it ever were (a session left open across a month
+ * boundary), the `min` degrades safely to `today` rather than counting a
+ * not-yet-due report as overdue.
  */
 export function overdueReferenceDate(M, today = new Date()) {
   const endOfMonth = new Date(M.year, M.month, 0) // day 0 of next month
