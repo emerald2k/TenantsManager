@@ -243,8 +243,19 @@ describe('DashboardPage — the strip (absence is not zero, NFR-UX-08 rule 1)', 
   })
 })
 
-describe('DashboardPage — the current-month section (FR-DASH-02)', () => {
-  it('lists occupied properties with a status badge and links a row to its report form', async () => {
+describe('DashboardPage — the current-month section (FR-DASH-02 / 02b)', () => {
+  it('renders the seven-column table (shared with /admin/current-month) and links a row to its report form', async () => {
+    const signed = {
+      tenancyId: 't1',
+      propertyId: 'p1',
+      status: 'signed',
+      dueDate: `${thisYear}-01-15`,
+      paymentStatus: 'paid',
+      finalTotal: 2500,
+      amountPaid: 2500,
+      month: 1,
+      year: thisYear,
+    }
     mockData({
       tenancies: [
         {
@@ -252,25 +263,31 @@ describe('DashboardPage — the current-month section (FR-DASH-02)', () => {
           propertyId: 'p1',
           status: 'active',
           currentBalance: 0,
+          dueDay: 15,
           tenantName: 'Ana Pop',
           property: { name: 'Aviatorilor 1' },
         },
       ],
-      monthReports: [
-        {
-          propertyId: 'p1',
-          status: 'signed',
-          dueDate: `${thisYear}-12-15`,
-          paymentStatus: 'paid',
-          finalTotal: 2500,
-        },
-      ],
+      monthReports: [signed],
+      yearReports: [signed],
     })
     const user = userEvent.setup()
     await renderWithProviders(<DashboardPage />)
 
+    const headers = screen
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).toEqual([
+      'Proprietate',
+      'Chiriaș',
+      'Raport',
+      'Plată',
+      'Total de plată',
+      'Rămas de încasat',
+      'Data scadenței',
+    ])
     expect(screen.getByText('Aviatorilor 1')).toBeVisible()
-    expect(screen.getByText('Ana Pop')).toBeVisible()
+    expect(screen.getByText('Achitat integral')).toBeVisible()
 
     await user.click(screen.getByText('Aviatorilor 1'))
     expect(navigate).toHaveBeenCalledWith(

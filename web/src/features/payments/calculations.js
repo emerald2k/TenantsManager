@@ -31,16 +31,17 @@ export function sortLedgerRows(rows) {
 
 /**
  * The ledger's own badge vocabulary (SRS §5.3, `/admin/payments` prose) —
- * DELIBERATELY separate from `dashboard/calculations.js`'s
- * `deriveReportStatusBadge`: every ledger row IS an existing report (FR-PAY-
- * 07: "one row per report"), so there is no "not-entered" (no report at
- * all) base case here — only "not recorded" (the report exists, its payment
- * fields are simply absent, FR-TAPP-01's fourth neutral state).
+ * DELIBERATELY its own derivation: every ledger row IS an existing report
+ * (FR-PAY-07: "one row per report"), so there is no "not-entered" (no report
+ * at all) base case here — only "not recorded" (the report exists, its
+ * payment fields are simply absent, FR-TAPP-01's fourth neutral state).
  *
- * Precedence mirrors the dashboard's own pinned rule (`deriveReportStatusBadge`'s
- * doc comment): **a partial payment never becomes overdue, even past due** —
- * the SRS's ledger prose does not repeat this explicitly, but it is the
- * exact same product-wide precedent, reused rather than re-decided.
+ * **A partial payment never becomes overdue, even past due** — a
+ * product-wide precedent (it was also the rule in the dashboard's old
+ * single-badge derivation, removed at stage 15a when the Current-month
+ * table split Report and Payment into two columns; the new Payment column
+ * tones a *late* partial destructive but keeps the label "partial", not
+ * "overdue" — same precedent, just expressed as tone rather than label).
  */
 export function derivePaymentBadge(report, referenceDate = new Date()) {
   const overdue = Boolean(

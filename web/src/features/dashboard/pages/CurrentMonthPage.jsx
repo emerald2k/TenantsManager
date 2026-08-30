@@ -5,22 +5,27 @@ import { Button } from '@/components/ui/button'
 import { RetryButton } from '@/components/shared/RetryButton'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { useActiveTenancies } from '@/features/tenants/hooks'
-import { useReportsForMonth } from '@/features/reports/hooks'
+import { useReportsForMonth, useReportsForYear } from '@/features/reports/hooks'
 import {
   buildCurrentMonthRows,
+  earliestSelectableMonth,
   formatMonthYearLabel,
+  isMonthBefore,
   shiftMonth,
 } from '@/features/dashboard/calculations'
 import { CurrentMonthTable } from '@/features/dashboard/components/CurrentMonthTable'
 
 /**
- * The standalone Current-month page (FR-DASH-02, SRS §5.3). Since M8 stage 15
- * it is the SAME list, from the SAME data and the SAME component
- * (`CurrentMonthTable`, `buildCurrentMonthRows`) as the dashboard's inline
- * section — FR-DASH-02a: "both render the same rows … not a reduced variant
- * with different columns". Rows come straight from `useActiveTenancies` (an
- * active tenancy denormalizes `property.name`/`tenantName`), so free
- * properties never appear and no separate `properties` read is needed.
+ * The standalone Current-month page (FR-DASH-02, SRS §5.3). Since M8 stage
+ * 15a it is the SAME seven-column list, from the SAME component
+ * (`CurrentMonthTable`) and the SAME data (`buildCurrentMonthRows`) as the
+ * dashboard's inline section — FR-DASH-02a / FR-DASH-02b: "both render the
+ * same rows … not a reduced variant". That data now includes the tenancy's
+ * signed-report history (for `balanceAsOf` and the oldest-unsettled due
+ * date), so this page fetches the two year queries the dashboard does and
+ * bounds its selector to the same window — stepping past it would make
+ * "Remaining to collect" silently read 0, the failure FR-DASH-02b exists to
+ * prevent.
  */
 export function CurrentMonthPage() {
   const { t, i18n } = useTranslation()
@@ -31,18 +36,46 @@ export function CurrentMonthPage() {
   const [selected, setSelected] = useState(current)
   const isAtCurrentMonth =
     selected.month === current.month && selected.year === current.year
+  const earliest = earliestSelectableMonth(current.year)
+  const isAtEarliest =
+    isMonthBefore(selected, earliest) ||
+    (selected.month === earliest.month && selected.year === earliest.year)
 
   const tenancies = useActiveTenancies()
-  const reports = useReportsForMonth(selected.month, selected.year)
+  const monthReports = useReportsForMonth(selected.month, selected.year)
+  const yearReports = useReportsForYear(current.year)
+  const priorYearReports = useReportsForYear(current.year - 1)
 
-  const isPending = tenancies.isPending || reports.isPending
-  const isError = tenancies.isError || reports.isError
+  const sources = [tenancies, monthReports, yearReports, priorYearReports]
+  const isPending = sources.some((s) => s.isPending)
+  const isError = sources.some((s) => s.isError)
 
-  const rows = useMemo(
-    () => buildCurrentMonthRows(tenancies.data ?? [], reports.data ?? [], now),
+  const rows = useMemo(() => {
+    const signed = [
+      ...(yearReports.data ?? []),
+      ...(priorYearReports.data ?? []),
+    ].filter((r) => r.status === 'signed')
+    const signedByTenancy = new Map()
+    for (const r of signed) {
+      const list = signedByTenancy.get(r.tenancyId) ?? []
+      list.push(r)
+      signedByTenancy.set(r.tenancyId, list)
+    }
+    return buildCurrentMonthRows(
+      tenancies.data ?? [],
+      monthReports.data ?? [],
+      signedByTenancy,
+      selected,
+      now,
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenancies.data, reports.data],
-  )
+  }, [
+    tenancies.data,
+    monthReports.data,
+    yearReports.data,
+    priorYearReports.data,
+    selected,
+  ])
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -53,6 +86,7 @@ export function CurrentMonthPage() {
             <Button
               type="button"
               variant="outline"
+              disabled={isAtEarliest}
               onClick={() => setSelected((prev) => shiftMonth(prev, -1))}
             >
               {t('dashboard.currentMonth.previousMonth')}
@@ -84,11 +118,8 @@ export function CurrentMonthPage() {
             {t('dashboard.currentMonth.error')}
           </p>
           <RetryButton
-            onRetry={() => {
-              tenancies.refetch()
-              reports.refetch()
-            }}
-            disabled={tenancies.isFetching || reports.isFetching}
+            onRetry={() => sources.forEach((s) => s.refetch())}
+            disabled={sources.some((s) => s.isFetching)}
           />
         </div>
       ) : rows.length === 0 ? (

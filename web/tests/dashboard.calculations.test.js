@@ -5,13 +5,14 @@ import {
   buildCurrentMonthRows,
   collectedForMonth,
   creditInAdvance,
-  deriveReportStatusBadge,
   earliestSelectableMonth,
   expectedForMonth,
+  formatMonthNameLabel,
   formatMonthYearLabel,
   formerRenterBalances,
   isFirstLaunch,
   isPastDueDate,
+  oldestUnsettledReport,
   overdueForMonth,
   overdueReferenceDate,
   propertyCounts,
@@ -578,57 +579,306 @@ describe('billedHistory (FR-DASH-09)', () => {
   })
 })
 
-describe('buildCurrentMonthRows (FR-DASH-02) and unsignedReportStats', () => {
-  const ref = new Date(2026, 0, 20)
-
-  it('one row per active tenancy, joined to the month report by propertyId, sorted by property name', () => {
-    const tenancies = [
-      {
-        id: 't2',
-        propertyId: 'pB',
-        tenantName: 'Zoe',
-        property: { name: 'Zorilor 2' },
-      },
-      {
-        id: 't1',
-        propertyId: 'pA',
-        tenantName: 'Ana',
-        property: { name: 'Aviatorilor 1' },
-      },
-    ]
+describe('oldestUnsettledReport (FR-DASH-02b)', () => {
+  it('is the first month of the CURRENT unbroken run of debt (arrears two months back -> the older date)', () => {
+    // June/July/August all unpaid, the balance never returns to zero -> the
+    // run starts in June. This is the plan step 3 check.
     const reports = [
-      {
-        propertyId: 'pA',
-        status: 'signed',
-        dueDate: '2026-01-15',
-        paymentStatus: 'paid',
-        finalTotal: 2500,
-      },
+      report({ month: 6, year: 2026, finalTotal: 2000, amountPaid: 0 }),
+      report({
+        month: 7,
+        year: 2026,
+        finalTotal: 4000,
+        amountPaid: 0,
+        previousMonthArrears: 2000,
+      }),
+      report({
+        month: 8,
+        year: 2026,
+        finalTotal: 6000,
+        amountPaid: 0,
+        previousMonthArrears: 4000,
+      }),
     ]
-    const rows = buildCurrentMonthRows(tenancies, reports, ref)
-    expect(rows.map((r) => r.propertyName)).toEqual([
-      'Aviatorilor 1',
-      'Zorilor 2',
-    ])
-    expect(rows[0]).toMatchObject({
-      tenancyId: 't1',
-      badge: 'paid',
-      total: 2500,
-    })
-    expect(rows[1]).toMatchObject({
-      tenancyId: 't2',
-      badge: 'not-entered',
-      total: null,
-    })
+    expect(
+      oldestUnsettledReport(reports, { month: 8, year: 2026 })?.month,
+    ).toBe(6)
   })
 
-  it('unsignedReportStats counts rows with no signed report; total is the row count', () => {
+  it('a partial in an early month that a LATER full payment cleared does NOT count — the run broke', () => {
+    // The `seed-tenancy-occupied` shape that surfaced this in the browser:
+    // Dec paid in full, Jan partial (leaves 730), Feb paid in full — its
+    // finalTotal carries Jan's 730, so paying it clears the chain — May
+    // unpaid. balanceAsOf returned to zero at Feb, so the current run of
+    // debt starts at MAY, not back at January where a per-report
+    // subtraction (2730 − 2000 > 0) would wrongly land.
+    const reports = [
+      report({ month: 12, year: 2025, finalTotal: 2730, amountPaid: 2730 }),
+      report({
+        month: 1,
+        year: 2026,
+        finalTotal: 2730,
+        amountPaid: 2000,
+        previousMonthArrears: 0,
+      }),
+      report({
+        month: 2,
+        year: 2026,
+        finalTotal: 3460, // 2730 own + 730 arrears from Jan
+        amountPaid: 3460,
+        previousMonthArrears: 730,
+      }),
+      report({ month: 5, year: 2026, finalTotal: 2730, amountPaid: 0 }),
+    ]
+    expect(
+      oldestUnsettledReport(reports, { month: 6, year: 2026 })?.month,
+    ).toBe(5)
+  })
+
+  it('is null when the balance is settled as of M', () => {
+    const reports = [
+      report({ month: 7, year: 2026, finalTotal: 2000, amountPaid: 2000 }),
+    ]
+    expect(oldestUnsettledReport(reports, { month: 8, year: 2026 })).toBeNull()
+  })
+})
+
+describe('buildCurrentMonthRows — seven columns (FR-DASH-02b / FR-DASH-02c)', () => {
+  const M = { month: 8, year: 2026 }
+  // 21 August 2026 — the mockup's own reference day (rows show "6 days late",
+  // "in 4 days", "37 days late" against 15 Aug / 25 Aug / 15 Jul).
+  const ref = new Date(2026, 7, 21)
+
+  function tenancy(over) {
+    return {
+      id: 't1',
+      propertyId: 'p1',
+      tenantName: 'Renter',
+      property: { name: 'Prop' },
+      dueDay: 15,
+      ...over,
+    }
+  }
+  function build(tenancies, monthReports, signedByTenancy) {
+    return buildCurrentMonthRows(
+      tenancies,
+      monthReports,
+      new Map(Object.entries(signedByTenancy ?? {})),
+      M,
+      ref,
+    )
+  }
+
+  it('row 1 — signed + paid in full: Total is the bill, Remaining "—", due "on time"', () => {
+    const r = report({
+      tenancyId: 't1',
+      month: 8,
+      year: 2026,
+      dueDate: '2026-08-15',
+      finalTotal: 2510,
+      amountPaid: 2510,
+      paymentStatus: 'paid',
+    })
+    const [row] = build([tenancy()], [r], { t1: [r] })
+    expect(row.reportState).toBe('signed')
+    expect(row.payment).toMatchObject({ kind: 'paid', tone: 'ok' })
+    expect(row.totalDue).toBe(2510)
+    expect(row.remainingShown).toBe(false) // renders "—"
+    expect(row.isOverdue).toBe(false)
+    expect(row.dueConsequence).toBe('on-time')
+    expect(row.dueDate).toBe('2026-08-15')
+  })
+
+  it('row 2 — signed + partial + past due: Remaining is red, payment toned destructive, "6 days late"', () => {
+    const r = report({
+      tenancyId: 't1',
+      month: 8,
+      year: 2026,
+      dueDate: '2026-08-15',
+      finalTotal: 3060,
+      amountPaid: 1500,
+      paymentStatus: 'partial',
+    })
+    const [row] = build([tenancy()], [r], { t1: [r] })
+    expect(row.payment).toMatchObject({ kind: 'partial', tone: 'destructive' })
+    expect(row.remaining).toBe(1560)
+    expect(row.remainingShown).toBe(true)
+    expect(row.isOverdue).toBe(true)
+    expect(row.dueConsequence).toBe('late')
+    expect(row.dueDayCount).toBe(6)
+  })
+
+  it('row 3 — signed + unpaid + NOT yet due: Remaining shown but not overdue, "in 4 days"', () => {
+    const r = report({
+      tenancyId: 't1',
+      month: 8,
+      year: 2026,
+      dueDate: '2026-08-25',
+      finalTotal: 2340,
+      amountPaid: 0,
+      paymentStatus: 'unpaid',
+    })
+    const [row] = build([tenancy({ dueDay: 25 })], [r], { t1: [r] })
+    expect(row.payment).toMatchObject({ kind: 'unpaid', tone: 'muted' })
+    expect(row.remaining).toBe(2340)
+    expect(row.isOverdue).toBe(false)
+    expect(row.dueConsequence).toBe('upcoming')
+    expect(row.dueDayCount).toBe(4)
+  })
+
+  it('row 4 — DRAFT report: Total shown muted, Remaining "—" (draft is not settled balance), "after signing"', () => {
+    const draft = {
+      tenancyId: 't1',
+      propertyId: 'p1',
+      status: 'draft',
+      finalTotal: 1980,
+      month: 8,
+      year: 2026,
+    }
+    // Prior months settled -> no signed reports outstanding.
+    const [row] = build([tenancy({ dueDay: 20 })], [draft], { t1: [] })
+    expect(row.reportState).toBe('draft')
+    expect(row.payment).toMatchObject({ kind: 'cannot-record' })
+    expect(row.totalDue).toBe(1980)
+    expect(row.totalDueMuted).toBe(true)
+    expect(row.remainingShown).toBe(false) // "—", NOT 1980
+    expect(row.dueConsequence).toBe('after-signing')
+    expect(row.dueDate).toBe('2026-08-20')
+  })
+
+  it('row 5 — NO report for the month but arrears from July: Total "—", Remaining 890, "arrears from July", July\'s due date, 37 days late', () => {
+    const july = report({
+      tenancyId: 't1',
+      month: 7,
+      year: 2026,
+      dueDate: '2026-07-15',
+      finalTotal: 890,
+      amountPaid: 0,
+    })
+    const [row] = build([tenancy()], [], { t1: [july] })
+    expect(row.reportState).toBe('not-entered')
+    expect(row.totalDue).toBeNull() // "—"
+    expect(row.remaining).toBe(890) // balanceAsOf, carried from July
+    expect(row.remainingShown).toBe(true)
+    expect(row.isOverdue).toBe(true)
+    expect(row.payment).toMatchObject({ kind: 'arrears', tone: 'destructive' })
+    expect(row.payment.arrearsMonth).toMatchObject({ month: 7, year: 2026 })
+    expect(row.dueDate).toBe('2026-07-15')
+    expect(row.dueConsequence).toBe('late')
+    expect(row.dueDayCount).toBe(37)
+  })
+
+  it('the Payment "arrears from {month}" label is month-only, matching the mockup', () => {
+    expect(formatMonthNameLabel(7, 2026, 'ro')).toBe('iulie')
+    expect(formatMonthNameLabel(7, 2026, 'en')).toBe('July')
+  })
+
+  it('matches the month report BY tenancyId, not propertyId — a hand-over month is not mismatched', () => {
+    // FR-REP-14: one property, one calendar month, two tenancies, two reports.
+    // Only the active (incoming) tenancy appears in this list; it must get
+    // ITS report, never the outgoing one's.
+    const outgoing = {
+      tenancyId: 'tOut',
+      propertyId: 'pShared',
+      status: 'signed',
+      dueDate: '2026-08-14',
+      finalTotal: 950,
+      amountPaid: 950,
+      paymentStatus: 'paid',
+      month: 8,
+      year: 2026,
+    }
+    const incoming = {
+      tenancyId: 'tIn',
+      propertyId: 'pShared',
+      status: 'signed',
+      dueDate: '2026-08-20',
+      finalTotal: 1150,
+      amountPaid: 0,
+      paymentStatus: 'unpaid',
+      month: 8,
+      year: 2026,
+    }
+    const activeIncoming = {
+      id: 'tIn',
+      propertyId: 'pShared',
+      tenantName: 'Diana',
+      property: { name: 'Buna Ziua' },
+      dueDay: 20,
+    }
+    const [row] = build([activeIncoming], [outgoing, incoming], {
+      tIn: [incoming],
+    })
+    expect(row.totalDue).toBe(1150) // the incoming report, not 950
+    expect(row.payment.kind).toBe('unpaid')
+  })
+
+  it('sorts rows by property name', () => {
+    const rows = build(
+      [
+        {
+          id: 'tz',
+          propertyId: 'pz',
+          tenantName: 'Z',
+          property: { name: 'Zebra' },
+          dueDay: 1,
+        },
+        {
+          id: 'ta',
+          propertyId: 'pa',
+          tenantName: 'A',
+          property: { name: 'Alpha' },
+          dueDay: 1,
+        },
+      ],
+      [],
+      {},
+    )
+    expect(rows.map((r) => r.propertyName)).toEqual(['Alpha', 'Zebra'])
+  })
+
+  it('unsignedReportStats counts a DRAFT row as unsigned, not just a missing one', () => {
     const rows = [
-      { badge: 'paid' },
-      { badge: 'not-entered' },
-      { badge: 'not-entered' },
+      { reportState: 'signed' },
+      { reportState: 'draft' },
+      { reportState: 'not-entered' },
     ]
     expect(unsignedReportStats(rows)).toEqual({ unsigned: 2, total: 3 })
+  })
+
+  it('MUTATION: Remaining is balanceAsOf(tenancy, M), never finalTotal − amountPaid', () => {
+    // The two coincide on the latest signed report, so most rows cannot tell
+    // them apart. These two can, and both are the rows that matter:
+    //   - the DRAFT row: `finalTotal − amountPaid` = 1980 − 0 = 1980, a
+    //     PLAUSIBLE wrong figure; `balanceAsOf` over signed-only = 0 -> "—".
+    //   - the NO-REPORT row: `finalTotal − amountPaid` has no report to
+    //     subtract from -> "—"; `balanceAsOf` reaches back to July -> 890.
+    // Re-implement `remaining` as `(monthReport?.finalTotal ?? 0) −
+    // (monthReport?.amountPaid ?? 0)` and: the draft assertion below fails
+    // (890→? no — 1980 shown instead of "—"), and the no-report assertion
+    // fails (890 → "—"). Primary guard: the draft row.
+    const draft = {
+      tenancyId: 't1',
+      propertyId: 'p1',
+      status: 'draft',
+      finalTotal: 1980,
+      month: 8,
+      year: 2026,
+    }
+    const [draftRow] = build([tenancy({ dueDay: 20 })], [draft], { t1: [] })
+    expect(draftRow.remainingShown).toBe(false)
+    expect(draftRow.remaining).toBe(0)
+
+    const july = report({
+      tenancyId: 't1',
+      month: 7,
+      year: 2026,
+      dueDate: '2026-07-15',
+      finalTotal: 890,
+      amountPaid: 0,
+    })
+    const [noReportRow] = build([tenancy()], [], { t1: [july] })
+    expect(noReportRow.remaining).toBe(890)
   })
 })
 
@@ -658,20 +908,6 @@ describe('carried-over helpers still covered', () => {
     expect(isFirstLaunch([], [])).toBe(true)
     expect(isFirstLaunch([{ id: 'p' }], [])).toBe(false)
     expect(isFirstLaunch([], [{ id: 'u' }])).toBe(false)
-  })
-
-  it('deriveReportStatusBadge precedence: partial beats overdue even past due', () => {
-    const r = {
-      status: 'signed',
-      paymentStatus: 'partial',
-      dueDate: '2020-01-01',
-    }
-    expect(deriveReportStatusBadge(r, new Date(2026, 0, 1))).toBe('partial')
-  })
-
-  it('deriveReportStatusBadge: no signed report -> not-entered', () => {
-    expect(deriveReportStatusBadge(null)).toBe('not-entered')
-    expect(deriveReportStatusBadge({ status: 'draft' })).toBe('not-entered')
   })
 
   it('isPastDueDate compares local midnight; the due date itself is not yet overdue', () => {

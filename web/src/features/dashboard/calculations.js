@@ -17,6 +17,7 @@
  */
 
 import { billedForReport } from '@/features/reports/billing'
+import { FINAL_TOTAL_EPSILON, buildDueDate } from '@/features/reports/schema'
 
 const HISTORY_WINDOW_MONTHS = 12
 
@@ -31,20 +32,6 @@ const HISTORY_WINDOW_MONTHS = 12
  */
 export function isFirstLaunch(properties, users) {
   return properties.length === 0 && users.length === 0
-}
-
-/**
- * Badge precedence (pinned, do not reorder):
- * no signed report -> not-entered; paid -> paid; partial -> partial (even
- * past due); unpaid/absent + past due -> overdue; unpaid/absent + in term
- * -> signed. `paymentStatus` absent (report never had a payment marked)
- * falls through to the same branch as 'unpaid' by construction below.
- */
-export function deriveReportStatusBadge(report, referenceDate = new Date()) {
-  if (!report || report.status !== 'signed') return 'not-entered'
-  if (report.paymentStatus === 'paid') return 'paid'
-  if (report.paymentStatus === 'partial') return 'partial'
-  return isPastDueDate(report.dueDate, referenceDate) ? 'overdue' : 'signed'
 }
 
 /** ISO date string split into a LOCAL Date (not `new Date(isoString)`, which
@@ -88,6 +75,16 @@ export function formatShortMonthLabel(month, year, language) {
   return new Intl.DateTimeFormat(localeFor(language), {
     month: 'short',
   }).format(date)
+}
+
+/** Month name alone — "iulie" / "July", no year. The Payment column's
+ * "Restanță din {month}" reading (FR-DASH-02c) names the month the debt is
+ * from; the approved mockup row is month-only ("Restanță din iulie"). */
+export function formatMonthNameLabel(month, year, language) {
+  const date = new Date(year, month - 1, 1)
+  return new Intl.DateTimeFormat(localeFor(language), { month: 'long' }).format(
+    date,
+  )
 }
 
 /** `{ month, year }` shifted by `delta` whole months, year rolled at the
@@ -309,43 +306,188 @@ export function billedHistory(signedReports, endMonth, endYear, language) {
   }))
 }
 
+/** Whole days from ISO date `fromIso` to ISO date `toIso`, negative if
+ * `toIso` is earlier. Both are read as (year, month, day) and put through
+ * `Date.UTC` before subtracting — never a raw local-`Date` diff — so the
+ * result is an exact integer, immune to Europe/Bucharest's DST transitions
+ * (CLAUDE.md §7; same technique as `dueDayCountdown.js`'s own
+ * `daysBetweenLocalDates`, re-implemented rather than shared for the same
+ * cross-package reason). */
+function daysBetweenIso(fromIso, toIso) {
+  const [fy, fm, fd] = fromIso.split('-').map(Number)
+  const [ty, tm, td] = toIso.split('-').map(Number)
+  return (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000
+}
+
+/** A `Date` rendered as a local ISO date string ("YYYY-MM-DD"), for feeding
+ * `daysBetweenIso` a reference instant on the same footing as a report's
+ * stored `dueDate`. */
+function toIsoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`
+}
+
 /**
- * FR-DASH-02 — the Current-month list rows: one per ACTIVE tenancy (occupied
- * properties only; a free property has no active tenancy), joined to the
- * selected month's report by `propertyId`. Same shape and same source
- * whether it renders as the dashboard's inline section or the standalone
- * `/admin/current-month` page (FR-DASH-02a: "not a reduced variant with
- * different columns"). Sorted by property name.
+ * FR-DASH-02b — the OLDEST unsettled obligation: the first month of the
+ * CURRENT unbroken run of debt ending at `M`. Defined through `balanceAsOf`,
+ * not a per-report subtraction, so it can never disagree with "Remaining to
+ * collect": walk the tenancy's signed reports newest-first and, for each,
+ * ask what the as-of-that-month balance was; stop at the first month the
+ * balance had already returned to zero. The oldest report still inside that
+ * run is the answer. A partial payment in an early month that a later
+ * full payment then cleared does NOT count — the balance went back to zero
+ * in between, breaking the run. Returns `null` when the balance is settled
+ * as of `M` (the caller then uses the selected month's due date).
+ */
+export function oldestUnsettledReport(signedReports, M) {
+  const eligible = (signedReports ?? [])
+    .filter((r) => Boolean(r.dueDate) && isOnOrBefore(r, M))
+    .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month))
+
+  let oldest = null
+  for (let i = eligible.length - 1; i >= 0; i -= 1) {
+    const asOfHere = balanceAsOf(eligible, {
+      month: eligible[i].month,
+      year: eligible[i].year,
+    })
+    if (asOfHere <= FINAL_TOTAL_EPSILON) break
+    oldest = eligible[i]
+  }
+  return oldest
+}
+
+/**
+ * FR-DASH-02b / FR-DASH-02c — the Current-month list rows, seven columns,
+ * rendered identically on the dashboard's inline section and the standalone
+ * `/admin/current-month` page from THIS one builder and the same data
+ * (FR-DASH-02a). One row per ACTIVE tenancy (a free property has no active
+ * tenancy, so it never appears). Sorted by property name.
+ *
+ * **`totalDue` and `remaining` answer different questions and must not be
+ * conflated.** `totalDue` is the selected month's own bill — `finalTotal` of
+ * the month's report, or `null` when there is no report for the month.
+ * `remaining` is `balanceAsOf(tenancy, M)` — everything the tenancy still
+ * owes as of the end of `M`, which for a property with no report this month
+ * is still whatever the renter carried in from an earlier month. That is why
+ * the "no report" row can show `totalDue` "—" and `remaining` "890" at the
+ * same time: no bill was raised this month, but 890 is still owed from July.
+ * `remaining` is NEVER `finalTotal − amountPaid` on the row — `finalTotal`
+ * already contains `previousMonthArrears` (the double count fixed at stage
+ * 5), a draft's `finalTotal` is not part of the settled balance at all, and
+ * a "no report" row has no `finalTotal` to subtract from.
+ *
+ * @param monthReports the reports for month `M` (any status), joined to
+ *   tenancies BY `tenancyId` — not `propertyId`: a mid-month hand-over
+ *   (FR-REP-14) leaves two reports on one property for one month, one per
+ *   tenancy, and the propertyId join could pick the wrong one.
+ * @param signedReportsByTenancy `Map<tenancyId, signedReport[]>` — the same
+ *   map the KPI tiles use, for `balanceAsOf` and `oldestUnsettledReport`.
+ * @param M `{ month, year }` the selector is on.
  */
 export function buildCurrentMonthRows(
   activeTenancies,
-  reports,
+  monthReports,
+  signedReportsByTenancy,
+  M,
   referenceDate = new Date(),
 ) {
-  const reportByProperty = new Map(
-    (reports ?? []).map((r) => [r.propertyId, r]),
+  const reportByTenancy = new Map(
+    (monthReports ?? []).map((r) => [r.tenancyId, r]),
   )
+  const byTenancy = signedReportsByTenancy ?? new Map()
+  const refIso = toIsoDate(overdueReferenceDate(M, referenceDate))
+
   return (activeTenancies ?? [])
     .map((t) => {
-      const report = reportByProperty.get(t.propertyId) ?? null
+      const monthReport = reportByTenancy.get(t.id) ?? null
+      const reportState = !monthReport
+        ? 'not-entered'
+        : monthReport.status === 'signed'
+          ? 'signed'
+          : 'draft'
+
+      const remaining = balanceAsOf(byTenancy.get(t.id) ?? [], M)
+      const owes = remaining > FINAL_TOTAL_EPSILON
+      const oldest = owes
+        ? oldestUnsettledReport(byTenancy.get(t.id) ?? [], M)
+        : null
+
+      // The due date shown, and the small consequence line beneath it.
+      let dueDate
+      let dueConsequence
+      let dueDayCount = 0
+      if (owes) {
+        dueDate =
+          oldest?.dueDate ?? buildDueDate(M.year, M.month, t.dueDay ?? 1)
+        const delta = daysBetweenIso(refIso, dueDate)
+        if (delta < 0) {
+          dueConsequence = 'late'
+          dueDayCount = -delta
+        } else {
+          dueConsequence = 'upcoming'
+          dueDayCount = delta
+        }
+      } else if (reportState === 'draft') {
+        dueDate = buildDueDate(M.year, M.month, t.dueDay ?? 1)
+        dueConsequence = 'after-signing'
+      } else if (reportState === 'signed') {
+        dueDate = monthReport.dueDate
+        dueConsequence = 'on-time'
+      } else {
+        dueDate = buildDueDate(M.year, M.month, t.dueDay ?? 1)
+        const delta = daysBetweenIso(refIso, dueDate)
+        dueConsequence = delta < 0 ? 'nothing-due' : 'upcoming'
+        dueDayCount = Math.max(0, delta)
+      }
+      const isOverdue = dueConsequence === 'late'
+
+      // The Payment column (FR-DASH-02c). No new stored status — every
+      // reading here is derived from data the row already holds.
+      let payment
+      if (!monthReport) {
+        payment = owes
+          ? { kind: 'arrears', arrearsMonth: oldest, tone: 'destructive' }
+          : { kind: 'none', tone: 'muted' }
+      } else if (reportState === 'draft') {
+        payment = { kind: 'cannot-record', tone: 'muted' }
+      } else if (monthReport.paymentStatus === 'paid') {
+        payment = { kind: 'paid', tone: 'ok' }
+      } else if (monthReport.paymentStatus === 'partial') {
+        payment = {
+          kind: 'partial',
+          tone: isOverdue ? 'destructive' : 'neutral',
+        }
+      } else {
+        payment = { kind: 'unpaid', tone: isOverdue ? 'destructive' : 'muted' }
+      }
+
       return {
         propertyId: t.propertyId,
         tenancyId: t.id,
         propertyName: t.property?.name ?? '',
         tenantName: t.tenantName,
-        badge: deriveReportStatusBadge(report, referenceDate),
-        total: report ? (report.finalTotal ?? null) : null,
+        reportState,
+        totalDue: monthReport ? (monthReport.finalTotal ?? null) : null,
+        totalDueMuted: reportState !== 'signed',
+        remaining,
+        remainingShown: owes,
+        isOverdue,
+        dueDate,
+        dueConsequence,
+        dueDayCount,
+        payment,
       }
     })
     .sort((a, b) => a.propertyName.localeCompare(b.propertyName))
 }
 
-/** How many of the current-month rows have no signed report yet — the
- * strip's "unsigned reports this month" figure (design's third strip item).
- * A progress-style "N of M" only when M > 0 (NFR-UX-08 rule 2). */
+/** How many current-month rows have NO signed report yet — a draft counts as
+ * unsigned (the strip's "N of M", design's third strip item; NFR-UX-08 rule
+ * 2 gates the "N of M" form on M > 0). */
 export function unsignedReportStats(rows) {
   const total = rows.length
-  const unsigned = rows.filter((r) => r.badge === 'not-entered').length
+  const unsigned = rows.filter((r) => r.reportState !== 'signed').length
   return { unsigned, total }
 }
 

@@ -598,15 +598,30 @@
       "columns": {
         "property": "Proprietate",
         "tenant": "Chiriaș",
-        "status": "Status",
-        "total": "Total"
+        "report": "Raport",
+        "payment": "Plată",
+        "totalDue": "Total de plată",
+        "remaining": "Rămas de încasat",
+        "dueDate": "Data scadenței"
       },
-      "badge": {
-        "notEntered": "Neintrodus",
+      "report": {
         "signed": "Semnat",
-        "paid": "Plătit",
-        "partial": "Parțial",
-        "overdue": "Restant"
+        "draft": "Ciornă, nesemnat",
+        "notEntered": "Neîntocmit"
+      },
+      "payment": {
+        "paid": "Achitat integral",
+        "partial": "Plătit parțial",
+        "unpaid": "Neplătit încă",
+        "cannot-record": "Nu se poate încă",
+        "arrears": "Restanță din {{month}}"
+      },
+      "due": {
+        "on-time": "achitat la timp",
+        "late": "întârziat cu {{count}} zile",
+        "upcoming": "peste {{count}} zile",
+        "after-signing": "după semnare",
+        "nothing-due": "nimic de încasat"
       }
     }
   },

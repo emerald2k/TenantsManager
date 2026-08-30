@@ -598,15 +598,30 @@
       "columns": {
         "property": "Property",
         "tenant": "Renter",
-        "status": "Status",
-        "total": "Total"
+        "report": "Report",
+        "payment": "Payment",
+        "totalDue": "Total due",
+        "remaining": "Remaining to collect",
+        "dueDate": "Due date"
       },
-      "badge": {
-        "notEntered": "Not entered",
+      "report": {
         "signed": "Signed",
-        "paid": "Paid",
-        "partial": "Partial",
-        "overdue": "Overdue"
+        "draft": "Draft, unsigned",
+        "notEntered": "Not entered"
+      },
+      "payment": {
+        "paid": "Paid in full",
+        "partial": "Partly paid",
+        "unpaid": "Not paid yet",
+        "cannot-record": "Not possible yet",
+        "arrears": "Arrears from {{month}}"
+      },
+      "due": {
+        "on-time": "paid on time",
+        "late": "{{count}} days late",
+        "upcoming": "in {{count}} days",
+        "after-signing": "after signing",
+        "nothing-due": "nothing due"
       }
     }
   },

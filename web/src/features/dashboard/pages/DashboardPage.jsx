@@ -125,6 +125,8 @@ export function DashboardPage() {
     const currentMonthRows = buildCurrentMonthRows(
       active,
       monthReports.data ?? [],
+      signedByTenancy,
+      selected,
       now,
     )
 

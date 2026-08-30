@@ -1,47 +1,118 @@
 import { useTranslation } from 'react-i18next'
 import { Table } from '@/components/shared/Table'
 import { MoneyAmount } from '@/components/shared/MoneyAmount'
+import { formatCurrency } from '@/lib/formatCurrency'
+import { formatFullDate } from '@/lib/formatDate'
+import { formatMonthNameLabel } from '@/features/dashboard/calculations'
 
 /**
- * The Current-month list, rendered identically wherever it appears — the
- * dashboard's inline section (FR-DASH-02) and the standalone
- * `/admin/current-month` page (FR-DASH-02a: "both render the same rows from
- * the same data … not a reduced variant with different columns"). Rows are
- * built by `buildCurrentMonthRows` (`../calculations`); this component only
- * paints them. Columns are exactly SRS §5.3's list — property, renter,
- * report-status badge, total — each row linking to that tenancy's report
- * form for the selected month.
+ * The Current-month list, seven columns (FR-DASH-02b), rendered identically
+ * on the dashboard's inline section and `/admin/current-month` from the same
+ * `buildCurrentMonthRows` output (FR-DASH-02a). This component only paints
+ * the row objects; every derivation lives in `../calculations`.
+ *
+ * Property · Renter · Report · Payment · Total due · Remaining to collect ·
+ * Due date. Total due is the month's own bill; Remaining is
+ * `balanceAsOf(tenancy, M)` — the two are different questions and a row can
+ * legitimately show "—" for one and a figure for the other.
  */
 
-const BADGE_TONE = {
-  'not-entered': 'bg-muted text-muted-foreground',
-  signed: 'bg-secondary text-secondary-foreground',
-  partial: 'bg-primary/10 text-primary',
-  paid: 'bg-primary text-primary-foreground',
-  overdue: 'bg-destructive/10 text-destructive',
+const REPORT_TONE = {
+  signed: 'bg-primary/10 text-primary',
+  draft: 'bg-warning/10 text-warning',
+  'not-entered': 'bg-warning/10 text-warning',
 }
 
-const BADGE_LABEL_KEY = {
-  'not-entered': 'notEntered',
-  signed: 'signed',
-  paid: 'paid',
-  partial: 'partial',
-  overdue: 'overdue',
+const PAYMENT_TONE = {
+  ok: 'bg-primary text-primary-foreground',
+  neutral: 'bg-secondary text-secondary-foreground',
+  muted: 'bg-muted text-muted-foreground',
+  destructive: 'bg-destructive/10 text-destructive',
 }
 
-function StatusBadge({ status }) {
-  const { t } = useTranslation()
+function Badge({ tone, children }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_TONE[status]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
     >
-      {t(`dashboard.currentMonth.badge.${BADGE_LABEL_KEY[status]}`)}
+      {children}
+    </span>
+  )
+}
+
+function ReportCell({ state }) {
+  const { t } = useTranslation()
+  const key = { signed: 'signed', draft: 'draft', 'not-entered': 'notEntered' }[
+    state
+  ]
+  return (
+    <Badge tone={REPORT_TONE[state]}>
+      {t(`dashboard.currentMonth.report.${key}`)}
+    </Badge>
+  )
+}
+
+function PaymentCell({ payment, language }) {
+  const { t } = useTranslation()
+  const label =
+    payment.kind === 'arrears'
+      ? t('dashboard.currentMonth.payment.arrears', {
+          month: formatMonthNameLabel(
+            payment.arrearsMonth.month,
+            payment.arrearsMonth.year,
+            language,
+          ),
+        })
+      : payment.kind === 'none'
+        ? '—'
+        : t(`dashboard.currentMonth.payment.${payment.kind}`)
+  if (payment.kind === 'none') {
+    return <span className="text-muted-foreground">—</span>
+  }
+  return <Badge tone={PAYMENT_TONE[payment.tone]}>{label}</Badge>
+}
+
+function RemainingCell({ row }) {
+  if (!row.remainingShown) {
+    return <span className="text-muted-foreground">—</span>
+  }
+  return (
+    <span
+      className={
+        row.isOverdue ? 'text-destructive tabular-nums' : 'tabular-nums'
+      }
+    >
+      {formatCurrency(row.remaining)}
+    </span>
+  )
+}
+
+function DueDateCell({ row, language }) {
+  const { t } = useTranslation()
+  const consequence =
+    row.dueConsequence === 'late' || row.dueConsequence === 'upcoming'
+      ? t(`dashboard.currentMonth.due.${row.dueConsequence}`, {
+          count: row.dueDayCount,
+        })
+      : t(`dashboard.currentMonth.due.${row.dueConsequence}`)
+  return (
+    <span className="flex flex-col">
+      <span>{formatFullDate(row.dueDate, language)}</span>
+      <span
+        className={`text-xs ${
+          row.dueConsequence === 'late'
+            ? 'text-destructive'
+            : 'text-muted-foreground'
+        }`}
+      >
+        {consequence}
+      </span>
     </span>
   )
 }
 
 export function CurrentMonthTable({ rows, onRowClick }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   return (
     <Table
@@ -58,20 +129,42 @@ export function CurrentMonthTable({ rows, onRowClick }) {
           render: (row) => row.tenantName,
         },
         {
-          key: 'status',
-          header: t('dashboard.currentMonth.columns.status'),
-          render: (row) => <StatusBadge status={row.badge} />,
+          key: 'report',
+          header: t('dashboard.currentMonth.columns.report'),
+          render: (row) => <ReportCell state={row.reportState} />,
         },
         {
-          key: 'total',
-          header: t('dashboard.currentMonth.columns.total'),
-          align: 'right',
-          // A positive finalTotal is this month's ordinary bill, not
-          // arrears — emphasizePositive={false} keeps it out of the
-          // destructive colour the balance figures use.
+          key: 'payment',
+          header: t('dashboard.currentMonth.columns.payment'),
           render: (row) => (
-            <MoneyAmount value={row.total} emphasizePositive={false} />
+            <PaymentCell payment={row.payment} language={i18n.language} />
           ),
+        },
+        {
+          key: 'totalDue',
+          header: t('dashboard.currentMonth.columns.totalDue'),
+          align: 'right',
+          render: (row) =>
+            row.totalDue === null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              <span
+                className={row.totalDueMuted ? 'text-muted-foreground' : ''}
+              >
+                <MoneyAmount value={row.totalDue} emphasizePositive={false} />
+              </span>
+            ),
+        },
+        {
+          key: 'remaining',
+          header: t('dashboard.currentMonth.columns.remaining'),
+          align: 'right',
+          render: (row) => <RemainingCell row={row} />,
+        },
+        {
+          key: 'dueDate',
+          header: t('dashboard.currentMonth.columns.dueDate'),
+          render: (row) => <DueDateCell row={row} language={i18n.language} />,
         },
       ]}
       rows={rows}
