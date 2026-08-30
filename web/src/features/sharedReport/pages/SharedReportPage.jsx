@@ -87,7 +87,7 @@ export function SharedReportPage() {
       <ReportSummaryView data={report.data} />
 
       {attachments.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-foreground">
             {t('sharedReport.attachments.title')}
           </h3>

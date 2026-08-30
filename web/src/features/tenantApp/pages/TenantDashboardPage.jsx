@@ -104,7 +104,7 @@ export function TenantDashboardPage() {
   const attachments = collectAttachments(data)
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-lg border border-border p-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-lg border border-border bg-card p-6">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold text-foreground">
@@ -136,7 +136,7 @@ export function TenantDashboardPage() {
       />
 
       {attachments.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-foreground">
             {t('tenantApp.dashboard.attachments.title')}
           </h3>

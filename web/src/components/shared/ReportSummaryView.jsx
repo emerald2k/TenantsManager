@@ -136,40 +136,47 @@ export function ReportSummaryView({
         </div>
       )}
 
-      <table className="w-full text-left">
-        <tbody>
-          <SummaryLineRow
-            label={t('reports.sections.rent')}
-            amount={data.rent.amount}
-            notes={data.rent.notes}
-            attachments={data.rent.attachments}
-          />
-          <SummaryLineRow
-            label={t('reports.sections.maintenance')}
-            amount={data.maintenance.amount}
-            notes={data.maintenance.notes}
-            attachments={data.maintenance.attachments}
-          />
-          {data.serviceCosts.map((line, index) => (
+      {/* Scrolls the cost-line table within its own box on a narrow phone
+          instead of widening the page (320 px — NFR-UX-03). In the
+          off-screen export capture the parent has no fixed width, so the
+          table takes its natural width and nothing is clipped — the PDF/PNG
+          are unchanged (G2). No `dark:` here: the NFR-UX-05 pin is intact. */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <tbody>
             <SummaryLineRow
-              key={index}
-              label={line.name}
-              amount={line.amount}
-              notes={line.notes}
-              attachments={line.attachments}
+              label={t('reports.sections.rent')}
+              amount={data.rent.amount}
+              notes={data.rent.notes}
+              attachments={data.rent.attachments}
             />
-          ))}
-          {data.otherExpenses.map((line, index) => (
             <SummaryLineRow
-              key={index}
-              label={line.description}
-              amount={line.amount}
-              notes={line.notes}
-              attachments={line.attachments}
+              label={t('reports.sections.maintenance')}
+              amount={data.maintenance.amount}
+              notes={data.maintenance.notes}
+              attachments={data.maintenance.attachments}
             />
-          ))}
-        </tbody>
-      </table>
+            {data.serviceCosts.map((line, index) => (
+              <SummaryLineRow
+                key={index}
+                label={line.name}
+                amount={line.amount}
+                notes={line.notes}
+                attachments={line.attachments}
+              />
+            ))}
+            {data.otherExpenses.map((line, index) => (
+              <SummaryLineRow
+                key={index}
+                label={line.description}
+                amount={line.amount}
+                notes={line.notes}
+                attachments={line.attachments}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="flex flex-col gap-1 border-t border-border pt-3">
         {showCalculatedTotal && (

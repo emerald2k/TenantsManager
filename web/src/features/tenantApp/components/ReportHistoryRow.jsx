@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { formatMonthYearLabel } from '@/features/dashboard/calculations'
 import { formatCurrency } from '@/lib/formatCurrency'
 import { PaymentStatusBadge } from '@/features/tenantApp/components/PaymentStatusBadge'
@@ -57,6 +58,14 @@ export function ReportHistoryRow({ report }) {
       </td>
       <td className="px-4 py-2 align-middle">
         <PaymentStatusBadge paymentStatus={report.paymentStatus ?? null} />
+      </td>
+      {/* NFR-UX-06 rule 3 — a permanent static mark so a touch user sees the
+          row is actionable before pressing it. */}
+      <td className="w-6 px-2 py-2 text-right align-middle">
+        <ChevronRight
+          className="inline size-4 text-muted-foreground"
+          aria-hidden="true"
+        />
       </td>
     </tr>
   )

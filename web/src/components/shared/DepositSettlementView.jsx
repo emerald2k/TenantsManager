@@ -21,7 +21,7 @@ export function DepositSettlementView({ securityDeposit, depositSettlement }) {
   const items = depositSettlement.items ?? []
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">
         {t('tenants.detail.tenancy.settlement.title')}
       </h3>
