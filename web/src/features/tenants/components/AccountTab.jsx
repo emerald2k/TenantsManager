@@ -15,15 +15,35 @@ import {
   StatusBadge,
 } from '@/features/tenants/pages/TenantsListPage'
 import {
+  useExportTenantData,
   useResetTenantPassword,
   useSetTenantAccountStatus,
   useUserTenancies,
 } from '@/features/tenants/hooks'
 
 /**
+ * Hands the reviewed bundle to the browser as a .json file. A Blob download,
+ * not a link the admin has to right-click — the file is generated in memory
+ * and never round-trips a server. Named by subject so several exports do not
+ * collide in the downloads folder.
+ */
+function downloadBundle(bundle) {
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+    type: 'application/json',
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `date-personale-${bundle.subjectUserId}.json`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+/**
  * The Account tab (M3-D, SRS §5.3, FR-TEN-24): status badge, "Reset
- * password", "Disable/Re-enable", "Archive". Implements Bogdan's state
- * machine (M3-D, revised post-M3-audit D#3):
+ * password", "Disable/Re-enable", "Archive", and — new at M8 stage 17 —
+ * the FR-TEN-26 subject-access export ("Personal data"). Implements Bogdan's
+ * state machine (M3-D, revised post-M3-audit D#3):
  *
  *   active → (End Contract) → inactive-readonly → (Archive) → archived
  *   active / inactive-readonly ⇄ disabled  (re-enable RECALCULATES the
@@ -51,6 +71,7 @@ export function AccountTab({ userId, status }) {
   const { data: tenancies } = useUserTenancies(userId)
   const resetPassword = useResetTenantPassword()
   const setAccountStatus = useSetTenantAccountStatus()
+  const exportData = useExportTenantData()
 
   const [generatedPassword, setGeneratedPassword] = useState(null)
   const [resetError, setResetError] = useState(false)
@@ -58,6 +79,8 @@ export function AccountTab({ userId, status }) {
   const [statusError, setStatusError] = useState(false)
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
   const [archiveError, setArchiveError] = useState(false)
+  const [exportBundle, setExportBundle] = useState(null)
+  const [exportError, setExportError] = useState(false)
 
   const isArchived = status === 'archived'
   const isDisabled = status === 'disabled'
@@ -100,6 +123,16 @@ export function AccountTab({ userId, status }) {
       setArchiveConfirmOpen(false)
     } catch {
       setArchiveError(true)
+    }
+  }
+
+  async function handleExport() {
+    setExportError(false)
+    try {
+      const response = await exportData.mutateAsync({ userId })
+      setExportBundle(response.data)
+    } catch {
+      setExportError(true)
     }
   }
 
@@ -161,6 +194,65 @@ export function AccountTab({ userId, status }) {
           </Section>
         </>
       )}
+
+      {/* FR-TEN-26 — the subject-access export. Available even for an archived
+          account: a data request does not stop because the account was
+          retired. */}
+      <Section title={t('tenants.detail.account.exportTitle')}>
+        <p className="mb-3 max-w-prose text-sm text-muted-foreground">
+          {t('tenants.detail.account.exportDescription')}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleExport}
+          disabled={exportData.isPending}
+        >
+          {exportData.isPending
+            ? t('tenants.detail.account.exportBuilding')
+            : t('tenants.detail.account.exportButton')}
+        </Button>
+        {exportError && (
+          <p role="alert" className="mt-2 text-sm text-destructive">
+            {t('tenants.detail.account.exportError')}
+          </p>
+        )}
+      </Section>
+
+      <Dialog
+        open={Boolean(exportBundle)}
+        onOpenChange={(open) => !open && setExportBundle(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t('tenants.detail.account.exportDialogTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('tenants.detail.account.exportDialogNote')}
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[50vh] overflow-auto rounded-md bg-muted p-3 text-xs">
+            {exportBundle ? JSON.stringify(exportBundle, null, 2) : ''}
+          </pre>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                navigator.clipboard.writeText(
+                  JSON.stringify(exportBundle, null, 2),
+                )
+              }
+            >
+              {t('tenants.detail.account.exportCopy')}
+            </Button>
+            <Button type="button" onClick={() => downloadBundle(exportBundle)}>
+              {t('tenants.detail.account.exportDownload')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(generatedPassword)}

@@ -34,6 +34,7 @@ const SUBJECT = {
       type: 'image',
     },
   ],
+  emergencyContact: { name: 'Ana Urgenta', phone: '0766111222' },
   guarantor: {
     name: 'Vasile Garant',
     cnp: '1650102334455',
@@ -204,12 +205,18 @@ beforeEach(async () => {
 })
 
 describe('exportTenantData — FR-TEN-26 (per-subject bundle)', () => {
-  it('bundles the whole users doc, every tenancy, and only SIGNED reports', async () => {
+  it('bundles the users doc (minus third-party sub-objects), every tenancy, and only SIGNED reports', async () => {
     const bundle = await exportTenantDataCore('subject')
 
     expect(bundle.subjectUserId).toBe('subject')
     expect(bundle.profile.id).toBe('subject')
     expect(bundle.profile.cnp).toBe('2900101111111')
+
+    // The three third-party sub-objects are NOT in `profile` any more —
+    // they moved, whole, into `thirdParties`.
+    expect(bundle.profile).not.toHaveProperty('guarantor')
+    expect(bundle.profile).not.toHaveProperty('emergencyContact')
+    expect(bundle.profile).not.toHaveProperty('previousReference')
 
     expect(bundle.tenancies.map((t) => t.id).sort()).toEqual([
       't-active',
@@ -227,7 +234,74 @@ describe('exportTenantData — FR-TEN-26 (per-subject bundle)', () => {
       reportsTotal: 3,
       signedReports: 2,
       documents: expect.any(Number),
+      thirdPartyDocuments: 1,
     })
+  })
+
+  it('groups guarantor / emergency contact / previous reference in a labelled thirdParties section', async () => {
+    const bundle = await exportTenantDataCore('subject')
+
+    expect(typeof bundle.thirdParties.description).toBe('string')
+    expect(bundle.thirdParties.description.length).toBeGreaterThan(0)
+    expect(bundle.thirdParties.guarantor).toMatchObject({
+      name: 'Vasile Garant',
+      cnp: '1650102334455',
+      phone: '0744555666',
+    })
+    expect(bundle.thirdParties.emergencyContact).toEqual({
+      name: 'Ana Urgenta',
+      phone: '0766111222',
+    })
+    expect(bundle.thirdParties.previousReference).toEqual({
+      name: 'Georgeta Fostă',
+      phone: '0755666777',
+    })
+
+    // The guarantor's ID photos are manifested HERE, not in the subject's
+    // top-level documentManifest.
+    expect(bundle.thirdParties.documentManifest).toEqual([
+      {
+        path: 'users/subject/guarantor/g-ci.jpg',
+        name: 'g-ci.jpg',
+        type: 'image',
+        source: 'guarantor-id',
+      },
+    ])
+    expect(
+      bundle.documentManifest.some((d) => d.source === 'guarantor-id'),
+    ).toBe(false)
+
+    // The label encodes no policy — no redaction flag, default, or
+    // instruction about what to remove.
+    const tp = bundle.thirdParties
+    expect(tp).not.toHaveProperty('redact')
+    expect(tp).not.toHaveProperty('redacted')
+    expect(tp).not.toHaveProperty('redactionPolicy')
+    expect(tp.description.toLowerCase()).not.toContain('redact')
+    expect(tp.description.toLowerCase()).not.toContain('remove')
+  })
+
+  it('leaves NOTHING about a third party outside the thirdParties section', async () => {
+    const bundle = await exportTenantDataCore('subject')
+    const { thirdParties, ...withoutSection } = bundle
+    void thirdParties
+    const serialized = JSON.stringify(withoutSection)
+
+    // Every third-party name/number from the fixture — none may appear once
+    // the marked section is removed. If one does, it is denormalized
+    // somewhere and the label is worth nothing.
+    for (const needle of [
+      'Vasile Garant',
+      '1650102334455',
+      '0744555666',
+      'g-ci.jpg',
+      'Ana Urgenta',
+      '0766111222',
+      'Georgeta Fostă',
+      '0755666777',
+    ]) {
+      expect(serialized).not.toContain(needle)
+    }
   })
 
   it('derives payment history from the signed reports', async () => {
@@ -258,17 +332,21 @@ describe('exportTenantData — FR-TEN-26 (per-subject bundle)', () => {
     ])
   })
 
-  it('lists stored documents as a manifest (path/name/type/source), never bytes — including guarantor ID photos', async () => {
+  it("lists the SUBJECT's stored documents as a manifest (path/name/type/source), never bytes", async () => {
     const bundle = await exportTenantDataCore('subject')
     const sources = bundle.documentManifest.map((d) => d.source)
 
     expect(sources).toContain('tenant-id')
-    expect(sources).toContain('guarantor-id')
     expect(sources).toContain('contract')
     expect(sources).toContain('deposit-settlement')
     expect(sources).toContain('report-cost-line')
+    // The guarantor's photos are NOT in the subject manifest.
+    expect(sources).not.toContain('guarantor-id')
 
-    for (const entry of bundle.documentManifest) {
+    for (const entry of [
+      ...bundle.documentManifest,
+      ...bundle.thirdParties.documentManifest,
+    ]) {
       expect(Object.keys(entry).sort()).toEqual([
         'name',
         'path',
@@ -279,11 +357,6 @@ describe('exportTenantData — FR-TEN-26 (per-subject bundle)', () => {
       expect(entry).not.toHaveProperty('url')
       expect(entry).not.toHaveProperty('downloadUrl')
     }
-
-    const guarantor = bundle.documentManifest.find(
-      (d) => d.source === 'guarantor-id',
-    )
-    expect(guarantor.path).toBe('users/subject/guarantor/g-ci.jpg')
   })
 
   it('contains NOTHING about any other subject', async () => {

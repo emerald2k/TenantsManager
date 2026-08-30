@@ -5,32 +5,39 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 /**
  * exportTenantData (SRS §7.2, FR-TEN-26): produces ONE reviewable bundle of a
  * single tenant's data, for a subject-access request. Admin-only; the
- * administrator reviews it before it leaves. Necessary because FR-TEN-09
- * deliberately denies the tenant read access to their own `users` document,
- * so "log in and look" is not an available answer, and NFR-PERF-03 removes
- * the generic export.
+ * administrator reviews it before it leaves (the Account tab, SRS §5.3).
+ * Necessary because FR-TEN-09 deliberately denies the tenant read access to
+ * their own `users` document, so "log in and look" is not an available
+ * answer, and NFR-PERF-03 removes the generic export.
  *
  * This is a NARROW, per-subject export and does not reverse NFR-PERF-03: it
  * takes one `userId`, returns JSON for review, and produces no CSV/Excel and
  * no bulk artefact. The generic export stays gone.
  *
  * The bundle carries, sourced deliberately:
- *  - `profile`  — the whole `users/{userId}` document. This INCLUDES the
- *    guarantor sub-object (name, cnp, phone, id-photo references) and the
- *    previous-reference (name, phone): both are third parties, both are part
- *    of the tenant's KYC answers (FR-TEN-04), and stripping them would be a
- *    decision this function is not the place to make — §4.1 item 3 records
- *    the guarantor's lawful basis as an OPEN obligation for the administrator.
+ *  - `profile`  — the `users/{userId}` document, WITHOUT its `guarantor`,
+ *    `emergencyContact` and `previousReference` sub-objects. Those describe
+ *    people other than the subject and are moved, whole, into `thirdParties`
+ *    (below) so a reviewer sees at a glance what concerns a third party.
  *  - `tenancies` — every tenancy on this account. `property { name, address }`
- *    on each is the OWNER's property, denormalized — not another tenant's data.
+ *    on each is the OWNER's property, denormalized — not another person's
+ *    personal data.
  *  - `signedReports` — only `status == 'signed'` reports (drafts are excluded
  *    by FR-TEN-26's own wording). Filtered in JS, not with a second `where`,
  *    so no composite index is needed (SRS §6, CLAUDE.md §7).
  *  - `paymentHistory` — derived from those signed reports; there is no
  *    separate payments collection in the model.
- *  - `documentManifest` — `{ path, name, type, source }` for every stored
- *    file the tenant's record points at. A MANIFEST, never the bytes and
- *    never a download URL (debt #5).
+ *  - `documentManifest` — `{ path, name, type, source }` for every stored file
+ *    the SUBJECT's record points at. A MANIFEST, never the bytes and never a
+ *    download URL (debt #5).
+ *  - `thirdParties` — the guarantor, the emergency contact and the previous
+ *    reference, plus a manifest of the guarantor's ID photos. A LABEL
+ *    (`description`) states what the group is; it encodes NO policy and
+ *    answers NO legal question. Whether any of it is redacted before a given
+ *    bundle leaves is the administrator's decision per request, and stays
+ *    that way until SRS §4.1 item 3 (the guarantor's lawful basis) is
+ *    answered. There is deliberately no redaction flag, default, or copy
+ *    here suggesting what should be removed.
  *
  * It never reads `mail`: §4.1 accepted-risk (a) notes generated passwords sit
  * there in clear text, and FR-TEN-26's list does not include it.
@@ -40,42 +47,55 @@ if (!getApps().length) {
   initializeApp()
 }
 
-function collectManifest(profile, tenancies, signedReports) {
-  const manifest = []
-  const push = (refs, source) => {
-    for (const ref of refs || []) {
-      if (ref && ref.path) {
-        manifest.push({
-          path: ref.path,
-          name: ref.name ?? null,
-          type: ref.type ?? null,
-          source,
-        })
-      }
+const THIRD_PARTY_DESCRIPTION =
+  'Personal data about people other than the subject of this export — a ' +
+  'guarantor, an emergency contact and a previous reference — recorded as ' +
+  'part of the subject’s KYC answers (FR-TEN-04). Grouped here so a ' +
+  'reviewer can see what concerns a third party rather than the requester.'
+
+function pushRefs(manifest, refs, source) {
+  for (const ref of refs || []) {
+    if (ref && ref.path) {
+      manifest.push({
+        path: ref.path,
+        name: ref.name ?? null,
+        type: ref.type ?? null,
+        source,
+      })
     }
   }
+}
 
-  push(profile.idDocumentPhotos, 'tenant-id')
-  push(profile.guarantor?.idDocumentPhotos, 'guarantor-id')
+/** The SUBJECT's own stored documents — never the guarantor's (those go in
+ * `thirdParties.documentManifest`). */
+function collectSubjectManifest(profile, tenancies, signedReports) {
+  const manifest = []
+  pushRefs(manifest, profile.idDocumentPhotos, 'tenant-id')
 
   for (const tenancy of tenancies) {
-    push(tenancy.attachedDocuments, 'contract')
+    pushRefs(manifest, tenancy.attachedDocuments, 'contract')
     for (const item of tenancy.depositSettlement?.items || []) {
-      push(item.attachments, 'deposit-settlement')
+      pushRefs(manifest, item.attachments, 'deposit-settlement')
     }
   }
 
   for (const report of signedReports) {
-    push(report.rent?.attachments, 'report-cost-line')
-    push(report.maintenance?.attachments, 'report-cost-line')
+    pushRefs(manifest, report.rent?.attachments, 'report-cost-line')
+    pushRefs(manifest, report.maintenance?.attachments, 'report-cost-line')
     for (const line of report.serviceCosts || []) {
-      push(line.attachments, 'report-cost-line')
+      pushRefs(manifest, line.attachments, 'report-cost-line')
     }
     for (const line of report.otherExpenses || []) {
-      push(line.attachments, 'report-cost-line')
+      pushRefs(manifest, line.attachments, 'report-cost-line')
     }
   }
 
+  return manifest
+}
+
+function collectGuarantorManifest(guarantor) {
+  const manifest = []
+  pushRefs(manifest, guarantor?.idDocumentPhotos, 'guarantor-id')
   return manifest
 }
 
@@ -89,7 +109,17 @@ async function exportTenantDataCore(userId) {
   if (!userSnap.exists) {
     throw new HttpsError('not-found', `Tenant ${userId} does not exist.`)
   }
-  const profile = { id: userSnap.id, ...userSnap.data() }
+
+  // Split the users doc: everything else stays in `profile`; the three
+  // third-party sub-objects are moved WHOLE into `thirdParties` so nothing
+  // about a third party is left loose in `profile`.
+  const {
+    guarantor = null,
+    emergencyContact = null,
+    previousReference = null,
+    ...profileRest
+  } = userSnap.data()
+  const profile = { id: userSnap.id, ...profileRest }
 
   const tenanciesSnap = await db
     .collection('tenancies')
@@ -122,7 +152,12 @@ async function exportTenantDataCore(userId) {
     paymentDate: r.paymentDate ?? null,
   }))
 
-  const documentManifest = collectManifest(profile, tenancies, signedReports)
+  const documentManifest = collectSubjectManifest(
+    profile,
+    tenancies,
+    signedReports,
+  )
+  const thirdPartyManifest = collectGuarantorManifest(guarantor)
 
   return {
     generatedAt: new Date().toISOString(),
@@ -132,11 +167,19 @@ async function exportTenantDataCore(userId) {
     signedReports,
     paymentHistory,
     documentManifest,
+    thirdParties: {
+      description: THIRD_PARTY_DESCRIPTION,
+      guarantor,
+      emergencyContact,
+      previousReference,
+      documentManifest: thirdPartyManifest,
+    },
     counts: {
       tenancies: tenancies.length,
       reportsTotal: allReports.length,
       signedReports: signedReports.length,
       documents: documentManifest.length,
+      thirdPartyDocuments: thirdPartyManifest.length,
     },
   }
 }

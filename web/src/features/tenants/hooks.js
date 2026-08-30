@@ -288,6 +288,23 @@ export function useResetTenantPassword() {
   })
 }
 
+// ──────────────────────── useExportTenantData ───────────────────
+/**
+ * Builds one subject-access bundle for a tenant (FR-TEN-26) via the
+ * `exportTenantData` callable (functions/src/tenantExport.js). Read-only —
+ * no Firestore write, no cache to invalidate. The response's `data` is the
+ * whole bundle; the Account tab shows it in a dialog for the administrator
+ * to read before it goes anywhere (SRS §5.3, §5.5).
+ */
+export function useExportTenantData() {
+  return useMutation({
+    mutationFn: ({ userId }) => {
+      const exportTenantData = httpsCallable(functions, 'exportTenantData')
+      return exportTenantData({ userId })
+    },
+  })
+}
+
 // ──────────────────────── useSetTenantAccountStatus ──────────────
 /**
  * Disables / re-enables a tenant's account (FR-TEN-24) via the

@@ -377,7 +377,16 @@
           "activeTenancy": "Termină contractul întâi.",
           "disabled": "Re-activează contul întâi."
         },
-        "archivedNotice": "Acest cont este arhivat."
+        "archivedNotice": "Acest cont este arhivat.",
+        "exportTitle": "Date personale",
+        "exportDescription": "Construiește un fișier cu tot ce deține aplicația despre acest chiriaș: profilul și răspunsurile KYC, toate tenanțele, rapoartele lunare semnate, istoricul de plăți și o listă a documentelor stocate. Datele despre garant, contactul de urgență și referința anterioară sunt grupate într-o secțiune marcată ca fiind despre alte persoane. Nu se trimite nimic nicăieri — verifici fișierul întâi.",
+        "exportButton": "Construiește fișierul de date",
+        "exportBuilding": "Se construiește…",
+        "exportError": "Fișierul nu a putut fi construit. Încearcă din nou.",
+        "exportDialogTitle": "Fișier de date personale — verifică înainte de trimitere",
+        "exportDialogNote": "Secțiunea „thirdParties” conține date despre garant, contactul de urgență și referința anterioară — persoane diferite de acest chiriaș.",
+        "exportCopy": "Copiază",
+        "exportDownload": "Descarcă .json"
       },
       "financial": {
         "empty": "Niciun raport încă."

@@ -377,7 +377,16 @@
           "activeTenancy": "End the contract first.",
           "disabled": "Re-enable the account first."
         },
-        "archivedNotice": "This account is archived."
+        "archivedNotice": "This account is archived.",
+        "exportTitle": "Personal data",
+        "exportDescription": "Builds one file with everything the product holds about this renter: profile and KYC answers, every tenancy, signed monthly reports, the payment history, and a list of stored documents. Data about the guarantor, the emergency contact and the previous reference is grouped in a section marked as being about other people. Nothing is sent anywhere — you review the file first.",
+        "exportButton": "Build the data file",
+        "exportBuilding": "Building…",
+        "exportError": "The file could not be built. Try again.",
+        "exportDialogTitle": "Personal data file — review before sending",
+        "exportDialogNote": "The \"thirdParties\" section holds data about the guarantor, the emergency contact and the previous reference — people other than this renter.",
+        "exportCopy": "Copy",
+        "exportDownload": "Download .json"
       },
       "financial": {
         "empty": "No reports yet."
