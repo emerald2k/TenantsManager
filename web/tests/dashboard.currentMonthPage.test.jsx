@@ -10,6 +10,14 @@ import { useReportsForMonth } from '@/features/reports/hooks'
 // already covers what useReportsForMonth does with Firestore; here we check
 // only what the page does with the joined data: rows, badge, navigation,
 // and the month selector.
+//
+// M8 stage 15: the page's CONTRACT is unchanged — same four columns
+// (property, renter, status badge, total, SRS §5.3), same row-click target,
+// same selector — so this coverage is kept rather than regenerated. What
+// changed is internal: the rows now come from the shared
+// `buildCurrentMonthRows` and render through the shared `CurrentMonthTable`,
+// the exact same list the dashboard's inline section uses (FR-DASH-02a).
+// The `renders through the shared CurrentMonthTable` test below pins that.
 vi.mock('@/features/tenants/hooks', () => ({ useActiveTenancies: vi.fn() }))
 vi.mock('@/features/reports/hooks', () => ({ useReportsForMonth: vi.fn() }))
 
@@ -218,6 +226,31 @@ describe('CurrentMonthPage', () => {
     await user.click(screen.getByRole('button', { name: 'Încearcă din nou' }))
 
     expect(reportsRefetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders through the shared CurrentMonthTable — same rows/columns as the dashboard section (FR-DASH-02a)', async () => {
+    // buildCurrentMonthRows + CurrentMonthTable are imported by BOTH this
+    // page and DashboardPage. A regression that changed the column set here
+    // would change it on the dashboard too; this asserts the four columns
+    // SRS §5.3 names, in order.
+    mockData({
+      tenancies: [tenancy()],
+      reports: [
+        {
+          propertyId: 'p1',
+          status: 'signed',
+          paymentStatus: 'paid',
+          finalTotal: 900,
+          dueDate: '2026-07-05',
+        },
+      ],
+    })
+    await renderWithProviders(<CurrentMonthPage />)
+
+    const headers = screen
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers).toEqual(['Proprietate', 'Chiriaș', 'Status', 'Total'])
   })
 
   it('sorts rows alphabetically by property name', async () => {

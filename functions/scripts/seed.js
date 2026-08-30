@@ -800,74 +800,92 @@ function foldReportChain(costLines, months) {
     costLines.serviceCosts.reduce((sum, line) => sum + line.amount, 0)
 
   let balance = 0
-  const reports = months.map(({ year, month, payment }) => {
-    const previousMonthArrears = Math.max(balance, 0)
-    const previousMonthCredit = Math.max(-balance, 0)
-    const finalTotal = base + previousMonthArrears - previousMonthCredit
+  const reports = months.map(
+    ({ year, month, payment, otherExpenses = [], roundingSurplus = 0 }) => {
+      const previousMonthArrears = Math.max(balance, 0)
+      const previousMonthCredit = Math.max(-balance, 0)
+      const otherExpensesTotal = otherExpenses.reduce(
+        (sum, line) => sum + line.amount,
+        0,
+      )
+      // `calculatedTotal` is what the cost lines + carry-forward actually
+      // add up to; `finalTotal` is that value FROZEN one rounding step
+      // higher on a month that applied FR-REP-04a's Round action
+      // (`roundingSurplus` > 0). With no rounding — every month except the
+      // one on ENDED_MONTHS — the two are equal, exactly as before.
+      const calculatedTotal =
+        base + otherExpensesTotal + previousMonthArrears - previousMonthCredit
+      const finalTotal = calculatedTotal + roundingSurplus
 
-    let paymentFields = {}
-    let amountPaidForBalance = 0
+      let paymentFields = {}
+      let amountPaidForBalance = 0
 
-    if (payment?.kind === 'paidInFull') {
-      paymentFields = {
-        amountPaid: finalTotal,
-        paymentMethod: payment.method,
-        paymentDate: payment.date,
-        paymentStatus: 'paid',
+      if (payment?.kind === 'paidInFull') {
+        paymentFields = {
+          amountPaid: finalTotal,
+          paymentMethod: payment.method,
+          paymentDate: payment.date,
+          paymentStatus: 'paid',
+        }
+        amountPaidForBalance = finalTotal
+      } else if (payment?.kind === 'partial') {
+        paymentFields = {
+          amountPaid: payment.amountPaid,
+          paymentMethod: payment.method,
+          paymentDate: payment.date,
+          paymentStatus: 'partial',
+        }
+        amountPaidForBalance = payment.amountPaid
+      } else if (payment?.kind === 'unpaid') {
+        paymentFields = {
+          amountPaid: null,
+          paymentMethod: null,
+          paymentDate: null,
+          paymentStatus: 'unpaid',
+        }
+        amountPaidForBalance = 0
       }
-      amountPaidForBalance = finalTotal
-    } else if (payment?.kind === 'partial') {
-      paymentFields = {
-        amountPaid: payment.amountPaid,
-        paymentMethod: payment.method,
-        paymentDate: payment.date,
-        paymentStatus: 'partial',
-      }
-      amountPaidForBalance = payment.amountPaid
-    } else if (payment?.kind === 'unpaid') {
-      paymentFields = {
-        amountPaid: null,
-        paymentMethod: null,
-        paymentDate: null,
-        paymentStatus: 'unpaid',
-      }
-      amountPaidForBalance = 0
-    }
-    // else: payment omitted -> "absent" state, paymentFields stays {},
-    // amountPaidForBalance stays 0 (never touched, just signed).
+      // else: payment omitted -> "absent" state, paymentFields stays {},
+      // amountPaidForBalance stays 0 (never touched, just signed).
 
-    // No `- roundingSurplus` term: this fold's roundingSurplus is always 0
-    // (see the field's own comment below), so `recomputeCurrentBalance`'s
-    // extra subtraction is a no-op here — omitted rather than written as a
-    // literal `- 0`.
-    balance = finalTotal - amountPaidForBalance
+      // Mirrors `recomputeCurrentBalance`'s corrected M8 formula exactly:
+      // balance after a report = finalTotal - amountPaid - roundingSurplus.
+      // On a paid-in-full month with a surplus this leaves -roundingSurplus
+      // (a credit) that the NEXT month picks up as previousMonthCredit —
+      // the "cancels across two consecutive months" chain FR-REP-04a/04f
+      // describes, exercised on ENDED_MONTHS (Dec 2025 -> Jan 2026).
+      balance = finalTotal - amountPaidForBalance - roundingSurplus
 
-    return {
-      year,
-      month,
-      rent: { ...costLines.rent, attachments: [] },
-      maintenance: { ...costLines.maintenance, attachments: [] },
-      serviceCosts: costLines.serviceCosts.map((line) => ({
-        ...line,
-        attachments: [],
-      })),
-      otherExpenses: [],
-      previousMonthArrears,
-      previousMonthCredit,
-      calculatedTotal: finalTotal,
-      finalTotal,
-      // M8, FR-REP-04a: every cost line this fold's chains use is already a
-      // round multiple of 10 (and stays round through arrears/credit, which
-      // are themselves derived from round `finalTotal`s), so the rounding
-      // ACTION never has anything to round here — `0` on every row is
-      // therefore correct, not a stand-in. The one reachable non-zero
-      // roundingSurplus in the seed lives on HANDOVER_OUT_REPORT (a literal,
-      // not fold-generated), where a deliberately non-round otherExpense
-      // line makes a real surplus possible.
-      roundingSurplus: 0,
-      ...paymentFields,
-    }
-  })
+      return {
+        year,
+        month,
+        rent: { ...costLines.rent, attachments: [] },
+        maintenance: { ...costLines.maintenance, attachments: [] },
+        serviceCosts: costLines.serviceCosts.map((line) => ({
+          ...line,
+          attachments: [],
+        })),
+        otherExpenses: otherExpenses.map((line) => ({
+          notes: '',
+          ...line,
+          attachments: [],
+        })),
+        previousMonthArrears,
+        previousMonthCredit,
+        calculatedTotal,
+        finalTotal,
+        // M8, FR-REP-04a: the fold's chains use round cost lines, so the
+        // rounding ACTION has nothing to round on all but the ONE month
+        // that passes a non-round `otherExpenses` line plus an explicit
+        // `roundingSurplus` (ENDED_MONTHS' December). Everywhere else this
+        // stays 0, correct rather than a stand-in. The hand-over pair's
+        // HANDOVER_OUT_REPORT carries the other reachable non-zero surplus
+        // (a literal, frozen at termination — it never gets to cancel).
+        roundingSurplus,
+        ...paymentFields,
+      }
+    },
+  )
 
   return { reports, finalBalance: balance }
 }
@@ -926,6 +944,18 @@ const OCCUPIED_DRAFT_MONTH = { year: 2026, month: 8 }
 // chain — BOTH paid in full, deliberately (plan §5 risk #1): FR-CON-04
 // blocks `endTenancy` while arrears are outstanding, so an ended tenancy
 // with a non-zero balance is a state the real app can never produce.
+//
+// M8 stage 15 (debt 1): this chain now also carries the seed's ONLY
+// rounding surplus that CANCELS in a running-balance chain (as opposed to
+// HANDOVER_OUT_REPORT's, frozen at termination). December applies
+// FR-REP-04a's Round action — a -3 lei "final-consumption adjustment" line
+// drops `calculatedTotal` to 1977, the admin rounds `finalTotal` back up to
+// 1980, `roundingSurplus` is 3. December is paid in full (1980), so the
+// balance after it is 1980 - 1980 - 3 = -3, a credit. January picks that up
+// as `previousMonthCredit`, bills `1980 - 3 = 1977`, is paid in full, and
+// the chain closes at exactly 0 — `seed-tenancy-ended.currentBalance` and
+// `closingBalance` are unchanged (still 0). Only January's seeded
+// `finalTotal` moves, 1980 -> 1977.
 const ENDED_COST_LINES = {
   rent: { amount: 1800, notes: '' },
   maintenance: { amount: 0, notes: '' },
@@ -938,6 +968,14 @@ const ENDED_MONTHS = [
   {
     year: 2025,
     month: 12,
+    otherExpenses: [
+      {
+        description: 'Ajustare consum final',
+        amount: -3,
+        notes: '',
+      },
+    ],
+    roundingSurplus: 3, // 1980 (frozen) - 1977 (calculatedTotal), FR-REP-04a
     payment: {
       kind: 'paidInFull',
       method: 'bank_transfer',
@@ -1494,8 +1532,10 @@ async function reseedEndedScenario(ownerId, bucket) {
 
   // Hand-set AFTER both report writes above — same reasoning as the
   // occupied scenario's own currentBalance set. finalBalance is `0` here
-  // by construction (both months paidInFull), asserted via the console log
-  // below rather than silently trusted.
+  // by construction: both months paid in full, and December's rounding
+  // surplus (3 lei) is cancelled by January consuming it as credit — the
+  // whole point of this chain (M8 stage 15, debt 1). Asserted via the
+  // console log below rather than silently trusted.
   await tenancyRef.update({ currentBalance: finalBalance })
 
   console.log('Wrote the ended scenario (seed-tenant-ended):')
@@ -1538,13 +1578,14 @@ const HANDOVER_OUT_REPORT = {
     },
     { serviceId: 'water', name: 'Apă', amount: 20, notes: '', attachments: [] },
   ],
-  // M8, FR-REP-04a: this is the seed's ONE reachable rounding-action example
-  // (CLAUDE.md §7's seed-completeness rule — "every state a requirement
-  // describes should be reachable in seeded data"). A small negative
-  // adjustment line is what makes calculatedTotal land off a multiple of 10
-  // in the first place — rent/services alone are already round numbers
-  // throughout this seed, so a rounding surplus can only ever be non-zero
-  // here, deliberately.
+  // M8, FR-REP-04a: one of the seed's two reachable rounding-action
+  // examples (CLAUDE.md §7's seed-completeness rule — "every state a
+  // requirement describes should be reachable in seeded data"). This one is
+  // frozen at termination and never cancels; ENDED_MONTHS' December carries
+  // the other, which DOES cancel in the chain (debt 1, stage 15). A small
+  // negative adjustment line is what makes calculatedTotal land off a
+  // multiple of 10 in the first place — rent/services alone are already
+  // round numbers throughout this seed.
   otherExpenses: [
     {
       description: 'Ajustare cont final predare',

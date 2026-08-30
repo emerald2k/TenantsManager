@@ -539,17 +539,58 @@
     }
   },
   "dashboard": {
-    "title": "Dashboard",
-    "outstandingThisMonth": "Total de încasat luna asta",
-    "totalArrears": "Total arierate",
-    "error": "Dashboard-ul nu a putut fi încărcat.",
+    "title": "Panou",
+    "error": "Panoul nu a putut fi încărcat.",
     "emptyState": {
-      "title": "Bine ai venit — hai să începem",
+      "title": "Nicio proprietate încă",
+      "body": "Începe cu proprietatea și serviciile ei, apoi înregistrează chiriașul cu contractul lui. Cifrele și lista lunii apar odată ce există date.",
       "addProperty": "Adaugă proprietate",
       "enrollTenant": "Înrolează chiriaș"
     },
+    "selector": {
+      "previous": "Luna anterioară",
+      "next": "Luna următoare"
+    },
+    "expected": {
+      "label": "Total de încasat",
+      "hint": "Tot ce datorează chiriașii activi, restanțele vechi incluse"
+    },
+    "overdue": {
+      "containment": "Din care restant: {{amount}}"
+    },
+    "collected": {
+      "label": "Încasat în luna aleasă",
+      "hint": "Bani intrați efectiv în luna aleasă, din orice lună ar fi factura"
+    },
+    "properties": {
+      "label": "Total proprietăți",
+      "hint": "{{occupied}} închiriate · {{free}} libere — situația de acum, nu a lunii alese"
+    },
+    "strip": {
+      "creditInAdvance": "Avans plătit de chiriași",
+      "owedByFormer": "De recuperat de la foști chiriași",
+      "owedToFormer": "De returnat foștilor chiriași",
+      "unsignedReports": "Rapoarte nesemnate luna aleasă",
+      "unsignedCount": "{{count}} din {{total}}"
+    },
+    "history": {
+      "title": "Facturat pe lună",
+      "subtitle": "Ultimele 12 luni",
+      "billedLabel": "Facturat",
+      "empty": "Niciun raport semnat încă — graficul se completează după prima semnare.",
+      "monthOpen": "luna nu s-a încheiat",
+      "asOf": "Cifre la {{timestamp}}. Un raport deblocat și resemnat poate schimba o lună trecută."
+    },
+    "notifications": {
+      "title": "Ultimele notificări",
+      "viewAll": "Toate notificările",
+      "emptyWindow": "Niciun email trimis în ultimele 12 luni.",
+      "emptyLog": "Jurnalul este gol. Se completează pe măsură ce sistemul trimite emailuri."
+    },
     "currentMonth": {
       "title": "Luna curentă",
+      "sectionTitle": "Luna curentă · {{month}}",
+      "openFull": "Deschide Luna curentă",
       "previousMonth": "Luna anterioară",
       "nextMonth": "Luna următoare",
       "error": "Luna curentă nu a putut fi încărcată.",

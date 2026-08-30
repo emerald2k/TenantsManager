@@ -540,16 +540,57 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "outstandingThisMonth": "Total to collect this month",
-    "totalArrears": "Total arrears",
     "error": "Could not load the dashboard.",
     "emptyState": {
-      "title": "Welcome — let's get started",
+      "title": "No property yet",
+      "body": "Start with the property and its services, then enroll the renter with their contract. The figures and the month's list appear once there is data.",
       "addProperty": "Add property",
       "enrollTenant": "Enroll renter"
     },
+    "selector": {
+      "previous": "Previous month",
+      "next": "Next month"
+    },
+    "expected": {
+      "label": "Total to collect",
+      "hint": "Everything active renters owe, older arrears included"
+    },
+    "overdue": {
+      "containment": "Of which overdue: {{amount}}"
+    },
+    "collected": {
+      "label": "Collected in the selected month",
+      "hint": "Money actually received in the selected month, whichever month the bill is for"
+    },
+    "properties": {
+      "label": "Total properties",
+      "hint": "{{occupied}} let · {{free}} free — as of now, not the selected month"
+    },
+    "strip": {
+      "creditInAdvance": "Renter credit in advance",
+      "owedByFormer": "Owed by former renters",
+      "owedToFormer": "Owed to former renters",
+      "unsignedReports": "Unsigned reports, selected month",
+      "unsignedCount": "{{count}} of {{total}}"
+    },
+    "history": {
+      "title": "Billed per month",
+      "subtitle": "Last 12 months",
+      "billedLabel": "Billed",
+      "empty": "No signed report yet — the chart fills in after the first signing.",
+      "monthOpen": "month not closed",
+      "asOf": "Figures as of {{timestamp}}. Unlocking and re-signing a report can change a past month."
+    },
+    "notifications": {
+      "title": "Latest notifications",
+      "viewAll": "All notifications",
+      "emptyWindow": "No email sent in the last 12 months.",
+      "emptyLog": "The log is empty. It fills in as the system sends emails."
+    },
     "currentMonth": {
       "title": "Current month",
+      "sectionTitle": "Current month · {{month}}",
+      "openFull": "Open Current month",
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
       "error": "Could not load the current month.",

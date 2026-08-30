@@ -4,60 +4,23 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { RetryButton } from '@/components/shared/RetryButton'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Table } from '@/components/shared/Table'
-import { MoneyAmount } from '@/components/shared/MoneyAmount'
 import { useActiveTenancies } from '@/features/tenants/hooks'
 import { useReportsForMonth } from '@/features/reports/hooks'
 import {
-  deriveReportStatusBadge,
+  buildCurrentMonthRows,
   formatMonthYearLabel,
+  shiftMonth,
 } from '@/features/dashboard/calculations'
-
-const BADGE_TONE = {
-  'not-entered': 'bg-muted text-muted-foreground',
-  signed: 'bg-secondary text-secondary-foreground',
-  partial: 'bg-primary/10 text-primary',
-  paid: 'bg-primary text-primary-foreground',
-  overdue: 'bg-destructive/10 text-destructive',
-}
-
-const BADGE_LABEL_KEY = {
-  'not-entered': 'notEntered',
-  signed: 'signed',
-  paid: 'paid',
-  partial: 'partial',
-  overdue: 'overdue',
-}
-
-function StatusBadge({ status }) {
-  const { t } = useTranslation()
-
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_TONE[status]}`}
-    >
-      {t(`dashboard.currentMonth.badge.${BADGE_LABEL_KEY[status]}`)}
-    </span>
-  )
-}
-
-/** Adds `delta` months to `{ month, year }`, rolling the year at the edges. */
-function shiftMonth({ month, year }, delta) {
-  const zeroBased = month - 1 + delta
-  return {
-    month: (((zeroBased % 12) + 12) % 12) + 1,
-    year: year + Math.floor(zeroBased / 12),
-  }
-}
+import { CurrentMonthTable } from '@/features/dashboard/components/CurrentMonthTable'
 
 /**
- * The Current month list (FR-DASH-02, SRS §5.3). Rows are sourced directly
- * from `useActiveTenancies` — an active tenancy already denormalizes
- * `property.name`/`tenantName` (SRS §6), so occupied-property rows need no
- * separate `properties` read/join here. Free properties never appear
- * because they have no active tenancy. Reports for the selected month are
- * fetched once (`useReportsForMonth`, reports/hooks.js) and matched by
- * `propertyId`.
+ * The standalone Current-month page (FR-DASH-02, SRS §5.3). Since M8 stage 15
+ * it is the SAME list, from the SAME data and the SAME component
+ * (`CurrentMonthTable`, `buildCurrentMonthRows`) as the dashboard's inline
+ * section — FR-DASH-02a: "both render the same rows … not a reduced variant
+ * with different columns". Rows come straight from `useActiveTenancies` (an
+ * active tenancy denormalizes `property.name`/`tenantName`), so free
+ * properties never appear and no separate `properties` read is needed.
  */
 export function CurrentMonthPage() {
   const { t, i18n } = useTranslation()
@@ -75,34 +38,11 @@ export function CurrentMonthPage() {
   const isPending = tenancies.isPending || reports.isPending
   const isError = tenancies.isError || reports.isError
 
-  const rows = useMemo(() => {
-    const reportsByProperty = new Map(
-      (reports.data ?? []).map((report) => [report.propertyId, report]),
-    )
-    return (tenancies.data ?? [])
-      .map((tenancy) => {
-        const report = reportsByProperty.get(tenancy.propertyId) ?? null
-        return {
-          propertyId: tenancy.propertyId,
-          tenancyId: tenancy.id,
-          propertyName: tenancy.property?.name ?? '',
-          tenantName: tenancy.tenantName,
-          badge: deriveReportStatusBadge(report),
-          total: report ? report.finalTotal : null,
-        }
-      })
-      .sort((a, b) => a.propertyName.localeCompare(b.propertyName))
-  }, [tenancies.data, reports.data])
-
-  // Links straight to the tenancy-scoped report route (FR-REP-14) — this
-  // list is already built from ACTIVE tenancies (FR-CON-02: at most one per
-  // property), so which tenancy a row means is never ambiguous here. No
-  // property->tenancy resolution needed, unlike a bare property-level link.
-  function goToReport(tenancyId) {
-    navigate(
-      `/admin/reports/${tenancyId}?month=${selected.month}&year=${selected.year}`,
-    )
-  }
+  const rows = useMemo(
+    () => buildCurrentMonthRows(tenancies.data ?? [], reports.data ?? [], now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenancies.data, reports.data],
+  )
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -156,39 +96,13 @@ export function CurrentMonthPage() {
           {t('dashboard.currentMonth.noOccupiedProperties')}
         </p>
       ) : (
-        <Table
-          columns={[
-            {
-              key: 'property',
-              header: t('dashboard.currentMonth.columns.property'),
-              primary: true,
-              render: (row) => row.propertyName,
-            },
-            {
-              key: 'tenant',
-              header: t('dashboard.currentMonth.columns.tenant'),
-              render: (row) => row.tenantName,
-            },
-            {
-              key: 'status',
-              header: t('dashboard.currentMonth.columns.status'),
-              render: (row) => <StatusBadge status={row.badge} />,
-            },
-            {
-              key: 'total',
-              header: t('dashboard.currentMonth.columns.total'),
-              align: 'right',
-              // A positive finalTotal is just this month's ordinary bill,
-              // not arrears — emphasizePositive={false} keeps it from
-              // rendering in the destructive colour the balance columns use.
-              render: (row) => (
-                <MoneyAmount value={row.total} emphasizePositive={false} />
-              ),
-            },
-          ]}
+        <CurrentMonthTable
           rows={rows}
-          getRowKey={(row) => row.propertyId}
-          onRowClick={(row) => goToReport(row.tenancyId)}
+          onRowClick={(row) =>
+            navigate(
+              `/admin/reports/${row.tenancyId}?month=${selected.month}&year=${selected.year}`,
+            )
+          }
         />
       )}
     </div>
