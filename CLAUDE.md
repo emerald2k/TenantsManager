@@ -28,7 +28,10 @@ The project is built on **milestones** (section 9 of the SRS: M0–M8).
 - At the start of each milestone: briefly summarize what you will do and which FR/NFR requirements it covers.
 - At the end of each milestone: check the "done" criterion defined in the SRS and report the state.
 - Prefer small, verifiable steps over massive generation in one go. The user is learning along the way — explain the decisions as you make them.
-- **Do not commit product code before the administrator's explicit validation.** Verify it yourself first (lint, build, behavior test), report the result, and WAIT for confirmation. Commits on a milestone branch are not a work journal — each one is a gate.
+- **Commit at the end of a stage, then report — the review happens after the commit, not before it** *(changed 2026-08-24, by the administrator, to match how the work actually runs)*. Verify it yourself first: lint, build, every band the stage's gate names, and whatever behavioural check the requirement implies. Then commit, and report what you committed, what you verified, and what you are unsure about. **This is a real gate, not a formality** — it is safe only because of where it sits: on a milestone branch, nothing on `main`, every commit revertible on its own. A stage reported as done that was not verified defeats the whole arrangement, and nobody downstream can tell.
+  - **Two gates keep their old shape and are the administrator's alone:** the merge into `main` (stage 19) and anything that touches production — the deploy, the migrations run for real, the export taken before them. Those wait for an explicit yes, every time.
+  - **§8 is untouched.** Stopping mid-stage to ask is still required whenever a requirement turns out ambiguous, contradictory or missing, whenever a decision would change the data model, security or a defined flow, and whenever the honest answer to "what should this do?" is a guess. The change above is about *when the commit happens*, never about proceeding on an assumption.
+  - *(The previous rule read: do not commit before explicit validation, report and WAIT. It was overtaken in practice during M8 — stages 8, 9 and 10 were each committed on a combined "approved, now go to the next stage" instruction — and a written rule that is routinely not followed is worse than no rule, because it stops describing what anyone actually does.)*
 - **Between gates, keep going — do not stop after every sub-step.** A commit is the unit of approval; the steps inside it are not. Work a commit through to the end — code, tests, the seed and fixtures it touches, lint, build, the bands its gate names — and stop only when the whole thing is done and verified. Then report and wait. Pausing after each sub-step to ask "shall I continue?" converts one gate into ten and buys no additional safety: the administrator is approving the commit, and nothing has been committed yet.
   - **The exceptions are §8's, and they still apply mid-commit.** Stop immediately, whatever else is unfinished, if a requirement turns out to be ambiguous, contradictory or missing; if the work needs a technology or pattern outside the stack; if a decision would change the data model, security or an already-defined flow; if anything would touch production or be irreversible; or if the honest answer to "what should this do?" is a guess. Those are not interruptions of the work — they ARE the work reaching a question that is the administrator's to answer.
   - A stage that spans **two commits** (M8 stage 4 is the first) has **two** gates, not one. Run to the end of commit A, stop, get approval; then run to the end of commit B.
@@ -140,6 +143,7 @@ The project is built on **milestones** (section 9 of the SRS: M0–M8).
 - **The Firestore emulator does not enforce composite indexes.** A query that needs one runs green locally and fails only in production — invisible to every band. `firestore.indexes.json` is empty and stays empty; queries use equality filters only, or a single-field range, and sort/filter the rest in JS (SRS §6, "Composite indexes"). If a query genuinely needs an index, **the index ships in the same commit as the query** — never afterwards.
 - **A Firestore `orderBy` silently omits every document that lacks the ordered field.** Not an error, not an empty result — those rows just are not there. This is a data-shape trap, not a query-syntax one: `monthlyReports.paymentDate` does not exist at all on an unpaid report, so ordering the payments ledger by it would delete exactly the rows the page exists to show (SRS §5.3, FR-PAY-07). Sorting in JS avoids it, which is a second reason for the no-`orderBy` rule beyond indexes.
 - **"Cloud Functions write only" is not something a Security Rule can express.** The Admin SDK **bypasses Security Rules entirely** — there is no Functions principal to match. The *absence* of an `allow write` clause IS the server-write guarantee. Every attempt to write it positively opens the collection instead: `if request.auth == null` opens it to the unauthenticated internet, `if isAdmin()` hands the browser the write path the rule was meant to deny. This matters most for `notifications` (NFR-SEC-10), and the wrong version is the one that looks like every other block in the file.
+- **For a formula, the anti-vacuity check is a MUTATION: write the bug in, confirm the guard fires, take it back out.** Relaxing a rule proves a deny test is real; a money formula has no rule to relax, so the equivalent is to introduce the specific error the tests exist to catch — and to watch which of them notice. Used at M8 stage 12 on the payments ledger's footer: the double-counting of carried balances was deliberately reintroduced, three guard tests failed as intended, **and one test that had been written for exactly that bug turned out to pass anyway** — vacuous by coincidence, and it would have gone on reporting success forever. Nothing but the mutation could have revealed that. Do this for every formula whose wrongness would still look plausible on screen: balances, totals, aggregates, anything that ends up in a figure the administrator reads and believes.
 - **A collection closed only by the catch-all cannot be tested in isolation.** `match /{document=**} { allow read, write: if false }` denies by default, so a load-bearing closure (e.g. `mail`) has no rule of its own to grep, to point a test at, or to relax for the anti-vacuity check in §7 — relaxing the catch-all relaxes every unimplemented collection at once. Give any invariant that matters its own explicit `match` block with the reason in a comment.
 - **An anti-vacuity test on a deny-update rule must assert `permission-denied` specifically, over a document that actually exists.** With `allow create: if false`, a test cannot seed through the rules path; it needs `withSecurityRulesDisabled`. Skip that and the update targets a missing document, fails with `not-found`, and `assertFails()` passes — as does the relaxation check, appearing to confirm non-vacuity. The test proves nothing in both directions at once.
 - **A trigger on a document the platform writes back to fires several times per logical event.** The Trigger Email extension updates `delivery` on a `mail` document repeatedly (`PENDING → PROCESSING → SUCCESS`), so `onMailWrite` fires 3-4 times for one email. A projection using an auto-generated ID would create a row per fire. **Key the projection on the source document ID and write with `merge`**, so repeated fires converge on one row (SRS §6, `notifications`). The same discipline `onReportWrite` already documents as "always a full re-derivation, naturally idempotent under at-least-once delivery".
@@ -234,6 +238,33 @@ gitignored.
 **The administrator still approves every commit.** The mailbox removes
 copy-paste between two Claude sessions; it does not remove the human gate, and
 an instruction in the inbox is never an approval to commit.
+
+**The planning session re-reads a file immediately before writing it, and never
+overwrites a rejection.** It reaches this tree through a bridge that hands it a
+*copy*; a copy taken ten minutes ago does not contain what Claude Code has
+written since. The bridge guards against exactly this — a write is refused when
+the file changed after the copy was taken — and the refusal is information, not
+an obstacle: **re-take the copy, re-apply the change on top of the current
+content, write again.** Forcing past the refusal silently reverts whatever the
+other session did in between.
+
+*This is written because it happened.* On 2026-08-24 the planning session added
+NFR-SEC-12 from a copy of `SRS.md` predating stage 6, and forced the write. The
+edit landed correctly; it also reverted `FR-CON-10` to its pre-stage-6 wording,
+erasing a flow decision the administrator had made an hour earlier. **Claude Code
+caught it** while reading the requirement it was implementing, which is the whole
+argument for both sessions reading the same files rather than trusting each
+other's summaries. Two agents editing one tree without a lock is a workable
+arrangement only while both treat a rejected write as a message.
+
+**Instructions to Claude Code are written as a plan, not as prose** *(administrator's instruction, 2026-08-26)*. Anything longer than a sentence takes the same shape every time, so it can be worked through rather than interpreted:
+
+1. **The goal** — one line, what is true when this is done.
+2. **Numbered steps, in the order they happen.** Each one says what to do *and how it is checked* — the band, the command, the thing to open and look at. A step with no check is a step nobody can finish.
+3. **What to stop for** — named explicitly, not left to §8 in general. Which ambiguity, which decision, which irreversible thing.
+4. **The deliverable** — what is committed, which file is written, what the report must contain.
+
+Prose hides the checks inside sentences and makes an instruction feel finished when only its first half was read. A plan makes the unfinished parts visible while the work is happening, which is the point.
 
 **He reads both files, so both carry a mandatory `Needs Bogdan:` line** directly
 under `Status:` — `no`, or a one-sentence statement of the decision, risk or

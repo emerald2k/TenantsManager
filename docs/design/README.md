@@ -28,6 +28,36 @@ and the mockup is stale.
 | The interaction legend is a design document, **it does not ship** | NFR-UX-07         |
 | Responsive: desktop/tablet identical, phone shell, 320 px floor   | NFR-UX-03         |
 | Dashboard content and tiles                                       | FR-DASH-01, 04…14 |
+| Current month table — **seven** columns                           | FR-DASH-02b, 02c  |
+| History chart — **one** series, Billed only                       | FR-DASH-09b       |
+
+## Where the mockup is deliberately stale
+
+One place, recorded so nobody "fixes" the product back to the picture.
+
+**The history chart has two series in the mockup — Încasat and Facturat. The
+product ships one: Billed.** Administrator's decision, 2026-08-30, written into
+**FR-DASH-09b**, which is what governs. A twelve-month Collected series needs a
+rolling window over `paymentDate` spanning two calendar years; the page's report
+query is filtered by a single `year`, so a report billed in December and paid in
+January falls outside it and the series comes out **silently low**. It was
+declined rather than approximated. The mockup's chart title, its legend, its
+per-bar tooltips and the paragraph beneath it all describe the two-series
+version and are stale in the same way.
+
+**The phone title bar's bell shows a badge reading "3" in the mobile mockup. It
+ships with no count.** There is no read/unread state in the model — `notifications`
+is a read-only projection of `mail` — so there was nothing to count. NFR-UX-03
+carried the same false claim and has been corrected. **No count is coming**
+(owner decision, 2026-08-30): there is no document for the administrator anywhere
+in §6, so a "last seen" timestamp would have meant a new collection and a new
+security rule for a badge. The bell is a shortcut to the notifications page.
+
+**The mobile mockup's "More" sheet lists Notificări and Temă, which also appear
+as icons in the phone title bar. That duplication is deliberate and stays.** The
+title-bar controls are icon-only; an icon-only bell is not an affordance for a
+non-technical user (NFR-UX-06 rule 3), so the sheet holds the labelled route. The
+theme row carries its **state** ("Temă · Deschisă"), never an action label.
 
 ## Three decisions that are easy to undo by accident
 
