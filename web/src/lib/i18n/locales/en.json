@@ -389,7 +389,10 @@
         "exportDownload": "Download .json"
       },
       "financial": {
-        "empty": "No reports yet."
+        "empty": "No reports yet.",
+        "error": "The reports could not be loaded. Try again.",
+        "statusDraft": "Draft",
+        "statusSigned": "Signed"
       }
     }
   },

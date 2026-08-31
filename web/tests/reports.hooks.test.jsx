@@ -17,6 +17,7 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useReportsForMonth,
+  useReportsForUser,
   useReportsForYear,
   useRevokeShareLink,
   useSaveReportDraft,
@@ -307,6 +308,114 @@ describe('useSignedReportsForTenancy (M8 stage 7, FR-SYS-05a)', () => {
   it('does not query until a tenancyId is provided', async () => {
     const { result } = await renderHookWithProviders(() =>
       useSignedReportsForTenancy(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
+  })
+})
+
+describe('useReportsForUser (UI/UX audit 2026-08-31 #1, SRS §5.3)', () => {
+  it('queries monthlyReports by userId ONLY — no status filter, no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 't1_2026-07',
+          data: () => ({
+            tenancyId: 't1',
+            userId: 'u1',
+            month: 7,
+            year: 2026,
+            status: 'signed',
+          }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForUser('u1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('userId', '==', 'u1')
+    // The regression the audit found: a tab keyed off the wrong field shows
+    // nothing. FR-REP-14 re-keyed the doc id from propertyId to tenancyId —
+    // neither is the account axis, and neither may leak into this query.
+    expect(where).not.toHaveBeenCalledWith(
+      'propertyId',
+      '==',
+      expect.anything(),
+    )
+    expect(where).not.toHaveBeenCalledWith('tenancyId', '==', expect.anything())
+    expect(where).not.toHaveBeenCalledWith('status', '==', expect.anything())
+  })
+
+  it('returns every status — a draft and a signed report both come back', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        { id: 'a', data: () => ({ status: 'draft', month: 8, year: 2026 }) },
+        { id: 'b', data: () => ({ status: 'signed', month: 1, year: 2026 }) },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForUser('u1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data.map((r) => r.status)).toEqual([
+      'draft',
+      'signed',
+    ])
+  })
+
+  it('spans every tenancy of the account, sorted newest month/year first', async () => {
+    // Two reports, two DIFFERENT tenancies, one account (FR-TEN-15) — both
+    // must survive the fetch, ordered by the JS sort, not Firestore.
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 'b_2025-11',
+          data: () => ({
+            tenancyId: 'tb',
+            userId: 'u1',
+            month: 11,
+            year: 2025,
+          }),
+        },
+        {
+          id: 'a_2026-07',
+          data: () => ({ tenancyId: 'ta', userId: 'u1', month: 7, year: 2026 }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForUser('u1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data.map((r) => r.id)).toEqual([
+      'a_2026-07',
+      'b_2025-11',
+    ])
+    expect(result.current.data.map((r) => r.tenancyId)).toEqual(['ta', 'tb'])
+  })
+
+  it('returns an empty array, not an error, when the account has no reports', async () => {
+    getDocs.mockResolvedValue({ docs: [] })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForUser('u1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+
+  it('does not query until a userId is provided', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForUser(undefined),
     )
 
     expect(result.current.fetchStatus).toBe('idle')

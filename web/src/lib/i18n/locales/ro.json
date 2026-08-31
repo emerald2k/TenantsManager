@@ -389,7 +389,10 @@
         "exportDownload": "Descarcă .json"
       },
       "financial": {
-        "empty": "Niciun raport încă."
+        "empty": "Niciun raport încă.",
+        "error": "Rapoartele nu au putut fi încărcate. Încearcă din nou.",
+        "statusDraft": "Ciornă",
+        "statusSigned": "Semnat"
       }
     }
   },
