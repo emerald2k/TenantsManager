@@ -158,11 +158,11 @@ administrator had earlier chosen to build all six inside M8, and a stage 17b was
 created to own them; that row was lost when this table was rewritten, and the
 loss was found by re-reading the plan before the audit rather than by the audit.
 Re-put to him at that point, **he chose to leave them deferred** — so the E2E
-band closes M8 at **four tests against six named flows**. The consequence is
+band closes M8 at **six tests covering one of the six named flows** — flow 1, made real at stage 18b. _(This sentence read "four tests against six named flows" until 2026-08-31; the stage 18 audit's discrepancy 7 found that `login.spec.js` performed no login, so the count was zero of six before 18b, never four.)_ The consequence is
 carried in SRS §9 and in stage 20's row: the migration's risk rests on the other
 three bands plus a **manual post-migration check on production — log in as a real
 tenant and open a pre-migration invoice**. The audit's zone C must state the
-four-of-six count; a band reported only as "green" is what would hide it.
+one-of-six count and name the five uncovered flows; a band reported only as "green" is what would hide it.
 
 **Personal-data obligations** are recorded as unanswered in SRS §4.1: retention
 periods, an erasure procedure that keeps the financial history, the guarantor's
