@@ -4,6 +4,20 @@ import { renderWithProviders } from './renderWithProviders'
 import { adaptTenantReportSummary } from '@/features/tenantApp/reportAdapter'
 import { ReportSummaryView } from '@/components/shared/ReportSummaryView'
 
+// The adapter takes the i18n `t` (audit #4 — catalog service names
+// re-translate at adapt time). Stubs, one per language, mapping only the
+// catalog keys this fixture uses; anything else is echoed back.
+const RO = {
+  'properties.services.electricity': 'Electricitate',
+  'properties.services.gas': 'Gaz',
+}
+const EN = {
+  'properties.services.electricity': 'Electricity',
+  'properties.services.gas': 'Gas',
+}
+const t = (key) => RO[key] ?? key
+const tEn = (key) => EN[key] ?? key
+
 // Fixture shaped like functions/scripts/seed.js's signedReport() — hand-copied,
 // NOT imported: functions/ and web/ are separate packages with no shared
 // import path in this monorepo (same boundary CLAUDE.md §7 documents for the
@@ -65,7 +79,7 @@ describe('adaptTenantReportSummary', () => {
       },
     })
 
-    expect(adaptTenantReportSummary(report)).toEqual({
+    expect(adaptTenantReportSummary(report, t)).toEqual({
       month: 7,
       year: 2026,
       rent: {
@@ -97,7 +111,7 @@ describe('adaptTenantReportSummary', () => {
   })
 
   it('A2 — never leaks internal/ownership fields, even under a spread-bug', () => {
-    const output = adaptTenantReportSummary(seedShapedReport())
+    const output = adaptTenantReportSummary(seedShapedReport(), t)
     const keys = Object.keys(output)
     for (const forbidden of [
       'ownerId',
@@ -130,7 +144,7 @@ describe('adaptTenantReportSummary', () => {
         ],
       },
     })
-    const output = adaptTenantReportSummary(report)
+    const output = adaptTenantReportSummary(report, t)
     expect(output.rent.attachments[0].path).toBe(
       'reports/prop-1_2026-07/invoices/invoice.pdf',
     )
@@ -141,7 +155,7 @@ describe('adaptTenantReportSummary', () => {
     const report = seedShapedReport()
     delete report.paymentStatus
     delete report.amountPaid
-    const output = adaptTenantReportSummary(report)
+    const output = adaptTenantReportSummary(report, t)
     expect(output.paymentStatus).toBeNull()
     expect(output.amountPaid).toBeNull()
     expect(output.previousMonthArrears).toBe(0)
@@ -165,7 +179,7 @@ describe('adaptTenantReportSummary', () => {
 
     await renderWithProviders(
       <ReportSummaryView
-        data={adaptTenantReportSummary(report)}
+        data={adaptTenantReportSummary(report, t)}
         propertyName="Apartament Test"
       />,
     )
@@ -178,5 +192,35 @@ describe('adaptTenantReportSummary', () => {
     expect(screen.getByText('Electricitate')).toBeVisible()
     expect(screen.getByText('Gaz')).toBeVisible()
     expect(screen.getByText('rent-invoice.pdf (pdf)')).toBeVisible()
+  })
+
+  it('A6 — a catalog service re-translates to the reading language; a custom one keeps its stored name (audit #4)', () => {
+    const report = seedShapedReport({
+      serviceCosts: [
+        {
+          serviceId: 'electricity',
+          name: 'Electricitate',
+          amount: 150,
+          notes: '',
+          attachments: [],
+        },
+        {
+          serviceId: 'a8b85d43-8569-4c0e-9b1e-000000000000',
+          name: 'Salubritate',
+          amount: 40,
+          notes: '',
+          attachments: [],
+        },
+      ],
+    })
+
+    const en = adaptTenantReportSummary(report, tEn)
+    expect(en.serviceCosts.map((l) => l.name)).toEqual([
+      'Electricity',
+      'Salubritate',
+    ])
+    // serviceId is consumed, never forwarded (A2's invariant, restated for
+    // the translated path).
+    expect(en.serviceCosts.every((l) => !('serviceId' in l))).toBe(true)
   })
 })

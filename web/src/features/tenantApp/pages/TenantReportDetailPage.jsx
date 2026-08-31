@@ -82,7 +82,7 @@ export function TenantReportDetailPage() {
     )
   }
 
-  const data = adaptTenantReportSummary(reportQuery.data)
+  const data = adaptTenantReportSummary(reportQuery.data, t)
   const attachments = collectAttachments(data)
 
   return (

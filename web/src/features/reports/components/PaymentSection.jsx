@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DateInWords } from '@/components/shared/DateInWords'
 import { paymentSchema } from '@/features/reports/schema'
 import { useCancelPayment, useMarkPayment } from '@/features/reports/hooks'
 import { SendPaymentConfirmationControl } from '@/features/reports/components/SendPaymentConfirmationControl'
@@ -135,6 +136,7 @@ export function PaymentSection({ report }) {
         <div className="flex flex-col gap-1">
           <Label htmlFor="paymentDate">{t('reports.payment.date')}</Label>
           <Input id="paymentDate" type="date" {...register('paymentDate')} />
+          <DateInWords value={watch('paymentDate')} />
           {errors.paymentDate && (
             <p className="text-xs text-destructive">
               {t(errors.paymentDate.message)}

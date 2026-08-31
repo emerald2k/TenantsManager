@@ -43,6 +43,10 @@ export function toReportSummaryData(report, property) {
       attachments: toSummaryAttachments(report.maintenance.attachments),
     },
     serviceCosts: (report.serviceCosts ?? []).map((line) => ({
+      // Carried through so the exported PDF/PNG re-translates a catalog
+      // service name the same way it already re-translates "Rent" (audit #4).
+      serviceId: line.serviceId ?? null,
+      source: line.source ?? null,
       name: line.name,
       amount: line.amount,
       notes: line.notes ?? null,

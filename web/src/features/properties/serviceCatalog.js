@@ -29,3 +29,31 @@ export const SERVICE_CATALOG = [
   { serviceId: 'tv', labelKey: 'properties.services.tv' },
   { serviceId: 'water', labelKey: 'properties.services.water' },
 ]
+
+const CATALOG_BY_ID = new Map(
+  SERVICE_CATALOG.map((entry) => [entry.serviceId, entry]),
+)
+
+/**
+ * The DISPLAY label for a stored service line. A catalog service
+ * re-translates through its i18n key every render, so the stored `name` — a
+ * snapshot frozen for reports (FR-PROP-08) — never freezes the interface
+ * language; a custom service has no key, so its stored `name` IS the content
+ * and shows as-is (2026-08-31 UI/UX audit, finding #4).
+ *
+ * Works on two shapes: a property's service `{ serviceId, name, source }`
+ * (SRS §6) AND a report's cost line `{ serviceId, name, amount, … }`, which
+ * carries NO `source` at all. So the test is: the `serviceId` is one of the
+ * five fixed catalog ids AND `source` is not explicitly `'custom'`. The
+ * catalog id set is a hardcoded constant and `AddServiceDialog` only ever
+ * stores a catalog service under its literal id (a custom one gets a
+ * `crypto.randomUUID()`), so a catalog hit is sufficient and no data
+ * migration is needed. Anything off that path — an unknown id, a UUID, a
+ * `'custom'` source — falls through to the stored `name`.
+ */
+export function serviceLabel(service, t) {
+  const entry = CATALOG_BY_ID.get(service.serviceId)
+  return entry && service.source !== SERVICE_SOURCE.CUSTOM
+    ? t(entry.labelKey)
+    : service.name
+}

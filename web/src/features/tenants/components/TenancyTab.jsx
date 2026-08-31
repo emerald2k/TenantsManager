@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { RetryButton } from '@/components/shared/RetryButton'
+import { DateInWords } from '@/components/shared/DateInWords'
 import {
   Dialog,
   DialogContent,
@@ -202,11 +203,12 @@ function ContractSummary({ tenancy, userId, isActive }) {
             />
           </div>
         )}
-        renderFields={({ register, errors, t: tt }) => (
+        renderFields={({ register, errors, watch, t: tt }) => (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
               <Input id="endDate" type="date" {...register('endDate')} />
+              <DateInWords value={watch('endDate')} />
               <FieldError error={errors.endDate} t={tt} />
             </div>
 

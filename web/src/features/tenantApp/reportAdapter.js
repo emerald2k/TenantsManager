@@ -12,7 +12,15 @@
  * OWN signed document — attachment `path`s (bucket-relative Storage paths,
  * debt #5, never a download URL) pass through unmodified; the caller resolves
  * each one to a real URL at render time via `useAttachmentUrl`.
+ *
+ * `t` is the i18n translator (`useTranslation().t`), passed by the calling
+ * page. It is used ONLY to resolve a catalog service's display name into the
+ * reading language (2026-08-31 UI/UX audit, finding #4): `serviceId` is
+ * consumed HERE and never enters the output, so the adapter keeps emitting
+ * exactly the display fields `ReportSummaryView` reads — no internal keys.
  */
+
+import { serviceLabel } from '@/features/properties/serviceCatalog'
 
 function mapAttachments(attachments) {
   return (attachments ?? []).map((att) => ({
@@ -22,7 +30,7 @@ function mapAttachments(attachments) {
   }))
 }
 
-export function adaptTenantReportSummary(report) {
+export function adaptTenantReportSummary(report, t) {
   return {
     month: report.month,
     year: report.year,
@@ -37,7 +45,9 @@ export function adaptTenantReportSummary(report) {
       attachments: mapAttachments(report.maintenance.attachments),
     },
     serviceCosts: (report.serviceCosts ?? []).map((line) => ({
-      name: line.name,
+      // Catalog services re-translate; a custom service keeps its stored
+      // name. `serviceId` is read here, not forwarded.
+      name: serviceLabel(line, t),
       amount: line.amount,
       notes: line.notes ?? null,
       attachments: mapAttachments(line.attachments),

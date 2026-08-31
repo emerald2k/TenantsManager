@@ -65,6 +65,52 @@ describe('ReportSummaryView', () => {
     expect(screen.getByText('Reparație')).toBeVisible()
   })
 
+  it('re-translates a CATALOG service by its serviceId — English shows "Electricity", not the Romanian snapshot (audit #4)', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          serviceCosts: [
+            {
+              // the shape reportAdapter / toReportSummaryData now pass through
+              serviceId: 'electricity',
+              source: null,
+              name: 'Electricitate',
+              amount: 150,
+              notes: '',
+              attachments: [],
+            },
+          ],
+        })}
+      />,
+      { language: 'en' },
+    )
+
+    expect(screen.getByText('Electricity')).toBeVisible()
+    expect(screen.queryByText('Electricitate')).toBeNull()
+  })
+
+  it('keeps a CUSTOM service name as stored — nothing to translate', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          serviceCosts: [
+            {
+              serviceId: 'd7f1c0aa-0000-4000-8000-000000000000',
+              source: 'custom',
+              name: 'Salubritate',
+              amount: 40,
+              notes: '',
+              attachments: [],
+            },
+          ],
+        })}
+      />,
+      { language: 'en' },
+    )
+
+    expect(screen.getByText('Salubritate')).toBeVisible()
+  })
+
   it('renders attachments as NAME+TYPE badges, never as images', async () => {
     const { container } = await renderWithProviders(
       <ReportSummaryView

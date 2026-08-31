@@ -238,6 +238,9 @@ describe('MonthlyReportPage — draft (M4 sub-stage 1)', () => {
     expect(await screen.findByDisplayValue('1600')).toBeVisible()
     expect(screen.getByDisplayValue('80')).toBeVisible()
     expect(screen.getByDisplayValue('2026-07-10')).toBeVisible()
+    // audit #3: the native date input renders 08/10 vs 10/08 by browser
+    // locale, so the resolved date is spelled out beside it.
+    expect(screen.getByText('10 iulie 2026')).toBeVisible()
   })
 
   it('shows the not-found message and a Retry button when the tenancy does not exist (FR-REP-14 — no more "active-only" gate)', async () => {

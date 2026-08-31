@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DateInWords } from '@/components/shared/DateInWords'
 import {
   useCheckDuplicateCnp,
   useCheckExistingEmail,
@@ -106,6 +107,7 @@ export function StepPersonal({
           {t('onboarding.fields.dateOfBirth')}
         </Label>
         <Input id="dateOfBirth" type="date" {...register('dateOfBirth')} />
+        <DateInWords value={watch('dateOfBirth')} />
         <FieldError error={errors.dateOfBirth} t={t} />
       </div>
 
