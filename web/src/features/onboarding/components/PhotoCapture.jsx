@@ -7,6 +7,7 @@ import { storage } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { useUpdateDraft } from '@/features/onboarding/hooks'
 import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
+import { ImageWithFallback } from '@/components/shared/ImageWithFallback'
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -35,7 +36,7 @@ function PhotoThumbnail({ photo, onDelete, t }) {
   return (
     <div className="relative">
       {url ? (
-        <img
+        <ImageWithFallback
           src={url}
           alt={photo.name}
           className="aspect-square w-full rounded-md border border-border object-cover"

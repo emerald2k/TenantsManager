@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useUpdateUser } from '@/features/tenants/hooks'
 import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
+import { ImageWithFallback } from '@/components/shared/ImageWithFallback'
 
 /**
  * The tenant Profile tab's ID-photo gallery (M3-B, FR-TEN-09/11): view with
@@ -45,10 +46,9 @@ function PhotoThumbnail({ photo, canDelete, onDelete, onClick, t }) {
   return (
     <div className="relative">
       {url ? (
-        <img
+        <ImageWithFallback
           src={url}
           alt={photo.name}
-          role="img"
           className="aspect-square w-full cursor-pointer rounded-md border border-border object-cover"
           onClick={onClick}
         />
@@ -90,10 +90,9 @@ function LightboxImage({ photo, t }) {
   }
 
   return (
-    <img
+    <ImageWithFallback
       src={url}
       alt={photo.name}
-      role="img"
       className="max-h-[80vh] w-full object-contain"
     />
   )

@@ -8,6 +8,7 @@ import {
   uploadAttachment,
 } from '@/lib/fileUpload'
 import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
+import { ImageWithFallback } from '@/components/shared/ImageWithFallback'
 
 /**
  * The signed-contract uploader for the Tenancy tab (FR-CON-07, M3-C).
@@ -40,7 +41,7 @@ function DocumentRow({ item, onDelete, t }) {
   return (
     <li className="flex items-center gap-3">
       {url && item.type === 'image' ? (
-        <img
+        <ImageWithFallback
           src={url}
           alt={item.name}
           className="h-12 w-12 rounded border border-border object-cover"

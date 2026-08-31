@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { PhotoGallery } from '@/features/tenants/components/PhotoGallery'
@@ -95,6 +95,21 @@ describe('PhotoGallery — tenant ID photos (min 1, FR-TEN-03/06)', () => {
 
     expect(await screen.findByText('Indisponibil')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'a.jpg' })).toBeNull()
+  })
+
+  it('a photo whose URL resolves but whose bytes are not an image shows an explicit error + retry, not a broken <img> (audit #2)', async () => {
+    await renderWithProviders(<PhotoGallery {...props} photos={[photo()]} />)
+
+    const thumbnail = await screen.findByRole('img', { name: 'a.jpg' })
+    fireEvent.error(thumbnail)
+
+    expect(
+      await screen.findByText('Imaginea nu a putut fi încărcată'),
+    ).toBeVisible()
+    expect(screen.queryByRole('img', { name: 'a.jpg' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: /Încearcă din nou/ }),
+    ).toBeVisible()
   })
 
   it('opens a lightbox with the full image when a thumbnail is clicked', async () => {

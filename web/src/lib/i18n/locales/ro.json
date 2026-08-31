@@ -6,6 +6,7 @@
     "cancel": "Anulează",
     "close": "Închide",
     "attachmentUnavailable": "Indisponibil",
+    "attachmentImageError": "Imaginea nu a putut fi încărcată",
     "retry": "Încearcă din nou"
   },
   "login": {
