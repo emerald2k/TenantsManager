@@ -73,8 +73,11 @@ function PhotoThumbnail({ photo, onDelete, t }) {
  * in schema.js), so it autosaves via `useUpdateDraft` right after each add/delete,
  * independently of the wizard's Back/Continue autosave.
  *
- * Deletion mirrors `useDeleteDraft`'s best-effort Storage cleanup (hooks.js): a
+ * Deleting a SINGLE captured photo here is best-effort on the Storage side: a
  * failed Storage delete must never block removing the reference from the draft.
+ * Whole-draft deletion is a different operation — it goes through the
+ * `deleteOnboardingDraft` Cloud Function, which DOES guarantee the
+ * `drafts/{draftId}/` prefix is cleared (FR-TEN-25).
  */
 export function PhotoCapture({ draftId, fieldPath, required }) {
   const { t } = useTranslation()
@@ -123,8 +126,9 @@ export function PhotoCapture({ draftId, fieldPath, required }) {
     try {
       await deleteObject(ref(storage, target.path))
     } catch {
-      // Best-effort, mirrors useDeleteDraft: the reference must be removable
-      // regardless of whether the Storage object could be deleted.
+      // Best-effort: the reference leaving the draft is what matters. A
+      // leftover object is swept later — on finalize (kyc.js) or when the
+      // whole draft is deleted (deleteOnboardingDraft, FR-TEN-25).
     }
     persist(photos.filter((_, i) => i !== index))
   }

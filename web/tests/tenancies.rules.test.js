@@ -102,6 +102,11 @@ describe('firestore.rules — tenancies: admin full, tenant reads their own', ()
     await assertSucceeds(getDoc(doc(db, 'tenancies', TENANCY_ID)))
   })
 
+  // `currentBalance`/`closingBalance` are deliberately NOT exercised here —
+  // NFR-SEC-12 (M8 stage 7) pins both on update; their own dedicated
+  // allow/deny coverage lives in tenancyBalancePin.rules.test.js, which this
+  // test predates. An ordinary field (`monthlyRent`) proves the merge-update
+  // path itself still works for everything the pin does not touch.
   it('allows the full CRUD to the admin (claim admin:true)', async () => {
     const db = testEnv
       .authenticatedContext('admin-1', { admin: true })
@@ -113,7 +118,7 @@ describe('firestore.rules — tenancies: admin full, tenant reads their own', ()
     await assertSucceeds(
       setDoc(
         doc(db, 'tenancies', TENANCY_ID),
-        { currentBalance: 100 },
+        { monthlyRent: 2200 },
         { merge: true },
       ),
     )

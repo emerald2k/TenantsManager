@@ -65,9 +65,15 @@ describe('CostHistoryTable (FR-PROP-09)', () => {
     )
 
     const table = screen.getByRole('table')
+    // The service name is a COLUMN HEADER — it appears once regardless of
+    // row count, so it's checked against the whole table. A single-report
+    // table has exactly one calendar year, so the year-total row repeats the
+    // same amount figures — those are scoped to the MONTHLY row (rows[1];
+    // rows[0] is the header, rows[2] is the year-total) to disambiguate.
     expect(within(table).getByText('Electricitate')).toBeInTheDocument()
-    expect(within(table).getByText('150,00 lei')).toBeInTheDocument()
-    expect(within(table).getByText('1.250,00 lei')).toBeInTheDocument()
+    const rows = within(table).getAllByRole('row')
+    expect(within(rows[1]).getByText('150,00 lei')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('1.250,00 lei')).toBeInTheDocument()
     expect(within(table).queryByText('9.999,99 lei')).not.toBeInTheDocument()
   })
 
@@ -147,14 +153,63 @@ describe('CostHistoryTable (FR-PROP-09)', () => {
       <CostHistoryTable reports={reports} isPending={false} />,
     )
 
-    expect(screen.getAllByRole('row')).toHaveLength(13) // header + 12 windowed rows
+    // Windowed view keeps the most recent 12 periods: Feb 2025 .. Jan 2026 —
+    // TWO calendar years (2025 and 2026), so TWO year-total rows close the
+    // table on top of the 12 monthly ones.
+    expect(screen.getAllByRole('row')).toHaveLength(15) // header + 12 rows + 2 year totals
 
     const showAllButton = screen.getByRole('button', { name: 'Arată tot' })
     await user.click(showAllButton)
 
-    expect(screen.getAllByRole('row')).toHaveLength(14) // header + all 13 rows
+    // All 13 months (Jan 2025 .. Jan 2026) — still the same two years.
+    expect(screen.getAllByRole('row')).toHaveLength(16) // header + 13 rows + 2 year totals
     expect(
       screen.queryByRole('button', { name: 'Arată tot' }),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('CostHistoryTable — year total row (FR-PROP-09/12)', () => {
+  it('closes each calendar year with its own "Total {year}" row', async () => {
+    const reports = [
+      report({ id: 'r-nov', month: 11, year: 2025, finalTotal: 1100 }),
+      report({ id: 'r-dec', month: 12, year: 2025, finalTotal: 1100 }),
+      report({ id: 'r-jan', month: 1, year: 2026, finalTotal: 1100 }),
+    ]
+
+    await renderWithProviders(
+      <CostHistoryTable reports={reports} isPending={false} />,
+    )
+
+    expect(screen.getByText('Total 2025')).toBeVisible()
+    expect(screen.getByText('Total 2026')).toBeVisible()
+
+    const rows = screen.getAllByRole('row')
+    // header, Nov, Dec, Total 2025, Jan, Total 2026 — the 2025 total sits
+    // right after December, not at the very end of the table.
+    expect(within(rows[3]).getByText('Total 2025')).toBeInTheDocument()
+    expect(within(rows[3]).getByText('2.200,00 lei')).toBeInTheDocument() // 1100 + 1100
+    expect(within(rows[5]).getByText('Total 2026')).toBeInTheDocument()
+    expect(within(rows[5]).getByText('1.100,00 lei')).toBeInTheDocument()
+  })
+
+  it('shows a rounding column only when at least one row actually has a rounding surplus', async () => {
+    const plainReports = [report({ id: 'r1', month: 1, year: 2026 })]
+    const { unmount } = await renderWithProviders(
+      <CostHistoryTable reports={plainReports} isPending={false} />,
+    )
+    expect(screen.queryByText('Rotunjire')).not.toBeInTheDocument()
+    unmount()
+
+    const roundedReports = [
+      {
+        ...report({ id: 'r1', month: 1, year: 2026 }),
+        roundingSurplus: 3,
+      },
+    ]
+    await renderWithProviders(
+      <CostHistoryTable reports={roundedReports} isPending={false} />,
+    )
+    expect(screen.getByText('Rotunjire')).toBeVisible()
   })
 })

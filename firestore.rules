@@ -9,6 +9,21 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // Whether `field` is unchanged by this write (NFR-SEC-12, M8 stage 7,
+    // shared with the `monthlyReports.status` pin's REASON though not its
+    // exact shape — that field always exists; `field` here may not).
+    // ABSENT-on-both-sides counts as "unchanged" (an active tenancy has no
+    // `closingBalance` at all, and every legitimate client write to it must
+    // still succeed); the field's PRESENCE must also match on both sides —
+    // a write that would INTRODUCE the field where it was absent, or
+    // remove it where it was present, is rejected exactly like a write that
+    // changes an already-present value. Only the Admin SDK (bypasses rules
+    // entirely) ever has a legitimate reason to touch either field.
+    function unchanged(before, after, field) {
+      return (field in before) == (field in after) &&
+        (!(field in before) || before[field] == after[field]);
+    }
+
     // properties — admin-only access (SRS §7.3, NFR-SEC-02).
     //
     // The rule is an ACCESS boundary, not a business-logic one: it does NOT
@@ -48,10 +63,25 @@ service cloud.firestore {
     // client access to this collection (Sub-stage E) — until now only finalizeKyc
     // (Admin SDK, bypasses rules) ever wrote it. Writes stay admin-only: the
     // tenant portal (M3) never mutates a tenancy, only reads it.
+    //
+    // `currentBalance`/`closingBalance` are PINNED on update (NFR-SEC-12, M8
+    // stage 7): both are server-derived — `currentBalance` by
+    // `recomputeCurrentBalance` on every report write, `closingBalance` once
+    // by `endTenancyCore` at termination — and neither has a legitimate
+    // client write path. Every real admin write to this collection (Extend,
+    // the deposit settlement) already omits both fields entirely, so the
+    // pin costs those flows nothing; it exists to stop a FUTURE admin page
+    // from writing a wider object than it means to and silently corrupting
+    // either figure. `recalculateTenancyBalance` (FR-SYS-05a) is the one
+    // deliberate exception, and it runs on the Admin SDK, which bypasses
+    // this rule entirely — the same reason the pin costs it nothing either.
     match /tenancies/{tenancyId} {
       allow read: if isAdmin() ||
         (request.auth != null && resource.data.userId == request.auth.uid);
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() &&
+        unchanged(resource.data, request.resource.data, 'currentBalance') &&
+        unchanged(resource.data, request.resource.data, 'closingBalance');
     }
 
     // monthlyReports — admin full access; the tenant reads ONLY their own
@@ -61,12 +91,47 @@ service cloud.firestore {
     // Public (no-auth) access via shareToken does NOT go through this rule —
     // it is served by the getSharedReport Cloud Function (sub-stage 8), which
     // is why there is no "shareToken" branch here.
+    //
+    // `status` is pinned on update (NFR-SEC-11, M8): an admin client write
+    // is allowed only when it leaves `status` unchanged. §6 has always said
+    // the draft<->signed transition happens EXCLUSIVELY through the
+    // signReport/unlockReport callables (§7.2), never a direct client write —
+    // until now nothing enforced that, it was upheld by client discipline
+    // alone. Both callables run on the Admin SDK, which bypasses Security
+    // Rules entirely, so the pin costs the admin client nothing it is
+    // supposed to be able to do; it just makes the written invariant true by
+    // construction.
     match /monthlyReports/{reportId} {
       allow read: if isAdmin() ||
         (request.auth != null &&
           resource.data.userId == request.auth.uid &&
           resource.data.status == 'signed');
-      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.status == resource.data.status;
+      allow delete: if isAdmin();
+    }
+
+    // mail — Cloud Functions only. NO client access, admin included (SRS §6,
+    // NFR-SEC-02). `message.text` holds the fully rendered body, and Appendix
+    // A1 interpolates the generated password IN CLEAR TEXT. Nothing ever
+    // deletes a mail document, so granting even admin reads would make every
+    // password ever generated permanently readable from a browser session.
+    // The administrator's view of sent mail is the projected `notifications`
+    // collection below — subject line only, never a body (FR-NLOG-02).
+    match /mail/{mailId} {
+      allow read, write: if false;
+    }
+
+    // notifications — admin-read, server-write (NFR-SEC-10, FR-NLOG-01…08).
+    // There is NO `allow write` clause of any kind here — not for the admin,
+    // not for anyone. "Cloud Functions write only" names a principal that
+    // does not exist: the Admin SDK (onMailWrite, §7.2) bypasses Security
+    // Rules entirely, so the ABSENCE of a write rule IS the server-write
+    // guarantee. Writing it positively (`if isAdmin()`) would instead open a
+    // client write path the requirement explicitly forbids.
+    match /notifications/{notificationId} {
+      allow read: if isAdmin();
     }
 
     // The remaining collections are not implemented yet.

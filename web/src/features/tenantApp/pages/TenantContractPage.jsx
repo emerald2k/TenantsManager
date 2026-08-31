@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { AttachmentLink } from '@/components/shared/AttachmentLink'
+import { DepositSettlementView } from '@/components/shared/DepositSettlementView'
 import { RetryButton } from '@/components/shared/RetryButton'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
@@ -18,9 +19,13 @@ import { formatFullDate } from '@/lib/formatDate'
  * `tenancy.attachedDocuments[]` — deliberately NOT the report-detail page's
  * attachments component, which groups by cost line (irrelevant here).
  *
- * This page never reads `tenancy.status`: an ended tenancy renders exactly
- * like an active one. The persistent "contract ended" banner is out of
- * scope here — sub-stage 9.
+ * The deposit settlement (FR-TAPP-07, FR-CON-12, M8 stage 6) is the one
+ * thing this page DOES read `tenancy.status` for: it only ever appears once
+ * the tenancy has ended AND the administrator has actually completed a
+ * settlement — `DepositSettlementView` is the exact same component the
+ * admin's Tenancy tab shows, so the tenant sees precisely what was recorded.
+ * Rent arrears are deliberately not part of it (FR-CON-11) — an unpaid
+ * balance stays visible elsewhere in the portal, unaffected by this section.
  */
 
 function formatAddress(address) {
@@ -75,7 +80,7 @@ export function TenantContractPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
-      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
             {tenancy.property?.name}
@@ -112,7 +117,7 @@ export function TenantContractPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">
           {t('tenantApp.contract.documents.title')}
         </h3>
@@ -130,6 +135,13 @@ export function TenantContractPage() {
           </p>
         )}
       </div>
+
+      {tenancy.status === 'ended' && tenancy.depositSettlement && (
+        <DepositSettlementView
+          securityDeposit={tenancy.securityDeposit}
+          depositSettlement={tenancy.depositSettlement}
+        />
+      )}
     </div>
   )
 }

@@ -9,6 +9,8 @@ import {
   onReportWriteHandler,
   sendReportNotificationCore,
   sendReportNotificationHandler,
+  sendPaymentConfirmationCore,
+  sendPaymentConfirmationHandler,
 } from '../src/reports.js'
 
 // Functions tests — the REAL boundary (Firestore emulator), no mocks of the
@@ -94,6 +96,127 @@ describe('signReport — happy path (FR-REP-07)', () => {
     const snap = await db.collection('monthlyReports').doc('report-1').get()
     expect(snap.data().status).toBe('signed')
     expect(snap.data().signedAt).toBeTruthy()
+  })
+})
+
+describe('signReport — chronological order guard (FR-REP-11/11a)', () => {
+  it('rejects signing a month earlier than an already-signed later month, naming the blocking month', async () => {
+    await seedReport('report-aug', {
+      tenancyId: 'tenancy-1',
+      month: 8,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    await expect(signReportCore('report-jul')).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: {
+        reason: 'chronological-order',
+        blockingMonth: 8,
+        blockingYear: 2026,
+      },
+    })
+
+    const snap = await db.collection('monthlyReports').doc('report-jul').get()
+    expect(snap.data().status).toBe('draft')
+  })
+
+  it('rejects signing an earlier YEAR the same way (not just an earlier month within the same year)', async () => {
+    await seedReport('report-2027-jan', {
+      tenancyId: 'tenancy-1',
+      month: 1,
+      year: 2027,
+      status: 'signed',
+    })
+    await seedReport('report-2026-dec', {
+      tenancyId: 'tenancy-1',
+      month: 12,
+      year: 2026,
+      status: 'draft',
+    })
+
+    await expect(signReportCore('report-2026-dec')).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'chronological-order' },
+    })
+  })
+
+  it('permits signing a LATER month than the most recently signed one', async () => {
+    await seedReport('report-jun', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('permits re-signing the SAME month after an unlock — the report being signed does not block itself', async () => {
+    // The report under signature is itself still `draft` at read time, so it
+    // never appears in its own "already signed" query — anti-vacuity for the
+    // `<` (not `<=`) comparison: a `<=` bug would reject this every time.
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft', // was unlocked from signed
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('ignores a signed report on a DIFFERENT tenancy entirely', async () => {
+    await seedReport('report-other-tenancy', {
+      tenancyId: 'tenancy-2',
+      month: 12,
+      year: 2026,
+      status: 'signed',
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'draft',
+    })
+
+    const result = await signReportCore('report-jul')
+    expect(result.reportId).toBe('report-jul')
+  })
+
+  it('stores overrideReason + a timestamp when provided (FR-REP-04e)', async () => {
+    await seedReport('report-1', { status: 'draft' })
+
+    await signReportCore('report-1', 'Reducere negociată cu chiriașul')
+
+    const snap = await db.collection('monthlyReports').doc('report-1').get()
+    expect(snap.data().finalTotalOverrideReason).toBe(
+      'Reducere negociată cu chiriașul',
+    )
+    expect(snap.data().finalTotalOverrideReasonAt).toBeTruthy()
+  })
+
+  it('does NOT write an override reason field at all when none is provided', async () => {
+    await seedReport('report-1', { status: 'draft' })
+
+    await signReportCore('report-1')
+
+    const snap = await db.collection('monthlyReports').doc('report-1').get()
+    expect(snap.data().finalTotalOverrideReason).toBeUndefined()
   })
 })
 
@@ -306,6 +429,44 @@ describe('recomputeCurrentBalance (SRS §6, pinned at e8ca367)', () => {
     expect(snap.data().currentBalance).toBe(0)
   })
 
+  it('a tenant unpaid across THREE consecutive signed months lands on the single carried balance, never 3x it (FR-DASH-04 data invariant — where the old per-report-summing arithmetic broke)', async () => {
+    await seedTenancy('tenancy-1')
+    // Each month's own finalTotal already carries the PRIOR month's arrears
+    // forward (FR-REP-04) — a wrong "sum every signed report" arithmetic
+    // would read 1500+3000+4500=9000; the correct one reads only the most
+    // recent report's own finalTotal.
+    await seedReport('report-jun', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 1500, // nothing carried in yet
+    })
+    await seedReport('report-jul', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 3000, // 1500 rent/services + 1500 carried from June
+    })
+    await seedReport('report-aug', {
+      tenancyId: 'tenancy-1',
+      month: 8,
+      year: 2026,
+      status: 'signed',
+      finalTotal: 4500, // 1500 + 3000 carried from July
+      amountPaid: 500, // a partial payment — discriminates against a buggy
+      // implementation that returns mostRecent.finalTotal outright and
+      // ignores amountPaid/roundingSurplus (both are absent on report-jun/
+      // report-jul, so that bug would pass undetected without this).
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBe(4000)
+  })
+
   it('picks the most recent by (year, month), not by document write order', async () => {
     await seedTenancy('tenancy-1')
     // Written in reverse chronological order on purpose — proves the sort is by
@@ -333,6 +494,81 @@ describe('recomputeCurrentBalance (SRS §6, pinned at e8ca367)', () => {
     // January 2026 is more recent than December 2025, even though the December
     // document has the larger (wrong-if-picked) arrears.
     expect(snap.data().currentBalance).toBe(0)
+  })
+
+  it('subtracts roundingSurplus from the balance (FR-REP-04a/04c, M8)', async () => {
+    await seedTenancy('tenancy-1')
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      status: 'signed',
+      calculatedTotal: 2382.17,
+      finalTotal: 2390,
+      roundingSurplus: 7.83,
+      amountPaid: 2390, // paid the rounded figure in full
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    // 2390 - 2390 - 7.83 = -7.83: the surplus becomes the tenant's credit,
+    // even though the tenant paid every lei of what was asked.
+    expect(snap.data().currentBalance).toBeCloseTo(-7.83, 2)
+  })
+
+  it('treats an absent roundingSurplus as 0 (no rounding action ever applied)', async () => {
+    await seedTenancy('tenancy-1')
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      status: 'signed',
+      finalTotal: 1500,
+      amountPaid: 1500,
+      // no roundingSurplus key at all
+    })
+
+    await recomputeCurrentBalance('tenancy-1')
+
+    const snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBe(0)
+  })
+
+  it("a roundingSurplus credit CANCELS across two consecutive signed months (FR-REP-04a's own example)", async () => {
+    await seedTenancy('tenancy-1')
+
+    // Month 1: rounded up from 2382.17 to 2390, paid the rounded figure in
+    // full — the tenant now holds a 7.83 credit no one has consumed yet.
+    await seedReport('report-1', {
+      tenancyId: 'tenancy-1',
+      month: 6,
+      year: 2026,
+      status: 'signed',
+      calculatedTotal: 2382.17,
+      finalTotal: 2390,
+      roundingSurplus: 7.83,
+      amountPaid: 2390,
+    })
+    await recomputeCurrentBalance('tenancy-1')
+    let snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBeCloseTo(-7.83, 2)
+
+    // Month 2 opens with that 7.83 credit (mirroring buildInitialValues'
+    // previousMonthCredit = Math.max(-currentBalance, 0)), consumes it in
+    // full via finalTotal, and is itself paid in full — no rounding this
+    // time. If the surplus were lost (never subtracted, or subtracted
+    // twice), this would NOT land back on exactly 0.
+    await seedReport('report-2', {
+      tenancyId: 'tenancy-1',
+      month: 7,
+      year: 2026,
+      status: 'signed',
+      previousMonthCredit: 7.83,
+      calculatedTotal: 1492.17, // e.g. 1500 rent - 7.83 credit
+      finalTotal: 1492.17,
+      roundingSurplus: 0,
+      amountPaid: 1492.17,
+    })
+    await recomputeCurrentBalance('tenancy-1')
+    snap = await db.collection('tenancies').doc('tenancy-1').get()
+    expect(snap.data().currentBalance).toBeCloseTo(0, 2)
   })
 
   it('ignores a DRAFT report even if it is more recent than the last signed one', async () => {
@@ -747,5 +983,134 @@ describe('sendReportNotification — callable guard', () => {
     ).rejects.toMatchObject({ code: 'invalid-argument' })
 
     expect((await db.collection('mail').get()).size).toBe(0)
+  })
+})
+
+describe('sendReportNotification — relatedId/ownerId (FR-NLOG-03/04, M8 stage 14)', () => {
+  it('the mail document carries the reportId as relatedId and the caller uid as ownerId', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+
+    await sendReportNotificationHandler({
+      auth: { token: { admin: true }, uid: 'admin-uid' },
+      data: { reportId: 'report-1', template: 'new' },
+    })
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.relatedId).toBe('report-1')
+    expect(mail.ownerId).toBe('admin-uid')
+    expect(mail.type).toBe('report-new')
+    expect(mail.audience).toBe('tenant')
+  })
+})
+
+describe('sendPaymentConfirmationCore (SRS §7.2, FR-PAY-01, Appendix A10, M8 stage 14)', () => {
+  it('rejects a report that does not exist', async () => {
+    await expect(
+      sendPaymentConfirmationCore('does-not-exist', 'admin-uid'),
+    ).rejects.toMatchObject({ code: 'not-found' })
+  })
+
+  it('REJECTS a report with no payment recorded yet — nothing to confirm', async () => {
+    await seedReport('report-1', { status: 'signed', userId: 'user-1' })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    await expect(
+      sendPaymentConfirmationCore('report-1', 'admin-uid'),
+    ).rejects.toMatchObject({
+      code: 'failed-precondition',
+      details: { reason: 'no-payment' },
+    })
+    expect((await db.collection('mail').get()).size).toBe(0)
+  })
+
+  it('writes an A10 email carrying the amount PAID and the payment DATE, not finalTotal/dueDate', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      month: 7,
+      year: 2026,
+      finalTotal: 1500,
+      dueDate: '2026-07-05',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'partial',
+    })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    const result = await sendPaymentConfirmationCore('report-1', 'admin-uid')
+    expect(result).toEqual({ reportId: 'report-1' })
+
+    const mailSnap = await db.collection('mail').get()
+    expect(mailSnap.size).toBe(1)
+    const mail = mailSnap.docs[0].data()
+    expect(mail.to).toEqual(['ion@example.com'])
+    expect(mail.type).toBe('payment-recorded')
+    expect(mail.audience).toBe('tenant')
+    expect(mail.relatedId).toBe('report-1')
+    expect(mail.ownerId).toBe('admin-uid')
+    expect(mail.message.text).toContain('800,00')
+    expect(mail.message.text).not.toContain('1.500,00')
+    expect(mail.message.text).toContain('03.07.2026')
+    expect(mail.message.text).not.toContain('05.07.2026')
+  })
+
+  it('sends in the tenant preferred language (NFR-LOC-04)', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'paid',
+    })
+    await seedUser('user-1', { preferredLanguage: 'en' })
+    await seedTenancy('tenancy-1', {
+      property: { name: 'City Center Flat' },
+    })
+
+    await sendPaymentConfirmationCore('report-1', 'admin-uid')
+
+    const mail = (await db.collection('mail').get()).docs[0].data()
+    expect(mail.message.subject).toContain('has been recorded')
+  })
+})
+
+describe('sendPaymentConfirmation — callable guard', () => {
+  it('rejects a non-admin caller — nothing written to mail', async () => {
+    await seedReport('report-1', {
+      status: 'signed',
+      userId: 'user-1',
+      amountPaid: 800,
+      paymentDate: '2026-07-03',
+      paymentStatus: 'paid',
+    })
+    await seedUser('user-1')
+    await seedTenancy('tenancy-1', {
+      property: { name: 'Apartament Centru' },
+    })
+
+    await expect(
+      sendPaymentConfirmationHandler({
+        auth: { token: {}, uid: 'x' },
+        data: { reportId: 'report-1' },
+      }),
+    ).rejects.toMatchObject({ code: 'permission-denied' })
+
+    expect((await db.collection('mail').get()).size).toBe(0)
+  })
+
+  it('rejects a missing reportId argument', async () => {
+    await expect(
+      sendPaymentConfirmationHandler({
+        auth: { token: { admin: true }, uid: 'admin-uid' },
+        data: {},
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
   })
 })

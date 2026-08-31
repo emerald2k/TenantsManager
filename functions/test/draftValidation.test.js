@@ -33,6 +33,7 @@ const COMPLETE = {
   securityDeposit: 2000,
   dueDay: 5,
   reportReminderDaysBefore: 3,
+  paymentReminderDaysBefore: 3,
 }
 
 describe('draftValidation — existingUserId (FR-TEN-07)', () => {
@@ -62,6 +63,7 @@ describe('draftValidation — existingUserId branches full validation (Sub-stage
     monthlyRent: 2000,
     dueDay: 5,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
   }
 
   it('passes full validation with existingUserId set and only Step 4 filled', () => {
@@ -98,6 +100,55 @@ describe('draftValidation — reportReminderDaysBefore (FR-CON-01)', () => {
         ...COMPLETE,
         reportReminderDaysBefore: '3',
       }).success,
+    ).toBe(false)
+  })
+
+  it('is NOT bounded to 1-10 — 11 is valid (NFR-VAL-02 bounds only paymentReminderDaysBefore)', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        reportReminderDaysBefore: 11,
+      }).success,
+    ).toBe(true)
+  })
+})
+
+describe('draftValidation — paymentReminderDaysBefore (FR-PAY-10, NFR-VAL-02, M8 stage 13b)', () => {
+  it('accepts a complete draft (paymentReminderDaysBefore present)', () => {
+    expect(fullDraftSchema.safeParse(COMPLETE).success).toBe(true)
+  })
+
+  it('rejects a complete draft missing paymentReminderDaysBefore', () => {
+    const { paymentReminderDaysBefore, ...withoutIt } = COMPLETE
+    void paymentReminderDaysBefore
+    expect(fullDraftSchema.safeParse(withoutIt).success).toBe(false)
+  })
+
+  it('rejects a non-number value', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        paymentReminderDaysBefore: '3',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('range 1-10 (NFR-VAL-02) — the one bound in this schema; reportReminderDaysBefore has none', () => {
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, paymentReminderDaysBefore: 0 })
+        .success,
+    ).toBe(false)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, paymentReminderDaysBefore: 1 })
+        .success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, paymentReminderDaysBefore: 10 })
+        .success,
+    ).toBe(true)
+    expect(
+      fullDraftSchema.safeParse({ ...COMPLETE, paymentReminderDaysBefore: 11 })
+        .success,
     ).toBe(false)
   })
 })

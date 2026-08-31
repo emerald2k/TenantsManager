@@ -29,13 +29,21 @@ import { derivePaymentStatus } from './schema'
 const COLLECTION = 'monthlyReports'
 
 /**
- * Deterministic id on (propertyId + month + year) — FR-REP-14's uniqueness
+ * Deterministic id on (tenancyId + month + year) — FR-REP-14's uniqueness
  * guarantee lives here, structurally: there is no separate "create" path that
- * could produce a duplicate, because the id for a given property+month+year
- * is always the same document.
+ * could produce a duplicate, because the id for a given tenancy+month+year is
+ * always the same document.
+ *
+ * Re-keyed at M8 from `propertyId_YYYY-MM` (SRS §9, FR-REP-14): a mid-month
+ * handover puts two tenancies on one property inside one calendar month, and
+ * the old key could only ever bill one of them. Argument order is
+ * (tenancyId, year, month) — reconciled with `functions/scripts/seed.js`'s
+ * own copy of this function, which previously used this order while this
+ * file used (id, month, year); a mechanical rename would have preserved that
+ * mismatch across the two packages.
  */
-export function buildReportId(propertyId, month, year) {
-  return `${propertyId}_${year}-${String(month).padStart(2, '0')}`
+export function buildReportId(tenancyId, year, month) {
+  return `${tenancyId}_${year}-${String(month).padStart(2, '0')}`
 }
 
 export const reportKeys = {
@@ -44,6 +52,8 @@ export const reportKeys = {
   detail: (id) => [...reportKeys.details(), id],
   lists: () => [...reportKeys.all, 'list'],
   forMonth: (month, year) => [...reportKeys.lists(), 'month', month, year],
+  forYear: (year) => [...reportKeys.lists(), 'year', year],
+  forTenancy: (tenancyId) => [...reportKeys.lists(), 'tenancy', tenancyId],
 }
 
 function reportRef(id) {
@@ -51,12 +61,13 @@ function reportRef(id) {
 }
 
 /**
- * A single month's report, by property+month+year. `null` (not an error) when
- * none exists yet — a fresh month with no report is a normal, expected state
- * (same reasoning as `useActiveTenancyForProperty`), not a failure.
+ * A single month's report, by tenancy+month+year (FR-REP-14). `null` (not an
+ * error) when none exists yet — a fresh month with no report is a normal,
+ * expected state (same reasoning as `useActiveTenancyForProperty`), not a
+ * failure.
  */
-export function useMonthlyReport({ propertyId, month, year }) {
-  const id = propertyId ? buildReportId(propertyId, month, year) : null
+export function useMonthlyReport({ tenancyId, month, year }) {
+  const id = tenancyId ? buildReportId(tenancyId, year, month) : null
 
   return useQuery({
     queryKey: reportKeys.detail(id),
@@ -89,6 +100,55 @@ export function useReportsForMonth(month, year) {
           collection(db, COLLECTION),
           where('month', '==', month),
           where('year', '==', year),
+        ),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+/**
+ * Every report (any status) for one CALENDAR YEAR, across ALL properties —
+ * the payments ledger's year mode (FR-PAY-07/FR-PROP-12, M8 stage 12). Same
+ * shape and same reasoning as `useReportsForMonth` above: one equality
+ * filter (`year`), no `orderBy` — `FR-PAY-07`'s own sort (`paymentDate`,
+ * JS-side, unpaid rows last) would silently lose every unpaid row if it
+ * were a Firestore `orderBy` instead, and status/property filtering happens
+ * in memory on the page, same division of labour as `useReportsForMonth`.
+ */
+export function useReportsForYear(year) {
+  return useQuery({
+    queryKey: reportKeys.forYear(year),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(collection(db, COLLECTION), where('year', '==', year)),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+/**
+ * Every SIGNED report for one tenancy (M8 stage 7, FR-SYS-05a) — the "chain
+ * of signed reports" the Recalculate-balance control shows the admin before
+ * they confirm. Same two-equality-filter, no-`orderBy` shape as
+ * `computeBalanceFromSignedReports` (functions/src/reports.js): this is the
+ * CLIENT-side half of that same formula (`balanceRecalculation.js`), reading
+ * the identical set of documents the server will recompute from — the
+ * preview and the eventual write are never looking at different data, only
+ * computing it in two places (the cross-package duplication CLAUDE.md §7
+ * already documents for FINAL_TOTAL_EPSILON/DST arithmetic).
+ */
+export function useSignedReportsForTenancy(tenancyId) {
+  return useQuery({
+    queryKey: reportKeys.forTenancy(tenancyId),
+    enabled: Boolean(tenancyId),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(
+          collection(db, COLLECTION),
+          where('tenancyId', '==', tenancyId),
+          where('status', '==', 'signed'),
         ),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -196,9 +256,9 @@ export function useSignReport() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id }) => {
+    mutationFn: ({ id, overrideReason }) => {
       const signReport = httpsCallable(functions, 'signReport')
-      return signReport({ reportId: id })
+      return signReport({ reportId: id, overrideReason })
     },
     onSuccess: (_result, { id }) => {
       queryClient.invalidateQueries({ queryKey: reportKeys.detail(id) })
@@ -249,6 +309,27 @@ export function useSendReportNotification() {
         'sendReportNotification',
       )
       return sendReportNotification({ reportId: id, template })
+    },
+  })
+}
+
+/**
+ * The A10 "payment recorded" confirmation email (FR-PAY-01, SRS Appendix
+ * A10, M8 stage 14). A callable, not a plain `updateDoc` like
+ * `useMarkPayment` — `mail` is closed to every client (NFR-SEC-02), so the
+ * write can only come from a trusted server. Same shape as
+ * `useSendReportNotification`: explicit admin action, no template choice
+ * (A10 has one form), no `invalidateQueries` (nothing the client reads
+ * changes).
+ */
+export function useSendPaymentConfirmation() {
+  return useMutation({
+    mutationFn: ({ id }) => {
+      const sendPaymentConfirmation = httpsCallable(
+        functions,
+        'sendPaymentConfirmation',
+      )
+      return sendPaymentConfirmation({ reportId: id })
     },
   })
 }

@@ -87,6 +87,7 @@ describe('adaptTenantReportSummary', () => {
       otherExpenses: [],
       previousMonthArrears: 0,
       previousMonthCredit: 0,
+      roundingSurplus: 0,
       calculatedTotal: 2730,
       finalTotal: 2730,
       dueDate: '2026-07-10',

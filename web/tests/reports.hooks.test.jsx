@@ -17,10 +17,12 @@ import {
   useMarkPayment,
   useMonthlyReport,
   useReportsForMonth,
+  useReportsForYear,
   useRevokeShareLink,
   useSaveReportDraft,
   useSendReportNotification,
   useShareReport,
+  useSignedReportsForTenancy,
   useSignReport,
   useUnlockReport,
 } from '@/features/reports/hooks'
@@ -82,18 +84,18 @@ beforeEach(() => {
 })
 
 describe('buildReportId (FR-REP-14 — composite/unique id)', () => {
-  it('builds a deterministic id from propertyId+month+year, zero-padding the month', () => {
-    expect(buildReportId('p1', 7, 2026)).toBe('p1_2026-07')
-    expect(buildReportId('p1', 12, 2026)).toBe('p1_2026-12')
+  it('builds a deterministic id from tenancyId+year+month, zero-padding the month', () => {
+    expect(buildReportId('t1', 2026, 7)).toBe('t1_2026-07')
+    expect(buildReportId('t1', 2026, 12)).toBe('t1_2026-12')
   })
 
-  it('produces the SAME id every time for the same property+month+year', () => {
-    expect(buildReportId('p1', 7, 2026)).toBe(buildReportId('p1', 7, 2026))
+  it('produces the SAME id every time for the same tenancy+month+year', () => {
+    expect(buildReportId('t1', 2026, 7)).toBe(buildReportId('t1', 2026, 7))
   })
 
-  it('produces different ids for different properties or months', () => {
-    expect(buildReportId('p1', 7, 2026)).not.toBe(buildReportId('p2', 7, 2026))
-    expect(buildReportId('p1', 7, 2026)).not.toBe(buildReportId('p1', 8, 2026))
+  it('produces different ids for different tenancies or months', () => {
+    expect(buildReportId('t1', 2026, 7)).not.toBe(buildReportId('t2', 2026, 7))
+    expect(buildReportId('t1', 2026, 7)).not.toBe(buildReportId('t1', 2026, 8))
   })
 })
 
@@ -101,22 +103,23 @@ describe('useMonthlyReport', () => {
   it('parses the document, with its id, when it exists', async () => {
     getDoc.mockResolvedValue({
       exists: () => true,
-      id: 'p1_2026-07',
-      data: () => ({ propertyId: 'p1', status: 'draft' }),
+      id: 't1_2026-07',
+      data: () => ({ propertyId: 'p1', tenancyId: 't1', status: 'draft' }),
     })
 
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: 'p1', month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: 't1', month: 7, year: 2026 }),
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual({
-      id: 'p1_2026-07',
+      id: 't1_2026-07',
       propertyId: 'p1',
+      tenancyId: 't1',
       status: 'draft',
     })
     expect(getDoc).toHaveBeenCalledWith({
-      __doc: 'monthlyReports/p1_2026-07',
+      __doc: 'monthlyReports/t1_2026-07',
     })
   })
 
@@ -124,16 +127,16 @@ describe('useMonthlyReport', () => {
     getDoc.mockResolvedValue({ exists: () => false })
 
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: 'p1', month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: 't1', month: 7, year: 2026 }),
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toBeNull()
   })
 
-  it('reads nothing without a propertyId', async () => {
+  it('reads nothing without a tenancyId', async () => {
     const { result } = await renderHookWithProviders(() =>
-      useMonthlyReport({ propertyId: undefined, month: 7, year: 2026 }),
+      useMonthlyReport({ tenancyId: undefined, month: 7, year: 2026 }),
     )
 
     expect(result.current.fetchStatus).toBe('idle')
@@ -211,6 +214,103 @@ describe('useReportsForMonth (M4 sub-stage 7)', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual([])
+  })
+})
+
+describe('useReportsForYear (M8 stage 12, FR-PAY-07/FR-PROP-12)', () => {
+  it('queries monthlyReports with ONE equality filter (year), no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 't1_2026-07',
+          data: () => ({
+            tenancyId: 't1',
+            propertyId: 'p1',
+            month: 7,
+            year: 2026,
+            status: 'signed',
+          }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('year', '==', 2026)
+    expect(where).not.toHaveBeenCalledWith('month', '==', expect.anything())
+    expect(result.current.data).toEqual([
+      {
+        id: 't1_2026-07',
+        tenancyId: 't1',
+        propertyId: 'p1',
+        month: 7,
+        year: 2026,
+        status: 'signed',
+      },
+    ])
+  })
+
+  it('returns every status (draft AND signed), across every month of the year', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        { id: 'a', data: () => ({ status: 'draft', month: 8 }) },
+        { id: 'b', data: () => ({ status: 'signed', month: 1 }) },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toHaveLength(2)
+  })
+
+  it('returns an empty array, not an error, when no report exists for the year', async () => {
+    getDocs.mockResolvedValue({ docs: [] })
+
+    const { result } = await renderHookWithProviders(() =>
+      useReportsForYear(2026),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual([])
+  })
+})
+
+describe('useSignedReportsForTenancy (M8 stage 7, FR-SYS-05a)', () => {
+  it('queries monthlyReports constrained by tenancyId AND status==signed, no orderBy', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        {
+          id: 't1_2026-07',
+          data: () => ({ tenancyId: 't1', status: 'signed', finalTotal: 2000 }),
+        },
+      ],
+    })
+
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForTenancy('t1'),
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(where).toHaveBeenCalledWith('tenancyId', '==', 't1')
+    expect(where).toHaveBeenCalledWith('status', '==', 'signed')
+    expect(result.current.data).toEqual([
+      { id: 't1_2026-07', tenancyId: 't1', status: 'signed', finalTotal: 2000 },
+    ])
+  })
+
+  it('does not query until a tenancyId is provided', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useSignedReportsForTenancy(undefined),
+    )
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getDocs).not.toHaveBeenCalled()
   })
 })
 
@@ -718,6 +818,24 @@ describe('useSignReport (FR-REP-07)', () => {
       'signReport',
     )
     expect(signReportMock).toHaveBeenCalledWith({ reportId: 'r1' })
+  })
+
+  it('passes overrideReason through to the callable when provided (FR-REP-04e)', async () => {
+    const signReportMock = vi
+      .fn()
+      .mockResolvedValue({ data: { reportId: 'r1' } })
+    httpsCallable.mockReturnValue(signReportMock)
+
+    const { result } = await renderHookWithProviders(() => useSignReport())
+    await result.current.mutateAsync({
+      id: 'r1',
+      overrideReason: 'Reducere negociată',
+    })
+
+    expect(signReportMock).toHaveBeenCalledWith({
+      reportId: 'r1',
+      overrideReason: 'Reducere negociată',
+    })
   })
 
   it('invalidates the report detail query on success', async () => {

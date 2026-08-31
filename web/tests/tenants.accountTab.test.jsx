@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { AccountTab } from '@/features/tenants/components/AccountTab'
@@ -10,9 +10,11 @@ vi.mock('@/features/tenants/hooks', () => ({
   useUserTenancies: vi.fn(),
   useResetTenantPassword: vi.fn(),
   useSetTenantAccountStatus: vi.fn(),
+  useExportTenantData: vi.fn(),
 }))
 
 import {
+  useExportTenantData,
   useResetTenantPassword,
   useSetTenantAccountStatus,
   useUserTenancies,
@@ -20,6 +22,7 @@ import {
 
 const resetMutateAsync = vi.fn()
 const statusMutateAsync = vi.fn()
+const exportMutateAsync = vi.fn()
 
 function activeTenancy(overrides) {
   return { id: 't1', userId: 'u1', status: 'active', ...overrides }
@@ -36,8 +39,26 @@ beforeEach(() => {
     mutateAsync: statusMutateAsync,
     isPending: false,
   })
+  useExportTenantData.mockReturnValue({
+    mutateAsync: exportMutateAsync,
+    isPending: false,
+  })
   resetMutateAsync.mockResolvedValue({ data: { password: 'AbCdEfGh2345' } })
   statusMutateAsync.mockResolvedValue({ data: { status: 'disabled' } })
+  exportMutateAsync.mockResolvedValue({
+    data: {
+      subjectUserId: 'u1',
+      profile: { id: 'u1', name: 'Maria' },
+      thirdParties: {
+        description: 'data about people other than the subject',
+        guarantor: { name: 'Vasile Garant' },
+        emergencyContact: null,
+        previousReference: null,
+        documentManifest: [],
+      },
+      counts: { thirdPartyDocuments: 0 },
+    },
+  })
 })
 
 describe('AccountTab — Reset password', () => {
@@ -174,7 +195,7 @@ describe('AccountTab — Archive guard (Bogdan’s state machine, M3-D)', () => 
 })
 
 describe('AccountTab — archived account is read-only', () => {
-  it('shows no actions, only a notice', async () => {
+  it('shows no status actions, only a notice — but the data export stays available', async () => {
     await renderWithProviders(<AccountTab userId="u1" status="archived" />)
 
     expect(
@@ -187,5 +208,70 @@ describe('AccountTab — archived account is read-only', () => {
       screen.queryByRole('button', { name: 'Arhivează' }),
     ).not.toBeInTheDocument()
     expect(screen.getByText('Acest cont este arhivat.')).toBeVisible()
+    // FR-TEN-26: a subject-access request does not stop because the account
+    // was retired.
+    expect(
+      screen.getByRole('button', { name: 'Construiește fișierul de date' }),
+    ).toBeVisible()
+  })
+})
+
+describe('AccountTab — Personal data export (FR-TEN-26)', () => {
+  it('the control names what it produces, not just "Export"', async () => {
+    await renderWithProviders(<AccountTab userId="u1" status="active" />)
+
+    expect(
+      screen.getByRole('button', { name: 'Construiește fișierul de date' }),
+    ).toBeVisible()
+    expect(screen.getByText(/profilul și răspunsurile KYC/)).toBeVisible()
+    expect(
+      screen.getByText(
+        /grupate într-o secțiune marcată ca fiind despre alte persoane/,
+      ),
+    ).toBeVisible()
+  })
+
+  it('builds the bundle and opens a review dialog before anything leaves', async () => {
+    const user = userEvent.setup()
+    await renderWithProviders(<AccountTab userId="u1" status="active" />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Construiește fișierul de date' }),
+    )
+
+    await waitFor(() =>
+      expect(exportMutateAsync).toHaveBeenCalledWith({ userId: 'u1' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText(
+        'Fișier de date personale — verifică înainte de trimitere',
+      ),
+    ).toBeVisible()
+    expect(within(dialog).getByText(/„thirdParties”/)).toBeVisible()
+    expect(within(dialog).getByText(/"subjectUserId": "u1"/)).toBeVisible()
+    expect(
+      within(dialog).getByRole('button', { name: 'Descarcă .json' }),
+    ).toBeVisible()
+  })
+
+  it('shows an error and lets the admin retry when the build fails', async () => {
+    exportMutateAsync.mockRejectedValueOnce(new Error('functions/internal'))
+    const user = userEvent.setup()
+    await renderWithProviders(<AccountTab userId="u1" status="active" />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Construiește fișierul de date' }),
+    )
+
+    expect(
+      await screen.findByText(
+        'Fișierul nu a putut fi construit. Încearcă din nou.',
+      ),
+    ).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Construiește fișierul de date' }),
+    ).toBeEnabled()
   })
 })

@@ -1,13 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { waitFor } from '@testing-library/react'
-import { doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import {
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   useActiveTenancies,
+  useAllTenancies,
   useEndTenancy,
+  useRecalculateTenancyBalance,
   useResetTenantPassword,
   useSetTenantAccountStatus,
+  useSettleDeposit,
   useUpdateTenancy,
   useUpdateUser,
   useUserTenancies,
@@ -32,9 +42,17 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: vi.fn(),
   query: vi.fn((...args) => ({ __query: args })),
   where: vi.fn((field, op, value) => ({ __where: [field, op, value] })),
+  serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
 }))
 
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }))
+
+vi.mock('@/lib/fileUpload', () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachmentBestEffort: vi.fn(),
+}))
+
+import { deleteAttachmentBestEffort, uploadAttachment } from '@/lib/fileUpload'
 
 function listSnapshot(docs) {
   return { docs: docs.map(({ id, ...data }) => ({ id, data: () => data })) }
@@ -42,6 +60,7 @@ function listSnapshot(docs) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  deleteAttachmentBestEffort.mockResolvedValue(undefined)
 })
 
 describe('useUsers (FR-TEN-13 — all tenants)', () => {
@@ -86,6 +105,35 @@ describe('useActiveTenancies (FR-CON-02 — join for property + balance)', () =>
       { __collection: 'tenancies' },
       { __where: ['status', '==', 'active'] },
     )
+  })
+})
+
+describe('useAllTenancies (M8 stage 12 — payments ledger property/renter join)', () => {
+  it('reads the WHOLE collection, any status — no WHERE, unlike useActiveTenancies', async () => {
+    const TENANCIES = [
+      {
+        id: 't1',
+        tenantName: 'Ion Popescu',
+        property: { name: 'Apartament Centru' },
+        status: 'active',
+        currentBalance: 0,
+      },
+      {
+        id: 't2',
+        tenantName: 'Maria Ionescu',
+        property: { name: 'Casa Zorilor' },
+        status: 'ended',
+        currentBalance: 0,
+      },
+    ]
+    getDocs.mockResolvedValue(listSnapshot(TENANCIES))
+
+    const { result } = await renderHookWithProviders(() => useAllTenancies())
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual(TENANCIES)
+    expect(getDocs).toHaveBeenCalledWith({ __collection: 'tenancies' })
+    expect(where).not.toHaveBeenCalled()
   })
 })
 
@@ -363,5 +411,274 @@ describe('useSetTenantAccountStatus (Account tab — Disable/Re-enable)', () => 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['users', 'detail', 'u1'],
     })
+  })
+})
+
+describe('useSettleDeposit (FR-CON-10/11/12 — deposit settlement)', () => {
+  beforeEach(() => {
+    updateDoc.mockResolvedValue(undefined)
+  })
+
+  it('writes ONLY depositSettlement to tenancies/{id} — never currentBalance/closingBalance (FR-CON-11)', async () => {
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [{ description: 'Curățenie', amount: 200, attachments: [] }],
+      securityDeposit: 1800,
+    })
+
+    expect(doc).toHaveBeenCalledWith({ __fake: 'db' }, 'tenancies', 't1')
+    expect(updateDoc).toHaveBeenCalledTimes(1)
+    const [, payload] = updateDoc.mock.calls[0]
+    expect(Object.keys(payload)).toEqual(['depositSettlement'])
+    expect(payload.depositSettlement).toMatchObject({
+      items: [{ description: 'Curățenie', amount: 200, attachments: [] }],
+      deducted: 200,
+      toReturn: 1600,
+      ownerBears: 0,
+    })
+  })
+
+  it('computes ownerBears, never toReturn, when deductions exceed the deposit — and it is never folded into a debt field', async () => {
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [
+        { description: 'Reparații majore', amount: 2500, attachments: [] },
+      ],
+      securityDeposit: 1800,
+    })
+
+    const [, payload] = updateDoc.mock.calls[0]
+    expect(payload.depositSettlement).toMatchObject({
+      deducted: 2500,
+      toReturn: 0,
+      ownerBears: 700,
+    })
+    // FR-CON-10: no field on this write can be mistaken for a tenant debt —
+    // the only numbers written are items/deducted/toReturn/ownerBears/settledAt.
+    expect(Object.keys(payload.depositSettlement).sort()).toEqual([
+      'deducted',
+      'items',
+      'ownerBears',
+      'settledAt',
+      'toReturn',
+    ])
+  })
+
+  it('stamps a fresh settledAt on first completion', async () => {
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [{ description: 'Curățenie', amount: 200, attachments: [] }],
+      securityDeposit: 1800,
+    })
+
+    expect(serverTimestamp).toHaveBeenCalled()
+    const [, payload] = updateDoc.mock.calls[0]
+    expect(payload.depositSettlement.settledAt).toEqual({
+      __serverTimestamp: true,
+    })
+  })
+
+  it('keeps the ORIGINAL settledAt on a correction, instead of stamping a new one', async () => {
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+    const original = { __fixedTimestamp: '2026-06-01' }
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [
+        { description: 'Curățenie (corectat)', amount: 250, attachments: [] },
+      ],
+      securityDeposit: 1800,
+      existingSettledAt: original,
+    })
+
+    const [, payload] = updateDoc.mock.calls[0]
+    expect(payload.depositSettlement.settledAt).toEqual(original)
+    // serverTimestamp() is still called elsewhere in the module in other
+    // tests, so assert on THIS call's payload rather than call-count.
+  })
+
+  it('uploads a file-bearing attachment and writes its clean {path,name,type}, never the File object', async () => {
+    uploadAttachment.mockResolvedValue({
+      path: 'tenancies/t1/settlement/uuid-invoice.pdf',
+      name: 'invoice.pdf',
+      type: 'pdf',
+    })
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+    const file = new File(['x'], 'invoice.pdf', { type: 'application/pdf' })
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [
+        {
+          description: 'Curățenie',
+          amount: 200,
+          attachments: [{ name: 'invoice.pdf', type: 'pdf', file }],
+        },
+      ],
+      securityDeposit: 1800,
+    })
+
+    expect(uploadAttachment).toHaveBeenCalledWith(
+      expect.stringMatching(/^tenancies\/t1\/settlement\/.+-invoice\.pdf$/),
+      file,
+    )
+    const [, payload] = updateDoc.mock.calls[0]
+    expect(payload.depositSettlement.items[0].attachments[0]).toEqual({
+      path: 'tenancies/t1/settlement/uuid-invoice.pdf',
+      name: 'invoice.pdf',
+      type: 'pdf',
+    })
+  })
+
+  it('on a failed write, deletes only the attachments THIS call just uploaded (orphan cleanup)', async () => {
+    uploadAttachment.mockResolvedValue({
+      path: 'tenancies/t1/settlement/uuid-new.pdf',
+      name: 'new.pdf',
+      type: 'pdf',
+    })
+    updateDoc.mockRejectedValue(new Error('boom'))
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+    const file = new File(['x'], 'new.pdf', { type: 'application/pdf' })
+
+    await expect(
+      result.current.mutateAsync({
+        tenancyId: 't1',
+        userId: 'u1',
+        items: [
+          {
+            description: 'Curățenie',
+            amount: 200,
+            attachments: [{ name: 'new.pdf', type: 'pdf', file }],
+          },
+        ],
+        securityDeposit: 1800,
+      }),
+    ).rejects.toThrow('boom')
+
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledWith(
+      'tenancies/t1/settlement/uuid-new.pdf',
+    )
+  })
+
+  it('after a successful write, deletes attachments the admin removed (diffed against previousAttachmentPaths)', async () => {
+    const { result } = await renderHookWithProviders(() => useSettleDeposit())
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [
+        {
+          description: 'Curățenie',
+          amount: 200,
+          attachments: [
+            {
+              path: 'tenancies/t1/settlement/kept.pdf',
+              name: 'kept.pdf',
+              type: 'pdf',
+            },
+          ],
+        },
+      ],
+      securityDeposit: 1800,
+      previousAttachmentPaths: [
+        'tenancies/t1/settlement/kept.pdf',
+        'tenancies/t1/settlement/removed.pdf',
+      ],
+    })
+
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledTimes(1)
+    expect(deleteAttachmentBestEffort).toHaveBeenCalledWith(
+      'tenancies/t1/settlement/removed.pdf',
+    )
+  })
+
+  it('invalidates only this user’s tenancy history — no currentBalance-adjacent cache (FR-CON-11)', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useSettleDeposit(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+      items: [{ description: 'Curățenie', amount: 200, attachments: [] }],
+      securityDeposit: 1800,
+    })
+
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'byUser', 'u1'],
+    })
+  })
+})
+
+describe('useRecalculateTenancyBalance (FR-SYS-05a — M8 stage 7)', () => {
+  const recalculateMock = vi.fn()
+
+  beforeEach(() => {
+    httpsCallable.mockReturnValue(recalculateMock)
+    recalculateMock.mockResolvedValue({ data: { from: 350, to: 2000 } })
+  })
+
+  it('calls the recalculateTenancyBalance callable with the tenancyId, never a Firestore write', async () => {
+    const { result } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+
+    const response = await result.current.mutateAsync({
+      tenancyId: 't1',
+      userId: 'u1',
+    })
+
+    expect(httpsCallable).toHaveBeenCalledWith(
+      { __fake: 'functions' },
+      'recalculateTenancyBalance',
+    )
+    expect(recalculateMock).toHaveBeenCalledWith({ tenancyId: 't1' })
+    expect(updateDoc).not.toHaveBeenCalled()
+    expect(response).toEqual({ from: 350, to: 2000 })
+  })
+
+  it('invalidates the tenancy detail, the user’s history, and the active-tenancies list', async () => {
+    const { result, queryClient } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await result.current.mutateAsync({ tenancyId: 't1', userId: 'u1' })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'detail', 't1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'byUser', 'u1'],
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['tenancies', 'active', 'list'],
+    })
+  })
+
+  it('propagates a permission-denied error without swallowing it', async () => {
+    recalculateMock.mockRejectedValue(
+      Object.assign(new Error('denied'), { code: 'permission-denied' }),
+    )
+    const { result } = await renderHookWithProviders(() =>
+      useRecalculateTenancyBalance(),
+    )
+
+    await expect(
+      result.current.mutateAsync({ tenancyId: 't1', userId: 'u1' }),
+    ).rejects.toMatchObject({ code: 'permission-denied' })
   })
 })

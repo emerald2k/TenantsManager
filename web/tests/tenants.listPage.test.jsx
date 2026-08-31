@@ -68,6 +68,8 @@ beforeEach(() => {
   useDeleteDraft.mockReturnValue({
     mutateAsync: deleteMutateAsync,
     isPending: false,
+    isError: false,
+    reset: vi.fn(),
   })
 })
 
@@ -178,8 +180,8 @@ describe('TenantsListPage (FR-TEN-13)', () => {
       await renderWithProviders(<TenantsListPage />)
 
       const cell = balanceCell('Sold Zero')
-      expect(cell.textContent).toBe('0')
-      expect(cell.className).not.toContain('text-destructive')
+      expect(cell.textContent).toBe('0,00 lei')
+      expect(cell.querySelector('.text-destructive')).toBeNull()
     })
 
     it('applies the destructive arrears styling when the balance is > 0', async () => {
@@ -208,8 +210,37 @@ describe('TenantsListPage (FR-TEN-13)', () => {
       await renderWithProviders(<TenantsListPage />)
 
       const cell = balanceCell('Sold Restant')
-      expect(cell.textContent).toBe('500')
-      expect(cell.className).toContain('text-destructive')
+      expect(cell.textContent).toBe('500,00 lei')
+      expect(cell.querySelector('.text-destructive')).not.toBeNull()
+    })
+
+    it('renders a negative currentBalance as a positive figure labelled Credit, never a bare negative number (§5.5)', async () => {
+      mockData({
+        users: [
+          {
+            id: 'u1',
+            name: 'Sold Credit',
+            phone: '',
+            email: '',
+            status: 'active',
+          },
+        ],
+        tenancies: [
+          {
+            id: 't1',
+            userId: 'u1',
+            property: { name: 'Casa C' },
+            currentBalance: -200,
+            status: 'active',
+          },
+        ],
+      })
+      await renderWithProviders(<TenantsListPage />)
+
+      const cell = balanceCell('Sold Credit')
+      expect(cell.textContent).toBe('200,00 lei (Credit)')
+      expect(cell.textContent).not.toContain('-200')
+      expect(cell.querySelector('.text-destructive')).toBeNull()
     })
   })
 
@@ -266,6 +297,34 @@ describe('TenantsListPage (FR-TEN-13)', () => {
     await waitFor(() => {
       expect(deleteMutateAsync).toHaveBeenCalledWith('d9')
     })
+  })
+
+  it('keeps the dialog open and shows a message when the delete fails (FR-TEN-25 — no longer swallowed)', async () => {
+    const user = userEvent.setup()
+    deleteMutateAsync.mockRejectedValue(new Error('functions/internal'))
+    useDeleteDraft.mockReturnValue({
+      mutateAsync: deleteMutateAsync,
+      isPending: false,
+      isError: true,
+      reset: vi.fn(),
+    })
+    mockData({ drafts: [{ id: 'd9', name: 'Alin', status: 'in_progress' }] })
+    await renderWithProviders(<TenantsListPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Șterge draftul' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Șterge draftul' }),
+    )
+
+    await waitFor(() => {
+      expect(deleteMutateAsync).toHaveBeenCalledWith('d9')
+    })
+    // The rejection is caught — the dialog stays open with an error message,
+    // not an unhandled promise rejection.
+    expect(
+      within(await screen.findByRole('dialog')).getByRole('alert'),
+    ).toHaveTextContent('Draftul nu a putut fi șters complet')
   })
 
   it('navigates to the tenant detail when a user row is clicked', async () => {

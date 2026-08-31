@@ -65,10 +65,14 @@ function formatDueDate(isoDate, language) {
  * Falls back to English if `language` is not one of ro/en — same convention
  * as buildCredentialsEmail/buildAssignmentEmail/buildReportNotificationEmail.
  *
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId`/`ownerId` come from the caller: `dailyScheduler` knows the
+ * tenancy's ID and its `ownerId` (the single admin's uid).
+ *
  * @param language  'ro' | 'en' — the tenant's preferred language
- * @param fields    { name, email, arrearsAmount, property, dueDate, url } —
- *                  RAW, unformatted; this function does all localization
- *                  internally.
+ * @param fields    { name, email, arrearsAmount, property, dueDate, url,
+ *                    relatedId, ownerId } — RAW, unformatted; this function
+ *                  does all localization internally.
  */
 function buildArrearsReminderEmail(language, fields) {
   const lang = TEMPLATES[language] ? language : 'en'
@@ -86,6 +90,10 @@ function buildArrearsReminderEmail(language, fields) {
       subject: tpl.subject(values),
       text: tpl.body(values),
     },
+    type: 'arrears-reminder',
+    audience: 'tenant',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

@@ -98,10 +98,18 @@ function formatDueDate(isoDate, language) {
  * shape). Falls back to English if `language` is not one of ro/en — same
  * convention as buildCredentialsEmail/buildAssignmentEmail.
  *
+ * `type` (FR-NLOG-03) is the one case in this directory where it is NOT a
+ * single hardcoded constant: A2/A3 share one builder, and `type` follows
+ * the same `template` parameter the admin already picks explicitly at every
+ * send — never inferred separately. `relatedId`/`ownerId` come from the
+ * caller: `sendReportNotification` knows the report's ID and the admin's
+ * own uid.
+ *
  * @param template  'new' | 'updated' — the admin's explicit choice (A2/A3)
  * @param language  'ro' | 'en' — the tenant's preferred language
- * @param fields    { name, email, month, year, finalTotal, dueDate, url } — RAW,
- *                  unformatted; this function does all localization internally.
+ * @param fields    { name, email, month, year, finalTotal, dueDate, url,
+ *                    relatedId, ownerId } — RAW, unformatted; this function
+ *                  does all localization internally.
  */
 function buildReportNotificationEmail(template, language, fields) {
   const lang = TEMPLATES[language] ? language : 'en'
@@ -119,6 +127,10 @@ function buildReportNotificationEmail(template, language, fields) {
       subject: tpl.subject(values),
       text: tpl.body(values),
     },
+    type: template === 'updated' ? 'report-updated' : 'report-new',
+    audience: 'tenant',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

@@ -4,6 +4,7 @@
     "logout": "Deconectare",
     "loading": "Se încarcă...",
     "cancel": "Anulează",
+    "close": "Închide",
     "attachmentUnavailable": "Indisponibil",
     "retry": "Încearcă din nou"
   },
@@ -24,9 +25,18 @@
     "currentMonth": "Luna curentă",
     "properties": "Proprietăți",
     "tenants": "Chiriași",
+    "payments": "Plăți",
+    "notifications": "Notificări",
     "home": "Acasă",
     "history": "Istoric",
-    "contract": "Contract"
+    "contract": "Contract",
+    "more": "Mai multe",
+    "tab": {
+      "dashboard": "Panou",
+      "currentMonth": "Luna",
+      "payments": "Plăți",
+      "tenants": "Chiriași"
+    }
   },
   "pages": {
     "adminDashboard": "Admin — Dashboard",
@@ -40,6 +50,7 @@
     "monthlyReportForm": "Admin — Raport lunar",
     "reportsListPhase2": "Admin — Listă rapoarte (Faza 2)",
     "annualReportPhase2": "Admin — Raport anual (Faza 2)",
+    "paymentsComingSoon": "Admin — Plăți (în curând)",
     "tenantDashboard": "Chiriaș — Acasă",
     "tenantHistory": "Chiriaș — Istoric",
     "tenantContract": "Chiriaș — Contract",
@@ -111,6 +122,9 @@
       "historyTitle": "Istoric costuri",
       "historyEmpty": "Istoricul costurilor va fi disponibil după ce există rapoarte lunare.",
       "historyMonth": "Lună",
+      "historyBilled": "Facturat",
+      "historyRounding": "Rotunjire",
+      "historyYearTotal": "Total {{year}}",
       "historyShowAll": "Arată tot",
       "dueDay": "Scadență",
       "daysUntilDue": "{{count}} zile rămase"
@@ -180,7 +194,9 @@
       "monthlyRent": "Chirie lunară",
       "securityDeposit": "Garanție",
       "dueDay": "Zi scadentă",
-      "reportReminderDaysBefore": "Reminder raport (zile înainte de scadență)"
+      "reportReminderDaysBefore": "Memento pregătire raport (zile înainte) — către administrator",
+      "paymentReminderDaysBefore": "Memento plată (zile înainte) — către chiriaș",
+      "paymentReminderDaysBeforeHelp": "Valoarea înseamnă un email pe zi către chiriaș, până la scadență."
     },
     "placeholders": {
       "cnp": "ex: 1234567890123",
@@ -217,9 +233,13 @@
       "goToTenants": "Către lista de chiriași",
       "cnpDialogTitle": "CNP duplicat",
       "viewProfile": "Vezi profilul",
+      "reenableAccount": "Reactivează contul",
+      "reenableDone": "Cont reactivat. Apasă din nou Finalizează pentru a asigna tenanța.",
       "errors": {
         "occupied": "Proprietatea selectată este deja ocupată de o altă tenanță activă.",
         "activeTenancy": "Acest cont are deja o tenanță activă. Încheie-o înainte de a continua.",
+        "accountDisabled": "Acest cont este dezactivat. Reactivează-l înainte de a asigna o tenanță.",
+        "accountArchived": "Acest cont este arhivat — o stare terminală. Nu i se poate asigna o tenanță.",
         "generic": "Finalizarea a eșuat. Încearcă din nou."
       }
     }
@@ -237,6 +257,7 @@
       "deleteDraftTitle": "Șterge draftul",
       "deleteDraftDescription": "Acest draft de onboarding va fi șters. Acțiunea nu poate fi anulată.",
       "deleteDraftConfirm": "Șterge draftul",
+      "deleteDraftError": "Draftul nu a putut fi șters complet. Încearcă din nou — reluarea este sigură.",
       "loadError": "Chiriașii nu au putut fi încărcați. Încearcă din nou.",
       "error": "Draftul nu a putut fi creat. Încearcă din nou."
     },
@@ -291,14 +312,48 @@
         "endConfirmBody": "Proprietatea va deveni liberă, iar contul va trece în stare inactiv-doar-citire. Acțiunea nu poate fi anulată.",
         "endConfirmButton": "Termină contractul",
         "endGenericError": "Contractul nu a putut fi terminat. Încearcă din nou.",
-        "endArrearsError": "Această tenanță are restanțe neachitate ({{balance}}) și nu poate fi terminată până la achitarea soldului.",
+        "endBalanceOwed": "Chiriașul mai are de plătit {{balance}}. Suma rămâne vizibilă și după terminarea contractului.",
+        "endBalanceCredit": "Chiriașul are un credit de {{balance}}, care va rămâne neconsumat după terminarea contractului.",
+        "endBalanceSettled": "Soldul este achitat integral.",
+        "endAcknowledge": "Am luat la cunoștință soldul de mai sus și confirm terminarea contractului.",
         "notActiveNotice": "Această tenanță s-a încheiat deja.",
         "historyItem": "{{property}} — {{startDate}} până la {{endDate}}",
         "contract": {
           "upload": "Încarcă document",
           "delete": "Șterge",
           "tooLarge": "Fișierul depășește 10 MB."
+        },
+        "settlement": {
+          "title": "Decontare garanție",
+          "depositHeld": "Garanție reținută: {{value}}",
+          "empty": "Nicio linie de restaurare încă.",
+          "addItem": "Adaugă linie de restaurare",
+          "removeItem": "Elimină",
+          "deducted": "Dedus",
+          "toReturn": "Sumă de returnat",
+          "ownerBears": "Depășește garanția (cost al proprietarului)",
+          "settledAt": "Decontat la {{date}}",
+          "downloadLabel": "Descarcă documentul",
+          "completeButton": "Finalizează decontarea",
+          "editButton": "Editează decontarea",
+          "confirmTitle": "Finalizezi decontarea garanției?",
+          "confirmBody": "Se înregistrează deducerile de restaurare și suma de returnat. Chiriașul o va vedea, cu documentele aferente, în portalul său.",
+          "confirmBodyArrears": "Chiriașul mai are de plătit {{balance}}. Această decontare NU achită acel sold — el rămâne vizibil și continuă să fie urmărit separat (FR-CON-11). Acțiunea nu poate fi anulată din acest ecran.",
+          "confirmButton": "Finalizează decontarea",
+          "saveError": "Decontarea nu a putut fi salvată. Încearcă din nou."
         }
+      },
+      "balance": {
+        "title": "Sold",
+        "stored": "Sold stocat",
+        "recomputed": "Sold recalculat",
+        "reportChain": "Din lanțul de rapoarte semnate",
+        "recalculateButton": "Recalculează soldul",
+        "confirmTitle": "Recalculezi acest sold?",
+        "confirmBody": "Se scrie valoarea recalculată peste cea stocată. Modificarea este înregistrată — cine, când, de la ce, la ce.",
+        "confirmButton": "Recalculează",
+        "recalculatedNotice": "Recalculat: {{from}} → {{to}}",
+        "error": "Soldul nu a putut fi recalculat. Încearcă din nou."
       },
       "account": {
         "title": "Stare cont",
@@ -322,7 +377,16 @@
           "activeTenancy": "Termină contractul întâi.",
           "disabled": "Re-activează contul întâi."
         },
-        "archivedNotice": "Acest cont este arhivat."
+        "archivedNotice": "Acest cont este arhivat.",
+        "exportTitle": "Date personale",
+        "exportDescription": "Construiește un fișier cu tot ce deține aplicația despre acest chiriaș: profilul și răspunsurile KYC, toate tenanțele, rapoartele lunare semnate, istoricul de plăți și o listă a documentelor stocate. Datele despre garant, contactul de urgență și referința anterioară sunt grupate într-o secțiune marcată ca fiind despre alte persoane. Nu se trimite nimic nicăieri — verifici fișierul întâi.",
+        "exportButton": "Construiește fișierul de date",
+        "exportBuilding": "Se construiește…",
+        "exportError": "Fișierul nu a putut fi construit. Încearcă din nou.",
+        "exportDialogTitle": "Fișier de date personale — verifică înainte de trimitere",
+        "exportDialogNote": "Secțiunea „thirdParties” conține date despre garant, contactul de urgență și referința anterioară — persoane diferite de acest chiriaș.",
+        "exportCopy": "Copiază",
+        "exportDownload": "Descarcă .json"
       },
       "financial": {
         "empty": "Niciun raport încă."
@@ -330,8 +394,13 @@
     }
   },
   "reports": {
-    "notFound": "Această proprietate nu există.",
-    "noActiveTenancy": "Această proprietate nu are o tenanță activă — nu se poate crea un raport.",
+    "notFound": "Această tenanță nu există.",
+    "noTenancyForMonth": "Nicio tenanță de pe această proprietate nu acoperă luna aceasta.",
+    "pickTenancy": {
+      "title": "Care tenanță?",
+      "description": "Mai multe tenanțe au acoperit această proprietate în luna aceasta — alege-o pe cea căreia îi aparține raportul.",
+      "ongoing": "în curs"
+    },
     "sections": {
       "rent": "Chirie",
       "maintenance": "Mentenanță",
@@ -345,7 +414,11 @@
       "previousArrears": "Restanțe luna anterioară",
       "previousCredit": "Credit luna anterioară",
       "calculatedTotal": "Total calculat",
-      "finalTotal": "Total final"
+      "finalTotal": "Total final",
+      "roundUp": "Rotunjește la {{value}}",
+      "roundingLine": "Rotunjire: +{{value}} — reportat ca credit luna următoare",
+      "adjustmentLine": "Ajustare: {{value}}",
+      "creditLabel": "Credit"
     },
     "otherExpenses": {
       "add": "Adaugă cheltuială",
@@ -368,7 +441,10 @@
       "confirmTitle": "Semnează lista",
       "confirmBody": "Lista devine finală și blocată pentru editare.",
       "confirmButton": "Semnează",
-      "error": "Lista nu a putut fi semnată. Încearcă din nou."
+      "error": "Lista nu a putut fi semnată. Încearcă din nou.",
+      "chronologicalOrderError": "O lună mai recentă este deja semnată pentru această tenanță — deblochează toate rapoartele semnate ulterioare acestei luni, semnează luna curentă, apoi re-semnează lunile deblocate în ordine crescătoare.",
+      "overrideWarning": "Ajustezi totalul cu {{value}} față de totalul calculat.",
+      "overrideReasonLabel": "Motivul ajustării"
     },
     "unlock": {
       "button": "Deblochează pentru corecție",
@@ -396,7 +472,13 @@
       "statusNotRecorded": "Fără plată înregistrată",
       "creditNotice": "Suprasumă de {{amount}} — apare drept credit pe raportul lunii următoare.",
       "markError": "Plata nu a putut fi înregistrată. Încearcă din nou.",
-      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou."
+      "cancelError": "Plata nu a putut fi anulată. Încearcă din nou.",
+      "confirmButton": "Trimite confirmarea plății",
+      "confirmSuccess": "Confirmarea plății a fost trimisă chiriașului.",
+      "confirmError": "Confirmarea nu a putut fi trimisă. Încearcă din nou.",
+      "confirmDialogTitle": "Trimite confirmarea plății",
+      "confirmDialogBody": "Chiriașul primește pe email un mesaj cu suma și data plății înregistrate.",
+      "confirmDialogButton": "Trimite emailul"
     },
     "notify": {
       "button": "Trimite pe email",
@@ -479,17 +561,60 @@
     }
   },
   "dashboard": {
-    "title": "Dashboard",
-    "outstandingThisMonth": "Total de încasat luna asta",
-    "totalArrears": "Total arierate",
-    "error": "Dashboard-ul nu a putut fi încărcat.",
+    "title": "Panou",
+    "error": "Panoul nu a putut fi încărcat.",
     "emptyState": {
-      "title": "Bine ai venit — hai să începem",
+      "title": "Nicio proprietate încă",
+      "body": "Începe cu proprietatea și serviciile ei, apoi înregistrează chiriașul cu contractul lui. Cifrele și lista lunii apar odată ce există date.",
       "addProperty": "Adaugă proprietate",
       "enrollTenant": "Înrolează chiriaș"
     },
+    "selector": {
+      "previous": "Luna anterioară",
+      "next": "Luna următoare"
+    },
+    "expected": {
+      "label": "Total de încasat",
+      "hint": "Tot ce datorează chiriașii activi, restanțele vechi incluse"
+    },
+    "overdue": {
+      "containment": "Din care restant: {{amount}}"
+    },
+    "collected": {
+      "label": "Încasat în luna aleasă",
+      "hint": "Bani intrați efectiv în luna aleasă, din orice lună ar fi factura"
+    },
+    "properties": {
+      "label": "Total proprietăți",
+      "hint": "{{occupied}} închiriate · {{free}} libere — situația de acum, nu a lunii alese"
+    },
+    "strip": {
+      "creditInAdvance": "Avans plătit de chiriași",
+      "owedByFormer": "De recuperat de la foști chiriași",
+      "owedToFormer": "De returnat foștilor chiriași",
+      "unsignedReports": "Rapoarte nesemnate luna aleasă",
+      "unsignedCount": "{{count}} din {{total}}"
+    },
+    "history": {
+      "title": "Facturat pe lună",
+      "subtitle": "Ultimele 12 luni",
+      "mobileHint": "Trage lateral · apasă o lună pentru cifre",
+      "barLabel": "{{month}} {{year}}: {{amount}} facturat",
+      "billedLabel": "Facturat",
+      "empty": "Niciun raport semnat încă — graficul se completează după prima semnare.",
+      "monthOpen": "luna nu s-a încheiat",
+      "asOf": "Cifre la {{timestamp}}. Un raport deblocat și resemnat poate schimba o lună trecută."
+    },
+    "notifications": {
+      "title": "Ultimele notificări",
+      "viewAll": "Toate notificările",
+      "emptyWindow": "Niciun email trimis în ultimele 12 luni.",
+      "emptyLog": "Jurnalul este gol. Se completează pe măsură ce sistemul trimite emailuri."
+    },
     "currentMonth": {
       "title": "Luna curentă",
+      "sectionTitle": "Luna curentă · {{month}}",
+      "openFull": "Deschide Luna curentă",
       "previousMonth": "Luna anterioară",
       "nextMonth": "Luna următoare",
       "error": "Luna curentă nu a putut fi încărcată.",
@@ -497,20 +622,128 @@
       "columns": {
         "property": "Proprietate",
         "tenant": "Chiriaș",
-        "status": "Status",
-        "total": "Total"
+        "report": "Raport",
+        "payment": "Plată",
+        "totalDue": "Total de plată",
+        "remaining": "Rămas de încasat",
+        "dueDate": "Data scadenței"
       },
-      "badge": {
-        "notEntered": "Neintrodus",
-        "published": "Publicat",
-        "paid": "Plătit",
-        "partial": "Parțial",
-        "overdue": "Restant"
+      "report": {
+        "signed": "Semnat",
+        "draft": "Ciornă, nesemnat",
+        "notEntered": "Neîntocmit"
+      },
+      "payment": {
+        "paid": "Achitat integral",
+        "partial": "Plătit parțial",
+        "unpaid": "Neplătit încă",
+        "cannot-record": "Nu se poate încă",
+        "arrears": "Restanță din {{month}}"
+      },
+      "due": {
+        "on-time": "achitat la timp",
+        "late": "întârziat cu {{count}} zile",
+        "upcoming": "peste {{count}} zile",
+        "after-signing": "după semnare",
+        "nothing-due": "nimic de încasat"
       }
+    }
+  },
+  "payments": {
+    "title": "Registrul plăților",
+    "error": "Registrul plăților nu a putut fi încărcat.",
+    "empty": "Niciun raport pentru perioada selectată.",
+    "periodMode": "Tip perioadă",
+    "modeMonth": "Lună",
+    "modeYear": "An",
+    "previousMonth": "Luna anterioară",
+    "nextMonth": "Luna următoare",
+    "previousYear": "Anul anterior",
+    "nextYear": "Anul următor",
+    "allProperties": "Toate proprietățile",
+    "allStatuses": "Toate stările",
+    "columns": {
+      "property": "Proprietate",
+      "tenant": "Chiriaș",
+      "period": "Perioadă",
+      "amountDue": "Sumă datorată",
+      "amountPaid": "Sumă încasată",
+      "paymentDate": "Data plății",
+      "status": "Status"
+    },
+    "badge": {
+      "paid": "Plătit",
+      "partial": "Parțial",
+      "unpaid": "Neplătit",
+      "notRecorded": "Neînregistrat",
+      "overdue": "Restant"
+    },
+    "footer": {
+      "billed": "Facturat",
+      "collected": "Încasat",
+      "stillOutstanding": "Rest de încasat",
+      "creditOwed": "Credit către chiriași",
+      "rentTotal": "Total chirie ({{year}})",
+      "excludedNotice": "{{count}} rapoarte nesemnate din {{year}} nu sunt incluse în totaluri."
+    }
+  },
+  "notifications": {
+    "title": "Jurnalul notificărilor",
+    "windowNotice": "Se afișează emailurile trimise în ultimele {{months}} luni. Cele mai recente apar primele.",
+    "loading": "Se încarcă...",
+    "error": "Jurnalul notificărilor nu a putut fi încărcat.",
+    "emptyStartsEmpty": "Jurnalul este gol. Se completează pe măsură ce sistemul trimite emailuri.",
+    "emptyNoneInWindow": "Niciun email trimis în ultimele 12 luni.",
+    "columns": {
+      "sentAt": "Trimis la",
+      "type": "Tip",
+      "audience": "Destinatar",
+      "subject": "Subiect",
+      "recipient": "Adresă",
+      "deliveryState": "Livrare"
+    },
+    "audience": {
+      "tenant": "Chiriaș",
+      "admin": "Administrator"
+    },
+    "delivery": {
+      "pending": "În așteptare",
+      "processing": "În procesare",
+      "success": "Livrat",
+      "error": "Eșuat",
+      "retry": "Reîncercare"
+    },
+    "type": {
+      "credentials": "Date de autentificare",
+      "credentialsResent": "Retrimitere date de autentificare",
+      "reportNew": "Raport nou",
+      "reportUpdated": "Raport actualizat",
+      "arrearsReminder": "Memento restanță",
+      "contractExpiry": "Contract în expirare",
+      "reportPreparation": "Memento pregătire raport",
+      "tenancyAssigned": "Contract atribuit",
+      "paymentUpcoming": "Memento plată apropiată",
+      "paymentRecorded": "Plată înregistrată",
+      "contractExpired": "Contract expirat, încă activ",
+      "dailyHeartbeat": "Raport zilnic automatizări",
+      "balanceMismatch": "Neconcordanță de sold"
     }
   },
   "notFound": {
     "title": "Pagina nu a fost găsită",
     "backHome": "Înapoi la pagina principală"
+  },
+  "errorBoundary": {
+    "title": "Ceva nu a funcționat",
+    "message": "A apărut o eroare neașteptată. Poți încerca să te întorci la pagina principală.",
+    "backHome": "Înapoi la pagina principală"
+  },
+  "theme": {
+    "stateDark": "Temă · Închisă",
+    "stateLight": "Temă · Deschisă",
+    "ariaLabel": "Comută tema"
+  },
+  "system": {
+    "adminEmailMissing": "Adresa de email a administratorului (ADMIN_EMAIL) nu este configurată. Memento-urile de expirare a contractului, cele de pregătire a raportului și rularea automată zilnică nu mai ajung nicăieri."
   }
 }

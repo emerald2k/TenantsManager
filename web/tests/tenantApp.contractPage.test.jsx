@@ -265,4 +265,64 @@ describe('TenantContractPage', () => {
 
     expect(screen.queryByText(/contract.*încheiat/i)).not.toBeInTheDocument()
   })
+
+  describe('deposit settlement (FR-TAPP-07, FR-CON-12)', () => {
+    function settlementFixture() {
+      return {
+        items: [
+          {
+            description: 'Curățenie generală la predare',
+            amount: 200,
+            attachments: [],
+          },
+        ],
+        deducted: 200,
+        toReturn: 1600,
+        ownerBears: 0,
+        settledAt: { toDate: () => new Date('2026-07-15') },
+      }
+    }
+
+    it('shows the deposit settlement once the tenancy has ended AND a settlement was completed', async () => {
+      useMyTenancy.mockReturnValue(
+        query({
+          data: tenancyFixture({
+            status: 'ended',
+            depositSettlement: settlementFixture(),
+          }),
+        }),
+      )
+
+      await renderWithProviders(<TenantContractPage />)
+
+      expect(screen.getByText('Decontare garanție')).toBeVisible()
+      expect(screen.getByText('Curățenie generală la predare')).toBeVisible()
+      expect(screen.getByText('1.600,00 lei')).toBeVisible()
+    })
+
+    it('shows nothing for an ended tenancy that has no settlement yet — rent arrears stay separate, unaffected (FR-CON-11)', async () => {
+      useMyTenancy.mockReturnValue(
+        query({ data: tenancyFixture({ status: 'ended' }) }),
+      )
+
+      await renderWithProviders(<TenantContractPage />)
+
+      expect(screen.queryByText('Decontare garanție')).not.toBeInTheDocument()
+    })
+
+    it('shows nothing for an ACTIVE tenancy, even if depositSettlement were somehow present', async () => {
+      useMyTenancy.mockReturnValue(
+        query({
+          data: tenancyFixture({
+            status: 'active',
+            depositSettlement: settlementFixture(),
+          }),
+        }),
+      )
+
+      await renderWithProviders(<TenantContractPage />)
+
+      expect(screen.queryByText('Decontare garanție')).not.toBeInTheDocument()
+    })
+  })
 })

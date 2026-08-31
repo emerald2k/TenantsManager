@@ -19,6 +19,10 @@ import {
   Section,
 } from '@/features/tenants/components/ProfileTab'
 import { ContractUpload } from '@/features/tenants/components/ContractUpload'
+import { DepositSettlementForm } from '@/features/tenants/components/DepositSettlementForm'
+import { DepositSettlementView } from '@/components/shared/DepositSettlementView'
+import { RecalculateBalanceControl } from '@/features/tenants/components/RecalculateBalanceControl'
+import { formatCurrency } from '@/lib/formatCurrency'
 import {
   useEndTenancy,
   useUpdateTenancy,
@@ -31,12 +35,24 @@ import { step4Schema } from '@/features/onboarding/schema'
  * active (or last) contract, its documents, "Extend", "End contract", and the
  * history of past tenancies (FR-TEN-15).
  *
- * `endDate` alone — presence-only, same discipline as the rest of the KYC/
- * contract fields (NFR-VAL-01). Reused from `step4Schema` (onboarding/schema.js)
- * via `.pick()`, the same composition pattern `tenants/profileSchema.js`
- * already uses for the Profile tab — no new validation rule declared here.
+ * `endDate` plus both reminder lead times — editable "at assignment or later"
+ * (SRS §6, §5.3). Reused from `step4Schema` (onboarding/schema.js) via
+ * `.pick()`, the SAME schema the onboarding wizard's step 4 validates, so the
+ * two surfaces cannot drift: `reportReminderDaysBefore` stays unbounded
+ * (FR-REP-15, one admin-facing email), `paymentReminderDaysBefore` stays
+ * 1-10 (NFR-VAL-02 — it drives automated outbound volume at the tenant). No
+ * new validation rule is declared here.
+ *
+ * `EditableSection` submits the whole picked schema, so a plain "Extend" now
+ * writes `endDate` + both lead times back (unchanged values re-sent) — never
+ * `currentBalance`/`closingBalance`, which `useUpdateTenancy`'s `updateDoc`
+ * merge leaves untouched and NFR-SEC-12 would reject anyway.
  */
-const extendTenancySchema = step4Schema.pick({ endDate: true })
+const tenancyContractSchema = step4Schema.pick({
+  endDate: true,
+  reportReminderDaysBefore: true,
+  paymentReminderDaysBefore: true,
+})
 
 /** Which tenancy to show as "the contract": the active one if there is one,
  * otherwise the MOST RECENTLY ended one (SRS §5.3: "active/last contract") —
@@ -53,15 +69,74 @@ function selectDisplayedTenancy(tenancies) {
   )[0]
 }
 
+/**
+ * The closing-balance line shown before termination (FR-CON-04, reversed at
+ * M8): "the screen states the closing balance plainly and requires an
+ * explicit acknowledgement, then proceeds". Three states, never conflated —
+ * NFR-VAL-03's money-is-never-exact discipline is moot here (this is a
+ * three-way sign check, not an equality comparison against a computed
+ * total), so a plain `> 0`/`< 0`/`=== 0` split is correct as written.
+ */
+function closingBalanceKey(currentBalance) {
+  if (currentBalance > 0) return 'tenants.detail.tenancy.endBalanceOwed'
+  if (currentBalance < 0) return 'tenants.detail.tenancy.endBalanceCredit'
+  return 'tenants.detail.tenancy.endBalanceSettled'
+}
+
+/**
+ * The deposit-settlement section (FR-CON-10/11/12, M8 stage 6) — a completely
+ * separate action from "End contract" (Bogdan's explicit call): it appears
+ * once the tenancy is ended, fillable whenever the administrator has
+ * actually inspected the property. Toggles between the read-only view (once
+ * a settlement exists) and the editable form — "Edit" reopens the form
+ * pre-filled, since a settlement is a correctable record, not a one-shot.
+ */
+function DepositSettlementSection({ tenancy, userId }) {
+  const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const settlement = tenancy.depositSettlement
+
+  if (settlement && !editing) {
+    return (
+      <div className="flex flex-col gap-2">
+        <DepositSettlementView
+          securityDeposit={tenancy.securityDeposit}
+          depositSettlement={settlement}
+        />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+          >
+            {t('tenants.detail.tenancy.settlement.editButton')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <DepositSettlementForm
+      tenancy={tenancy}
+      userId={userId}
+      onDone={() => setEditing(false)}
+      onCancel={settlement ? () => setEditing(false) : undefined}
+    />
+  )
+}
+
 function ContractSummary({ tenancy, userId, isActive }) {
   const { t } = useTranslation()
   const updateTenancy = useUpdateTenancy()
   const endTenancy = useEndTenancy()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [endError, setEndError] = useState(null)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [endError, setEndError] = useState(false)
 
   async function handleEnd() {
-    setEndError(null)
+    setEndError(false)
     try {
       await endTenancy.mutateAsync({
         tenancyId: tenancy.id,
@@ -69,19 +144,25 @@ function ContractSummary({ tenancy, userId, isActive }) {
         propertyId: tenancy.propertyId,
       })
       setConfirmOpen(false)
-    } catch (error) {
-      setEndError(error)
+    } catch {
+      setEndError(true)
     }
   }
 
-  const arrears = endError?.details?.reason === 'arrears'
+  const currentBalance = tenancy.currentBalance ?? 0
 
   return (
     <>
       <EditableSection
         titleKey="tenants.detail.tenancy.title"
-        schema={extendTenancySchema}
-        defaultValues={{ endDate: tenancy.endDate ?? '' }}
+        schema={tenancyContractSchema}
+        defaultValues={{
+          endDate: tenancy.endDate ?? '',
+          // Tolerate absence (CLAUDE.md §10.5): a tenancy created before the
+          // M6/M8 fields, or restored from an older backup, may lack them.
+          reportReminderDaysBefore: tenancy.reportReminderDaysBefore ?? 3,
+          paymentReminderDaysBefore: tenancy.paymentReminderDaysBefore ?? 3,
+        }}
         onSave={(values) =>
           updateTenancy.mutateAsync({ id: tenancy.id, userId, values })
         }
@@ -115,16 +196,65 @@ function ContractSummary({ tenancy, userId, isActive }) {
               label={t('onboarding.fields.reportReminderDaysBefore')}
               value={tenancy.reportReminderDaysBefore}
             />
+            <Field
+              label={t('onboarding.fields.paymentReminderDaysBefore')}
+              value={tenancy.paymentReminderDaysBefore}
+            />
           </div>
         )}
         renderFields={({ register, errors, t: tt }) => (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
-            <Input id="endDate" type="date" {...register('endDate')} />
-            <FieldError error={errors.endDate} t={tt} />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="endDate">{tt('onboarding.fields.endDate')}</Label>
+              <Input id="endDate" type="date" {...register('endDate')} />
+              <FieldError error={errors.endDate} t={tt} />
+            </div>
+
+            {/* Mirrors the onboarding wizard step 4 field for field (SRS §5.2
+                step 4) — same labels, same helper text, same order, same
+                validation. The report field is admin-facing (preparing the
+                list, FR-REP-15) and unbounded; the payment field is
+                tenant-facing (paying the bill, FR-PAY-10) and 1-10. */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reportReminderDaysBefore">
+                {tt('onboarding.fields.reportReminderDaysBefore')}
+              </Label>
+              <Input
+                id="reportReminderDaysBefore"
+                type="number"
+                min="1"
+                {...register('reportReminderDaysBefore', {
+                  valueAsNumber: true,
+                })}
+              />
+              <FieldError error={errors.reportReminderDaysBefore} t={tt} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="paymentReminderDaysBefore">
+                {tt('onboarding.fields.paymentReminderDaysBefore')}
+              </Label>
+              <Input
+                id="paymentReminderDaysBefore"
+                type="number"
+                min="1"
+                max="10"
+                {...register('paymentReminderDaysBefore', {
+                  valueAsNumber: true,
+                })}
+              />
+              <p className="text-xs text-muted-foreground">
+                {tt('onboarding.fields.paymentReminderDaysBeforeHelp')}
+              </p>
+              <FieldError error={errors.paymentReminderDaysBefore} t={tt} />
+            </div>
           </div>
         )}
       />
+
+      <Section title={t('tenants.detail.balance.title')}>
+        <RecalculateBalanceControl tenancy={tenancy} userId={userId} />
+      </Section>
 
       {isActive ? (
         <Section title={t('tenants.detail.tenancy.endTitle')}>
@@ -137,9 +267,12 @@ function ContractSummary({ tenancy, userId, isActive }) {
           </Button>
         </Section>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          {t('tenants.detail.tenancy.notActiveNotice')}
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground">
+            {t('tenants.detail.tenancy.notActiveNotice')}
+          </p>
+          <DepositSettlementSection tenancy={tenancy} userId={userId} />
+        </>
       )}
 
       <Section title={t('tenants.detail.tenancy.documentsTitle')}>
@@ -154,7 +287,10 @@ function ContractSummary({ tenancy, userId, isActive }) {
         open={confirmOpen}
         onOpenChange={(open) => {
           setConfirmOpen(open)
-          if (open) setEndError(null)
+          if (open) {
+            setEndError(false)
+            setAcknowledged(false)
+          }
         }}
       >
         <DialogContent>
@@ -166,13 +302,26 @@ function ContractSummary({ tenancy, userId, isActive }) {
               {t('tenants.detail.tenancy.endConfirmBody')}
             </DialogDescription>
           </DialogHeader>
+
+          <p className="text-sm font-medium text-foreground">
+            {t(closingBalanceKey(currentBalance), {
+              balance: formatCurrency(Math.abs(currentBalance)),
+            })}
+          </p>
+
+          <label className="flex items-start gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(event) => setAcknowledged(event.target.checked)}
+              className="mt-0.5"
+            />
+            {t('tenants.detail.tenancy.endAcknowledge')}
+          </label>
+
           {endError && (
             <p role="alert" className="text-sm text-destructive">
-              {arrears
-                ? t('tenants.detail.tenancy.endArrearsError', {
-                    balance: endError.details.currentBalance,
-                  })
-                : t('tenants.detail.tenancy.endGenericError')}
+              {t('tenants.detail.tenancy.endGenericError')}
             </p>
           )}
           <DialogFooter>
@@ -187,7 +336,7 @@ function ContractSummary({ tenancy, userId, isActive }) {
               type="button"
               variant="destructive"
               onClick={handleEnd}
-              disabled={endTenancy.isPending}
+              disabled={endTenancy.isPending || !acknowledged}
             >
               {endTenancy.isPending
                 ? t('common.loading')

@@ -19,6 +19,7 @@ function summaryData(overrides = {}) {
     otherExpenses: [],
     previousMonthArrears: 0,
     previousMonthCredit: 0,
+    roundingSurplus: 0,
     calculatedTotal: 2500,
     finalTotal: 2500,
     dueDate: '2026-07-10',
@@ -197,5 +198,86 @@ describe('ReportSummaryView', () => {
     expect(screen.queryByText('Apartament Centru')).not.toBeInTheDocument()
     expect(screen.queryByText('7/2026')).not.toBeInTheDocument()
     expect(screen.getByText('Chirie')).toBeVisible()
+  })
+})
+
+describe('ReportSummaryView — FR-REP-04d difference line', () => {
+  it('shows the rounding line from the STORED roundingSurplus, not a derived diff', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          calculatedTotal: 2382.17,
+          finalTotal: 2390,
+          roundingSurplus: 7.83,
+        })}
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        'Rotunjire: +7,83 lei — reportat ca credit luna următoare',
+      ),
+    ).toBeVisible()
+  })
+
+  it('shows the manual-adjustment line, derived at render, when there is no rounding surplus', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          calculatedTotal: 3000,
+          finalTotal: 2960,
+          roundingSurplus: 0,
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Ajustare: -40,00 lei')).toBeVisible()
+  })
+
+  it('never shows both lines at once — a rounding surplus wins even if finalTotal also diverges from calculatedTotal', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          calculatedTotal: 2382.17,
+          finalTotal: 2390,
+          roundingSurplus: 7.83,
+        })}
+      />,
+    )
+
+    expect(screen.queryByText(/^Ajustare:/)).not.toBeInTheDocument()
+  })
+
+  it('shows neither line when finalTotal mirrors calculatedTotal exactly', async () => {
+    await renderWithProviders(<ReportSummaryView data={summaryData()} />)
+
+    expect(screen.queryByText(/^Rotunjire:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Ajustare:/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ReportSummaryView — FR-PAY-11 zero/negative finalTotal', () => {
+  it('labels a negative finalTotal as "Credit", rendered as a positive figure, not a debt-shaped negative number', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({ calculatedTotal: -150, finalTotal: -150 })}
+      />,
+    )
+
+    expect(screen.getByText('Credit')).toBeVisible()
+    expect(screen.getByText('150,00 lei')).toBeVisible()
+    expect(screen.queryByText('-150,00 lei')).not.toBeInTheDocument()
+    expect(screen.queryByText('Total final')).not.toBeInTheDocument()
+  })
+
+  it('keeps the normal "Total final" label for a positive or zero total', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({ calculatedTotal: 0, finalTotal: 0 })}
+      />,
+    )
+
+    expect(screen.getByText('Total final')).toBeVisible()
+    expect(screen.queryByText('Credit')).not.toBeInTheDocument()
   })
 })

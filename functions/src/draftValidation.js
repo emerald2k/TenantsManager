@@ -88,6 +88,10 @@ const step4Schema = z.object({
   securityDeposit: numberField(z.number().min(0).optional()),
   dueDay: numberField(z.number().min(1).max(31)),
   reportReminderDaysBefore: z.number(),
+  // `paymentReminderDaysBefore` (M8 stage 13b, FR-PAY-10, NFR-VAL-02): 1-10,
+  // the one deliberate range exception — mirrors
+  // web/src/features/onboarding/schema.js's `step4Schema`.
+  paymentReminderDaysBefore: z.number().min(1).max(10),
 })
 
 // Steps 1-4 combined, all mandatory — the "brand-new tenant" full contract.

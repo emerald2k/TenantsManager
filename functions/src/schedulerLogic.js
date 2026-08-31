@@ -97,14 +97,37 @@ function nextOccurrenceOfDueDay(today, dueDay) {
   return dueDateInMonth(targetYear, targetMonth, dueDay)
 }
 
+// NFR-VAL-03: money is never compared exactly. Same tolerance as the
+// web-side FINAL_TOTAL_EPSILON (web/src/features/reports/schema.js) —
+// duplicated, not shared, for the same cross-package reason as every other
+// functions/web pair this codebase keeps in sync by hand (CLAUDE.md §7).
+const FINAL_TOTAL_EPSILON = 0.005
+
 /**
  * FAMILY 1 — arrears reminder (FR-PAY-04, template A4, to the tenant).
  * Fires every 3 days starting on day 3 after the due date, for as long as
- * arrears remain: elapsed 3, 6, 9, ... `currentBalance` must be strictly
- * positive — zero or negative (credit) means nothing is owed.
+ * arrears remain: elapsed 3, 6, 9, ...
+ *
+ * Preconditions, defined at M8: `currentBalance > FINAL_TOTAL_EPSILON`
+ * (never a plain `> 0`, per NFR-VAL-03), and `hasSignedReport` — at least
+ * one signed report must exist on the tenancy, because a reminder about a
+ * balance the tenant has never actually been billed for (no report yet
+ * signed) has no bill to point at. The THIRD precondition — the tenancy
+ * must be `active` — is structural, not checked here: `dailyScheduler`
+ * (scheduler.js) only ever queries `tenancies` where `status == 'active'`
+ * before calling this at all, the same precondition FR-PAY-10c states
+ * explicitly for its own family. Automated reminders stopping at
+ * termination is therefore a consequence of that query, not a branch in
+ * this function.
  */
-function shouldSendArrearsReminder({ today, dueDate, currentBalance }) {
-  if (!(currentBalance > 0)) return false
+function shouldSendArrearsReminder({
+  today,
+  dueDate,
+  currentBalance,
+  hasSignedReport,
+}) {
+  if (!(currentBalance > FINAL_TOTAL_EPSILON)) return false
+  if (!hasSignedReport) return false
   const elapsed = daysBetween(dueDate, today)
   return elapsed >= 3 && elapsed % 3 === 0
 }
@@ -138,6 +161,70 @@ function shouldSendReportReminder({
   return daysBetween(today, nextOccurrence) === reportReminderDaysBefore
 }
 
+/**
+ * FAMILY 4 — pre-due payment reminder (FR-PAY-10, template A8, to the
+ * tenant). Anchored on the tenancy's most recent SIGNED report's OWN
+ * `dueDate` (FR-PAY-10a) — never `dueDay`/`nextOccurrenceOfDueDay`:
+ * FR-REP-05 makes `dueDate` a per-month manual override, so anchoring on
+ * `dueDay` could name a date the tenant's own report contradicts.
+ * Anchoring on the report also means there is no "next occurrence" to
+ * compute here, unlike FAMILY 3 — the caller (`scheduler.js`) is
+ * responsible for finding that report and passing ITS fields; this
+ * function does not look anything up itself.
+ *
+ * Fires once per day for every day in `[dueDate -
+ * paymentReminderDaysBefore, dueDate]`, INCLUSIVE of the due date itself
+ * (FR-PAY-10b): `elapsed = daysBetween(dueDate, today)` is negative before
+ * the due date and exactly 0 on it, so the window is `elapsed` in
+ * `[-paymentReminderDaysBefore, 0]`. FR-PAY-04 (FAMILY 1) takes over once
+ * `elapsed >= 3`; the two-day silence at `elapsed` 1 and 2 is deliberate
+ * and belongs to FR-PAY-10b, not a gap in this function.
+ *
+ * Preconditions (FR-PAY-10c): the anchor report's own
+ * `finalTotal - (amountPaid ?? 0)` must be a strictly positive, non-epsilon
+ * amount (NFR-VAL-03) — never a comparison on `paymentStatus`, which may be
+ * absent on a just-signed report. That the report is SIGNED and the
+ * tenancy is ACTIVE are both structural preconditions enforced by the
+ * caller (which report it fetched, which tenancies it queried), the same
+ * split `shouldSendArrearsReminder` already uses for the active-tenancy
+ * precondition above.
+ */
+function shouldSendPreDueReminder({
+  today,
+  dueDate,
+  finalTotal,
+  amountPaid,
+  paymentReminderDaysBefore,
+}) {
+  if (!(finalTotal - (amountPaid ?? 0) > FINAL_TOTAL_EPSILON)) return false
+  const elapsed = daysBetween(dueDate, today)
+  return elapsed >= -paymentReminderDaysBefore && elapsed <= 0
+}
+
+/**
+ * FAMILY 5 — the expired-contract backstop (FR-CON-08, template A11, to the
+ * admin). Fires weekly for as long as `endDate` has passed: on the day it
+ * passes (elapsed 0), then every 7 days after (7, 14, 21, ...) — the same
+ * "elapsed since an anchor date, on a fixed cycle" shape as
+ * `shouldSendArrearsReminder`'s 3-day cycle, with two differences the SRS
+ * does not spell out and which are recorded here as IMPLEMENTATION
+ * DECISIONS: the cycle starts at elapsed 0 rather than one cycle-length in
+ * (A11 is itself the backstop for three missed warnings — nothing else
+ * would catch the expiry on the day it actually happens), and it never
+ * stops on its own (unlike arrears, which stops once `currentBalance`
+ * clears) — FR-CON-08 keeps the tenancy active until a MANUAL termination,
+ * so nothing here can observe "resolved" the way a balance can.
+ *
+ * The THIRD precondition — the tenancy must still be `active` — is
+ * structural, not checked here, same split every other family in this file
+ * already uses: `dailyScheduler` only ever queries `tenancies` where
+ * `status == 'active'`.
+ */
+function shouldSendContractExpiredBackstop({ today, endDate }) {
+  const elapsed = daysBetween(endDate, today)
+  return elapsed >= 0 && elapsed % 7 === 0
+}
+
 module.exports = {
   todayInBucharest,
   daysBetween,
@@ -146,4 +233,7 @@ module.exports = {
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
+  shouldSendPreDueReminder,
+  shouldSendContractExpiredBackstop,
+  FINAL_TOTAL_EPSILON,
 }

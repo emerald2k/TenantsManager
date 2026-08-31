@@ -4,6 +4,7 @@
     "logout": "Log out",
     "loading": "Loading...",
     "cancel": "Cancel",
+    "close": "Close",
     "attachmentUnavailable": "Unavailable",
     "retry": "Retry"
   },
@@ -23,10 +24,19 @@
     "dashboard": "Dashboard",
     "currentMonth": "Current month",
     "properties": "Properties",
-    "tenants": "Tenants",
+    "tenants": "Renters",
+    "payments": "Payments",
+    "notifications": "Notifications",
     "home": "Home",
     "history": "History",
-    "contract": "Contract"
+    "contract": "Contract",
+    "more": "More",
+    "tab": {
+      "dashboard": "Home",
+      "currentMonth": "Month",
+      "payments": "Payments",
+      "tenants": "Renters"
+    }
   },
   "pages": {
     "adminDashboard": "Admin — Dashboard",
@@ -34,15 +44,16 @@
     "propertiesList": "Admin — Properties list",
     "newProperty": "Admin — New property",
     "propertyDetail": "Admin — Property detail",
-    "tenantsList": "Admin — Tenants list",
-    "onboardingWizard": "Admin — Tenant onboarding (wizard)",
-    "tenantDetail": "Admin — Tenant detail",
+    "tenantsList": "Admin — Renters list",
+    "onboardingWizard": "Admin — Renter onboarding (wizard)",
+    "tenantDetail": "Admin — Renter detail",
     "monthlyReportForm": "Admin — Monthly report",
     "reportsListPhase2": "Admin — Reports list (Phase 2)",
     "annualReportPhase2": "Admin — Annual report (Phase 2)",
-    "tenantDashboard": "Tenant — Home",
-    "tenantHistory": "Tenant — History",
-    "tenantContract": "Tenant — Contract",
+    "paymentsComingSoon": "Admin — Payments (coming soon)",
+    "tenantDashboard": "Renter — Home",
+    "tenantHistory": "Renter — History",
+    "tenantContract": "Renter — Contract",
     "sharedReport": "Shared report (public, no sign-in)"
   },
   "properties": {
@@ -111,6 +122,9 @@
       "historyTitle": "Cost history",
       "historyEmpty": "The cost history will be available once monthly reports exist.",
       "historyMonth": "Month",
+      "historyBilled": "Billed",
+      "historyRounding": "Rounding",
+      "historyYearTotal": "{{year}} total",
       "historyShowAll": "Show all",
       "dueDay": "Due",
       "daysUntilDue": "{{count}} days left"
@@ -180,7 +194,9 @@
       "monthlyRent": "Monthly rent",
       "securityDeposit": "Security deposit",
       "dueDay": "Due day",
-      "reportReminderDaysBefore": "Report reminder (days before due date)"
+      "reportReminderDaysBefore": "Report prep reminder (days before) — to the admin",
+      "paymentReminderDaysBefore": "Payment reminder (days before) — to the renter",
+      "paymentReminderDaysBeforeHelp": "The value means one email per day to the renter, through the due date."
     },
     "placeholders": {
       "cnp": "e.g. 1234567890123",
@@ -200,10 +216,10 @@
         "delete": "Delete",
         "tooLarge": "The file exceeds 10 MB."
       },
-      "existingTenantTitle": "Existing tenant — new tenancy",
+      "existingTenantTitle": "Existing renter — new tenancy",
       "existingTenantDescription": "An account already exists for this email, under the name \"{{name}}\". Confirm to start a new tenancy on this account.",
       "existingTenantConfirm": "Confirm",
-      "cnpConflict": "A tenant with this CNP already exists: \"{{name}}\".",
+      "cnpConflict": "A renter with this CNP already exists: \"{{name}}\".",
       "autosaveFailed": "Autosave failed — check your connection."
     },
     "stepContract": {
@@ -214,30 +230,35 @@
       "password": "Password",
       "copyPassword": "Copy",
       "successExistingTitle": "Tenancy created for {{name}}",
-      "goToTenants": "Go to tenant list",
+      "goToTenants": "Go to renter list",
       "cnpDialogTitle": "Duplicate CNP",
       "viewProfile": "View profile",
+      "reenableAccount": "Re-enable account",
+      "reenableDone": "Account re-enabled. Press Finalize again to assign the tenancy.",
       "errors": {
         "occupied": "The selected property is already occupied by another active tenancy.",
         "activeTenancy": "This account already has an active tenancy. End it before continuing.",
+        "accountDisabled": "This account is disabled. Re-enable it before assigning a tenancy.",
+        "accountArchived": "This account is archived — a terminal state. A tenancy cannot be assigned to it.",
         "generic": "Finalization failed. Please try again."
       }
     }
   },
   "tenants": {
     "list": {
-      "title": "Tenants",
-      "add": "New tenant onboarding",
-      "search": "Search tenants",
+      "title": "Renters",
+      "add": "New renter onboarding",
+      "search": "Search renters",
       "showArchived": "Show archived",
-      "empty": "No tenants yet.",
-      "noMatches": "No tenants match your search.",
+      "empty": "No renters yet.",
+      "noMatches": "No renters match your search.",
       "continue": "Continue",
       "deleteDraft": "Delete draft",
       "deleteDraftTitle": "Delete draft",
       "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
       "deleteDraftConfirm": "Delete draft",
-      "loadError": "The tenants could not be loaded. Please try again.",
+      "deleteDraftError": "The draft could not be fully deleted. Try again — re-running is safe.",
+      "loadError": "The renters could not be loaded. Please try again.",
       "error": "The draft could not be created. Please try again."
     },
     "fields": {
@@ -256,7 +277,7 @@
       "inProgress": "In progress"
     },
     "detail": {
-      "notFound": "This tenant does not exist.",
+      "notFound": "This renter does not exist.",
       "tabs": {
         "profile": "Profile",
         "tenancy": "Tenancy & contract",
@@ -284,21 +305,55 @@
         "property": "Property",
         "documentsTitle": "Documents",
         "historyTitle": "Tenancy history",
-        "none": "This tenant has no tenancy yet.",
+        "none": "This renter has no tenancy yet.",
         "endTitle": "End contract",
         "endButton": "End contract",
         "endConfirmTitle": "End this contract?",
         "endConfirmBody": "The property will become free and the account will move to inactive-readonly. This cannot be undone.",
         "endConfirmButton": "End contract",
         "endGenericError": "The contract could not be ended. Please try again.",
-        "endArrearsError": "This tenancy has unpaid arrears ({{balance}}) and cannot be ended until the balance is settled.",
+        "endBalanceOwed": "The renter still owes {{balance}}. This amount stays visible after the contract ends.",
+        "endBalanceCredit": "The renter has a credit of {{balance}}, which will remain unconsumed after the contract ends.",
+        "endBalanceSettled": "The balance is fully settled.",
+        "endAcknowledge": "I acknowledge the balance above and confirm ending the contract.",
         "notActiveNotice": "This tenancy has already ended.",
         "historyItem": "{{property}} — {{startDate}} to {{endDate}}",
         "contract": {
           "upload": "Upload document",
           "delete": "Delete",
           "tooLarge": "The file exceeds 10 MB."
+        },
+        "settlement": {
+          "title": "Deposit settlement",
+          "depositHeld": "Deposit held: {{value}}",
+          "empty": "No restoration lines yet.",
+          "addItem": "Add restoration line",
+          "removeItem": "Remove",
+          "deducted": "Deducted",
+          "toReturn": "Amount to return",
+          "ownerBears": "Exceeds the deposit (owner cost)",
+          "settledAt": "Settled on {{date}}",
+          "downloadLabel": "Download attachment",
+          "completeButton": "Complete settlement",
+          "editButton": "Edit settlement",
+          "confirmTitle": "Complete the deposit settlement?",
+          "confirmBody": "This records the restoration deductions and the amount to return. The renter will see it, with its documents, in their portal.",
+          "confirmBodyArrears": "The renter still owes {{balance}}. This settlement does NOT clear that balance — it stays visible and continues to be chased separately (FR-CON-11). This cannot be undone from this screen.",
+          "confirmButton": "Complete settlement",
+          "saveError": "The settlement could not be saved. Please try again."
         }
+      },
+      "balance": {
+        "title": "Balance",
+        "stored": "Stored balance",
+        "recomputed": "Recomputed balance",
+        "reportChain": "From the signed report chain",
+        "recalculateButton": "Recalculate balance",
+        "confirmTitle": "Recalculate this balance?",
+        "confirmBody": "This writes the recomputed value over the stored one. The change is recorded — who, when, from what, to what.",
+        "confirmButton": "Recalculate",
+        "recalculatedNotice": "Recalculated: {{from}} → {{to}}",
+        "error": "The balance could not be recalculated. Please try again."
       },
       "account": {
         "title": "Account status",
@@ -310,19 +365,28 @@
         "disableButton": "Disable",
         "enableButton": "Re-enable",
         "disableConfirmTitle": "Disable this account?",
-        "disableConfirmBody": "Any open session ends immediately — the tenant will not be able to log in until re-enabled.",
+        "disableConfirmBody": "Any open session ends immediately — the renter will not be able to log in until re-enabled.",
         "enableConfirmTitle": "Re-enable this account?",
-        "enableConfirmBody": "The tenant will be able to log in again.",
+        "enableConfirmBody": "The renter will be able to log in again.",
         "statusActionError": "The action could not be completed. Please try again.",
         "archiveTitle": "Archiving",
         "archiveButton": "Archive",
         "archiveConfirmTitle": "Archive this account?",
-        "archiveConfirmBody": "The account is hidden from the default tenant list. This cannot be undone from this page.",
+        "archiveConfirmBody": "The account is hidden from the default renter list. This cannot be undone from this page.",
         "archiveBlocked": {
           "activeTenancy": "End the contract first.",
           "disabled": "Re-enable the account first."
         },
-        "archivedNotice": "This account is archived."
+        "archivedNotice": "This account is archived.",
+        "exportTitle": "Personal data",
+        "exportDescription": "Builds one file with everything the product holds about this renter: profile and KYC answers, every tenancy, signed monthly reports, the payment history, and a list of stored documents. Data about the guarantor, the emergency contact and the previous reference is grouped in a section marked as being about other people. Nothing is sent anywhere — you review the file first.",
+        "exportButton": "Build the data file",
+        "exportBuilding": "Building…",
+        "exportError": "The file could not be built. Try again.",
+        "exportDialogTitle": "Personal data file — review before sending",
+        "exportDialogNote": "The \"thirdParties\" section holds data about the guarantor, the emergency contact and the previous reference — people other than this renter.",
+        "exportCopy": "Copy",
+        "exportDownload": "Download .json"
       },
       "financial": {
         "empty": "No reports yet."
@@ -330,8 +394,13 @@
     }
   },
   "reports": {
-    "notFound": "This property does not exist.",
-    "noActiveTenancy": "This property has no active tenancy — a report cannot be created.",
+    "notFound": "This tenancy does not exist.",
+    "noTenancyForMonth": "No tenancy on this property covers this month.",
+    "pickTenancy": {
+      "title": "Which tenancy?",
+      "description": "More than one tenancy covered this property this month — pick the one this report belongs to.",
+      "ongoing": "ongoing"
+    },
     "sections": {
       "rent": "Rent",
       "maintenance": "Maintenance",
@@ -345,7 +414,11 @@
       "previousArrears": "Previous month's arrears",
       "previousCredit": "Previous month's credit",
       "calculatedTotal": "Calculated total",
-      "finalTotal": "Final total"
+      "finalTotal": "Final total",
+      "roundUp": "Round up to {{value}}",
+      "roundingLine": "Rounding up: +{{value}} — carried as credit to next month",
+      "adjustmentLine": "Adjustment: {{value}}",
+      "creditLabel": "Credit"
     },
     "otherExpenses": {
       "add": "Add expense",
@@ -368,12 +441,15 @@
       "confirmTitle": "Sign the list",
       "confirmBody": "The list becomes final and locked for editing.",
       "confirmButton": "Sign",
-      "error": "The list could not be signed. Please try again."
+      "error": "The list could not be signed. Please try again.",
+      "chronologicalOrderError": "A later month is already signed on this tenancy — unlock every signed report later than this one, sign this month, then re-sign the unlocked months in ascending order.",
+      "overrideWarning": "You are adjusting the total by {{value}} compared to the calculated total.",
+      "overrideReasonLabel": "Reason for the adjustment"
     },
     "unlock": {
       "button": "Unlock for correction",
       "confirmTitle": "Unlock for correction",
-      "confirmBody": "The report becomes editable again and is no longer visible to the tenant until re-signed.",
+      "confirmBody": "The report becomes editable again and is no longer visible to the renter until re-signed.",
       "confirmButton": "Unlock",
       "error": "The report could not be unlocked. Please try again."
     },
@@ -396,12 +472,18 @@
       "statusNotRecorded": "No payment recorded yet",
       "creditNotice": "Overpaid by {{amount}} — appears as credit on next month's report.",
       "markError": "The payment could not be recorded. Please try again.",
-      "cancelError": "The payment could not be cancelled. Please try again."
+      "cancelError": "The payment could not be cancelled. Please try again.",
+      "confirmButton": "Send payment confirmation",
+      "confirmSuccess": "The payment confirmation was sent to the renter.",
+      "confirmError": "The confirmation could not be sent. Please try again.",
+      "confirmDialogTitle": "Send payment confirmation",
+      "confirmDialogBody": "The renter receives an email with the recorded amount and payment date.",
+      "confirmDialogButton": "Send the email"
     },
     "notify": {
       "button": "Send by email",
       "dialogTitle": "Send notification",
-      "dialogBody": "Choose which report type to send the tenant.",
+      "dialogBody": "Choose which report type to send the renter.",
       "templateNew": "New report",
       "templateUpdated": "Updated report",
       "success": "The email has been sent.",
@@ -480,37 +562,188 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "outstandingThisMonth": "Total to collect this month",
-    "totalArrears": "Total arrears",
     "error": "Could not load the dashboard.",
     "emptyState": {
-      "title": "Welcome — let's get started",
+      "title": "No property yet",
+      "body": "Start with the property and its services, then enroll the renter with their contract. The figures and the month's list appear once there is data.",
       "addProperty": "Add property",
-      "enrollTenant": "Enroll tenant"
+      "enrollTenant": "Enroll renter"
+    },
+    "selector": {
+      "previous": "Previous month",
+      "next": "Next month"
+    },
+    "expected": {
+      "label": "Total to collect",
+      "hint": "Everything active renters owe, older arrears included"
+    },
+    "overdue": {
+      "containment": "Of which overdue: {{amount}}"
+    },
+    "collected": {
+      "label": "Collected in the selected month",
+      "hint": "Money actually received in the selected month, whichever month the bill is for"
+    },
+    "properties": {
+      "label": "Total properties",
+      "hint": "{{occupied}} let · {{free}} free — as of now, not the selected month"
+    },
+    "strip": {
+      "creditInAdvance": "Renter credit in advance",
+      "owedByFormer": "Owed by former renters",
+      "owedToFormer": "Owed to former renters",
+      "unsignedReports": "Unsigned reports, selected month",
+      "unsignedCount": "{{count}} of {{total}}"
+    },
+    "history": {
+      "title": "Billed per month",
+      "subtitle": "Last 12 months",
+      "mobileHint": "Swipe sideways · tap a month for its figure",
+      "barLabel": "{{month}} {{year}}: {{amount}} billed",
+      "billedLabel": "Billed",
+      "empty": "No signed report yet — the chart fills in after the first signing.",
+      "monthOpen": "month not closed",
+      "asOf": "Figures as of {{timestamp}}. Unlocking and re-signing a report can change a past month."
+    },
+    "notifications": {
+      "title": "Latest notifications",
+      "viewAll": "All notifications",
+      "emptyWindow": "No email sent in the last 12 months.",
+      "emptyLog": "The log is empty. It fills in as the system sends emails."
     },
     "currentMonth": {
       "title": "Current month",
+      "sectionTitle": "Current month · {{month}}",
+      "openFull": "Open Current month",
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
       "error": "Could not load the current month.",
       "noOccupiedProperties": "No occupied properties yet.",
       "columns": {
         "property": "Property",
-        "tenant": "Tenant",
-        "status": "Status",
-        "total": "Total"
+        "tenant": "Renter",
+        "report": "Report",
+        "payment": "Payment",
+        "totalDue": "Total due",
+        "remaining": "Remaining to collect",
+        "dueDate": "Due date"
       },
-      "badge": {
-        "notEntered": "Not entered",
-        "published": "Published",
-        "paid": "Paid",
-        "partial": "Partial",
-        "overdue": "Overdue"
+      "report": {
+        "signed": "Signed",
+        "draft": "Draft, unsigned",
+        "notEntered": "Not entered"
+      },
+      "payment": {
+        "paid": "Paid in full",
+        "partial": "Partly paid",
+        "unpaid": "Not paid yet",
+        "cannot-record": "Not possible yet",
+        "arrears": "Arrears from {{month}}"
+      },
+      "due": {
+        "on-time": "paid on time",
+        "late": "{{count}} days late",
+        "upcoming": "in {{count}} days",
+        "after-signing": "after signing",
+        "nothing-due": "nothing due"
       }
+    }
+  },
+  "payments": {
+    "title": "Payments ledger",
+    "error": "The payments ledger could not be loaded.",
+    "empty": "No reports for the selected period.",
+    "periodMode": "Period type",
+    "modeMonth": "Month",
+    "modeYear": "Year",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "previousYear": "Previous year",
+    "nextYear": "Next year",
+    "allProperties": "All properties",
+    "allStatuses": "All statuses",
+    "columns": {
+      "property": "Property",
+      "tenant": "Renter",
+      "period": "Period",
+      "amountDue": "Amount due",
+      "amountPaid": "Amount paid",
+      "paymentDate": "Payment date",
+      "status": "Status"
+    },
+    "badge": {
+      "paid": "Paid",
+      "partial": "Partial",
+      "unpaid": "Unpaid",
+      "notRecorded": "Not recorded",
+      "overdue": "Overdue"
+    },
+    "footer": {
+      "billed": "Billed",
+      "collected": "Collected",
+      "stillOutstanding": "Still outstanding",
+      "creditOwed": "Credit owed to renters",
+      "rentTotal": "Total rent ({{year}})",
+      "excludedNotice": "{{count}} unsigned reports from {{year}} are not included in the totals."
+    }
+  },
+  "notifications": {
+    "title": "Notification log",
+    "windowNotice": "Showing emails sent in the last {{months}} months. Most recent first.",
+    "loading": "Loading...",
+    "error": "The notification log could not be loaded.",
+    "emptyStartsEmpty": "The log is empty. It fills up as the system sends email.",
+    "emptyNoneInWindow": "No emails sent in the last 12 months.",
+    "columns": {
+      "sentAt": "Sent at",
+      "type": "Type",
+      "audience": "Recipient",
+      "subject": "Subject",
+      "recipient": "Address",
+      "deliveryState": "Delivery"
+    },
+    "audience": {
+      "tenant": "Renter",
+      "admin": "Administrator"
+    },
+    "delivery": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "success": "Delivered",
+      "error": "Failed",
+      "retry": "Retrying"
+    },
+    "type": {
+      "credentials": "Login details",
+      "credentialsResent": "Login details resent",
+      "reportNew": "New report",
+      "reportUpdated": "Report updated",
+      "arrearsReminder": "Arrears reminder",
+      "contractExpiry": "Contract expiring",
+      "reportPreparation": "Report preparation reminder",
+      "tenancyAssigned": "Tenancy assigned",
+      "paymentUpcoming": "Upcoming payment reminder",
+      "paymentRecorded": "Payment recorded",
+      "contractExpired": "Contract expired, still active",
+      "dailyHeartbeat": "Daily automation report",
+      "balanceMismatch": "Balance mismatch"
     }
   },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. You can try going back to the home page.",
+    "backHome": "Back to home"
+  },
+  "theme": {
+    "stateDark": "Theme · Dark",
+    "stateLight": "Theme · Light",
+    "ariaLabel": "Toggle theme"
+  },
+  "system": {
+    "adminEmailMissing": "The administrator's email address (ADMIN_EMAIL) is not configured. Contract-expiry reminders, report-preparation reminders and the daily automation heartbeat are not being delivered anywhere."
   }
 }

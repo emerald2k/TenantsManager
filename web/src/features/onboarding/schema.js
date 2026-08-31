@@ -6,12 +6,16 @@ import { z } from 'zod'
  * PRESENCE-ONLY (NFR-VAL-01): a mandatory TEXT field means strictly "it is not
  * empty". No regex, no masks — `cnp`, `phone`, `email` accept any non-empty string.
  * The genuinely numeric fields (occupantCount, monthlyRent, securityDeposit,
- * dueDay, employmentDuration, income amount, reportReminderDaysBefore) are REAL
- * numbers (Sub-stage E, type correction — see the `numberField` note below): they
- * are arithmetic inputs (M4's report totals, FR-PROP-11's countdown, FR-CON-01's
- * contract terms), not free text that happens to look numeric, so a type check
- * belongs on them. This is not format policing — there is still no upper-bound
- * pattern beyond each field's own domain (e.g. dueDay is a calendar day 1-31).
+ * dueDay, employmentDuration, income amount, reportReminderDaysBefore,
+ * paymentReminderDaysBefore) are REAL numbers (Sub-stage E, type correction —
+ * see the `numberField` note below): they are arithmetic inputs (M4's report
+ * totals, FR-PROP-11's countdown, FR-CON-01's contract terms), not free text
+ * that happens to look numeric, so a type check belongs on them. This is not
+ * format policing — there is still no upper-bound pattern beyond each field's
+ * own domain (e.g. dueDay is a calendar day 1-31) — EXCEPT
+ * `paymentReminderDaysBefore` (M8, NFR-VAL-02): 1-10, the one deliberate
+ * exception, because its value drives automated outbound email VOLUME to the
+ * tenant rather than describing something the admin typed.
  *
  * The field names come VERBATIM from SRS §6 (the `users` + tenancy model), so the
  * eventual finalizeKyc transfer (draft → users/tenancies) is a straight copy. The
@@ -164,6 +168,11 @@ export const step3Schema = z.object({
  * the same strictness as `dueDay` — the "default 3 days" from SRS §3.3/§6 is a
  * FORM default (`draftFormDefaults`, below), not a schema default: the wizard
  * pre-fills the field with 3, editable, so it is never actually empty in practice.
+ *
+ * `paymentReminderDaysBefore` (M8 stage 13b, FR-PAY-10) is its twin, added
+ * where the SRS always said it belonged (§5.2 step 4) — same "form default,
+ * not schema default" treatment, but WITH a range (1-10, NFR-VAL-02) the
+ * other field does not have: see the field's own comment below for why.
  */
 export const step4Schema = z.object({
   propertyId: required(),
@@ -182,6 +191,17 @@ export const step4Schema = z.object({
       .max(31, { error: REQUIRED }),
   ),
   reportReminderDaysBefore: z.number({ error: REQUIRED }),
+  // `paymentReminderDaysBefore` (M8 stage 13b, FR-PAY-10, NFR-VAL-02): the
+  // ONE range-bounded field in this schema — 1-10, the single deliberate
+  // exception to NFR-VAL-01's presence-only rule, because an unbounded
+  // value drives automated outbound EMAIL VOLUME to the tenant (up to
+  // value+1 messages per cycle, FR-PAY-10b's window is inclusive), not
+  // merely something the admin typed. `reportReminderDaysBefore` above has
+  // no such bound — it drives one email to the admin, never the tenant.
+  paymentReminderDaysBefore: z
+    .number({ error: REQUIRED })
+    .min(1, { error: REQUIRED })
+    .max(10, { error: REQUIRED }),
 })
 
 /**
@@ -271,6 +291,7 @@ export const partialDraftSchema = z.object({
   securityDeposit: numberField(z.number().optional()),
   dueDay: numberField(z.number().optional()),
   reportReminderDaysBefore: z.number().optional(),
+  paymentReminderDaysBefore: z.number().optional(),
   existingUserId: existingUserIdField,
 })
 
@@ -354,5 +375,8 @@ export const draftFormDefaults = {
   // The one field that starts NON-empty (SRS §3.3/§6: "default 3 days") — the
   // wizard pre-fills it, editable, rather than forcing the admin to type it.
   reportReminderDaysBefore: 3,
+  // Same "starts non-empty" treatment, same default (SRS §6:
+  // "paymentReminderDaysBefore... default 3, range 1-10").
+  paymentReminderDaysBefore: 3,
   existingUserId: null,
 }

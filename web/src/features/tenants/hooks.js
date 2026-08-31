@@ -2,13 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/lib/firebase'
+import { deleteAttachmentBestEffort, uploadAttachment } from '@/lib/fileUpload'
 import { stripUndefinedDeep } from '@/features/onboarding/hooks'
 import { propertyKeys } from '@/features/properties/hooks'
 
@@ -125,6 +128,54 @@ export function useActiveTenancies() {
   })
 }
 
+// ─────────────────────────── useAllTenancies ─────────────────────
+/**
+ * Every tenancy, ANY status — active and ended alike, unlike
+ * `useActiveTenancies` above. The payments ledger (FR-PAY-07/08, M8 stage
+ * 12) is report-driven, and a report can belong to a tenancy that has since
+ * ended (a signed month billed before termination does not stop existing);
+ * `useActiveTenancies` would silently drop those rows' property/renter-name
+ * join. Whole-collection read, same shape and same NFR-PERF-01 scale
+ * argument as `useUsers` above (5-20 properties → a handful to a few dozen
+ * tenancies, cheaper than a status index).
+ */
+export function useAllTenancies() {
+  return useQuery({
+    queryKey: ['tenancies', 'all', 'list'],
+    queryFn: async () => {
+      const snap = await getDocs(collection(db, TENANCIES))
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+// ─────────────────────────── useTenancy ──────────────────────────
+/**
+ * A single tenancy by id (FR-REP-14, M8): backs the monthly report form,
+ * which is routed and keyed by tenancyId rather than propertyId since the
+ * re-keying — `tenancies/{tenancyId}` already carries the denormalized
+ * `property` and `tenantName` the form's header needs, so no separate
+ * `useProperty` read is needed alongside this one. `null` (not an error) when
+ * the id does not resolve — a stale link or a mistyped URL is a normal
+ * "not found" state, not a failure, same convention as `useMonthlyReport`.
+ *
+ * Deliberately NOT constrained to `status == 'active'`, unlike
+ * `useActiveTenancies` above: FR-REP-14 exists precisely so an ENDED tenancy
+ * (the outgoing side of a mid-month handover) can still be billed for its
+ * last partial month.
+ */
+export function useTenancy(tenancyId) {
+  return useQuery({
+    queryKey: ['tenancies', 'detail', tenancyId],
+    enabled: Boolean(tenancyId),
+    queryFn: async () => {
+      const snap = await getDoc(tenancyRef(tenancyId))
+      if (!snap.exists()) return null
+      return { id: snap.id, ...snap.data() }
+    },
+  })
+}
+
 // ─────────────────────────── useUserTenancies ────────────────────
 /**
  * The full tenancy HISTORY of one account (FR-TEN-15): active AND ended alike
@@ -237,6 +288,23 @@ export function useResetTenantPassword() {
   })
 }
 
+// ──────────────────────── useExportTenantData ───────────────────
+/**
+ * Builds one subject-access bundle for a tenant (FR-TEN-26) via the
+ * `exportTenantData` callable (functions/src/tenantExport.js). Read-only —
+ * no Firestore write, no cache to invalidate. The response's `data` is the
+ * whole bundle; the Account tab shows it in a dialog for the administrator
+ * to read before it goes anywhere (SRS §5.3, §5.5).
+ */
+export function useExportTenantData() {
+  return useMutation({
+    mutationFn: ({ userId }) => {
+      const exportTenantData = httpsCallable(functions, 'exportTenantData')
+      return exportTenantData({ userId })
+    },
+  })
+}
+
 // ──────────────────────── useSetTenantAccountStatus ──────────────
 /**
  * Disables / re-enables a tenant's account (FR-TEN-24) via the
@@ -261,6 +329,153 @@ export function useSetTenantAccountStatus() {
     onSuccess: (_result, { userId }) => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
       queryClient.invalidateQueries({ queryKey: ['users', 'detail', userId] })
+    },
+  })
+}
+
+// ───────────────────────── useSettleDeposit ──────────────────────
+/**
+ * Writes `tenancies/{id}.depositSettlement` (FR-CON-10/11/12, M8 stage 6). A
+ * PLAIN `updateDoc`, not a callable — same call as `useUpdateTenancy`, for the
+ * same reason: this touches exactly one document, under the single-trusted-
+ * admin model already established there. `endTenancy` needed a callable
+ * because it touches three documents atomically and enforces the arrears
+ * guard's removal server-side; nothing here needs a transaction.
+ *
+ * Never writes `currentBalance`/`closingBalance` — FR-CON-11's whole point is
+ * that a settlement is completely independent of the arrears ledger.
+ *
+ * Storage choreography mirrors `useSaveReportDraft` (reports/hooks.js)
+ * exactly, at a smaller scale (one array of items, not four cost-line
+ * shapes): upload every `file`-bearing attachment under
+ * `tenancies/{id}/settlement`, write the document, and on failure delete only
+ * what THIS call just uploaded (never anything from a previously saved
+ * settlement). On success, best-effort delete whatever attachment the admin
+ * removed (`previousAttachmentPaths` diffed against what survived) — the
+ * page computes that snapshot via `collectSettlementAttachmentPaths` before
+ * calling this, same convention as the report page's `previousAttachmentPaths`.
+ *
+ * `existingSettledAt` is the settlement's ORIGINAL `settledAt` (a Firestore
+ * Timestamp) when this is a correction to an already-completed settlement —
+ * carried over so editing a typo doesn't reset "when this was settled";
+ * `null`/`undefined` (first-ever completion) stamps a fresh
+ * `serverTimestamp()`.
+ */
+export function useSettleDeposit() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tenancyId,
+      items,
+      securityDeposit,
+      previousAttachmentPaths = [],
+      existingSettledAt,
+    }) => {
+      const basePath = `tenancies/${tenancyId}/settlement`
+      const newPaths = []
+
+      const uploadedItems = await Promise.all(
+        items.map(async (item) => {
+          const attachments = await Promise.all(
+            (item.attachments ?? []).map(async (attachment) => {
+              if (!attachment.file) {
+                return {
+                  path: attachment.path,
+                  name: attachment.name,
+                  type: attachment.type,
+                }
+              }
+              const path = `${basePath}/${crypto.randomUUID()}-${attachment.file.name}`
+              const uploaded = await uploadAttachment(path, attachment.file)
+              newPaths.push(uploaded.path)
+              return uploaded
+            }),
+          )
+          return {
+            description: item.description,
+            amount: Number(item.amount) || 0,
+            attachments,
+          }
+        }),
+      )
+
+      const deducted = uploadedItems.reduce((sum, item) => sum + item.amount, 0)
+      const deposit = securityDeposit ?? 0
+      const depositSettlement = stripUndefinedDeep({
+        items: uploadedItems,
+        deducted,
+        toReturn: Math.max(deposit - deducted, 0),
+        ownerBears: Math.max(deducted - deposit, 0),
+        settledAt: existingSettledAt ?? serverTimestamp(),
+      })
+
+      try {
+        await updateDoc(tenancyRef(tenancyId), { depositSettlement })
+      } catch (error) {
+        await Promise.allSettled(
+          newPaths.map((url) => deleteAttachmentBestEffort(url)),
+        )
+        throw error
+      }
+
+      const survivingPaths = uploadedItems.flatMap((item) =>
+        item.attachments.map((attachment) => attachment.path).filter(Boolean),
+      )
+      const removedPaths = previousAttachmentPaths.filter(
+        (url) => !survivingPaths.includes(url),
+      )
+      await Promise.allSettled(
+        removedPaths.map((url) => deleteAttachmentBestEffort(url)),
+      )
+
+      return tenancyId
+    },
+    onSuccess: (_result, { userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
+    },
+  })
+}
+
+// ─────────────────────── useRecalculateTenancyBalance ────────────────────
+/**
+ * The confirm half of the Recalculate-balance control (FR-SYS-05a, M8 stage
+ * 7) — via the `recalculateTenancyBalance` callable, NOT a Firestore write:
+ * `NFR-SEC-12` pins `currentBalance` against every client write, so a
+ * client `updateDoc` here would simply be refused by the rules. Same
+ * calling convention as `useEndTenancy`/`useSettleDeposit`'s sibling
+ * callable-vs-`updateDoc` split — the Admin SDK path is the one that
+ * already owns this field, and this is the one deliberate exception NFR-
+ * SEC-12's own comment names.
+ *
+ * Returns `{ from, to }` (the callable's response) so the control can show
+ * what actually changed — the confirmed write, not the client's own
+ * (possibly-stale) preview.
+ */
+export function useRecalculateTenancyBalance() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ tenancyId }) => {
+      const recalculateTenancyBalance = httpsCallable(
+        functions,
+        'recalculateTenancyBalance',
+      )
+      const result = await recalculateTenancyBalance({ tenancyId })
+      return result.data
+    },
+    onSuccess: (_result, { tenancyId, userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'detail', tenancyId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'byUser', userId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['tenancies', 'active', 'list'],
+      })
     },
   })
 }

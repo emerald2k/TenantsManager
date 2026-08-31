@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { paymentSchema } from '@/features/reports/schema'
 import { useCancelPayment, useMarkPayment } from '@/features/reports/hooks'
+import { SendPaymentConfirmationControl } from '@/features/reports/components/SendPaymentConfirmationControl'
 
 /**
  * The payment section (SRS §5.3: "After publication — payment section:
@@ -155,6 +156,8 @@ export function PaymentSection({ report }) {
           </Button>
         )}
       </form>
+
+      {hasPayment && <SendPaymentConfirmationControl report={report} />}
 
       {isOverpaid && (
         <p className="text-sm text-muted-foreground">

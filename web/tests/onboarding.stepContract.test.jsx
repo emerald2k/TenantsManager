@@ -174,10 +174,30 @@ describe('StepContract — rendering (FR-CON-01, FR-TEN-14)', () => {
     expect(securityDeposit).toHaveAttribute('min', '0')
     expect(securityDeposit).toHaveAttribute('placeholder', 'ex: 1500')
     const reminder = screen.getByLabelText(
-      'Reminder raport (zile înainte de scadență)',
+      'Memento pregătire raport (zile înainte) — către administrator',
     )
     expect(reminder).toHaveAttribute('type', 'number')
     expect(reminder).toHaveAttribute('min', '1')
+  })
+
+  it('has a SEPARATE paymentReminderDaysBefore field, range 1-10, labelled as tenant-facing so it cannot be confused with the admin-facing one (SRS §5.2 step 4, M8 stage 13b)', async () => {
+    await renderStepContract()
+
+    const adminReminder = screen.getByLabelText(
+      'Memento pregătire raport (zile înainte) — către administrator',
+    )
+    const tenantReminder = screen.getByLabelText(
+      'Memento plată (zile înainte) — către chiriaș',
+    )
+    expect(adminReminder).not.toBe(tenantReminder)
+    expect(tenantReminder).toHaveAttribute('type', 'number')
+    expect(tenantReminder).toHaveAttribute('min', '1')
+    expect(tenantReminder).toHaveAttribute('max', '10')
+    expect(
+      screen.getByText(
+        'Valoarea înseamnă un email pe zi către chiriaș, până la scadență.',
+      ),
+    ).toBeInTheDocument()
   })
 })
 
@@ -185,6 +205,23 @@ describe('StepContract — full validation on Finalizează (SRS §5.3)', () => {
   it('blocks with inline errors when Step 4 fields are missing, without calling finalizeKyc', async () => {
     const user = userEvent.setup()
     await renderStepContract()
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Câmp obligatoriu').length).toBeGreaterThan(0)
+    })
+    expect(finalizeKycMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks Finalizează when paymentReminderDaysBefore is out of range (NFR-VAL-02), without calling finalizeKyc', async () => {
+    const user = userEvent.setup()
+    await renderStepContract({
+      defaultValues: {
+        ...FULL_NEW_TENANT_DRAFT,
+        paymentReminderDaysBefore: 11,
+      },
+    })
 
     await user.click(screen.getByRole('button', { name: 'Finalizează' }))
 
@@ -428,5 +465,76 @@ describe('StepContract — finalize errors', () => {
         'Acest cont are deja o tenanță activă',
       )
     })
+  })
+})
+
+describe('StepContract — FR-TEN-27 (no tenancy on an unusable account)', () => {
+  function accountErr(reason) {
+    return Object.assign(new Error(reason), {
+      code: 'functions/failed-precondition',
+      details: { reason },
+    })
+  }
+
+  it('a DISABLED account shows a naming message and an inline re-enable action', async () => {
+    const user = userEvent.setup()
+    const setStatusMock = vi
+      .fn()
+      .mockResolvedValue({ data: { status: 'active' } })
+    httpsCallable.mockImplementation((_fns, name) =>
+      name === 'setTenantAccountStatus' ? setStatusMock : finalizeKycMock,
+    )
+    finalizeKycMock.mockRejectedValue(accountErr('account-disabled'))
+    useUserById.mockReturnValue({
+      data: { id: 'user-1', name: 'Maria Ionescu', email: 'maria@example.com' },
+      isPending: false,
+    })
+    await renderStepContract({
+      defaultValues: { ...CONTRACT_FILLED, existingUserId: 'user-1' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Acest cont este dezactivat',
+      )
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reactivează contul' }))
+
+    await waitFor(() => {
+      expect(setStatusMock).toHaveBeenCalledWith({
+        userId: 'user-1',
+        action: 'enable',
+      })
+    })
+    // The error clears and the retry hint appears.
+    expect(
+      screen.getByText(/Cont reactivat\. Apasă din nou Finalizează/),
+    ).toBeInTheDocument()
+  })
+
+  it('an ARCHIVED account shows a terminal message and NO re-enable action', async () => {
+    const user = userEvent.setup()
+    finalizeKycMock.mockRejectedValue(accountErr('account-archived'))
+    useUserById.mockReturnValue({
+      data: { id: 'user-1', name: 'Maria Ionescu', email: 'maria@example.com' },
+      isPending: false,
+    })
+    await renderStepContract({
+      defaultValues: { ...CONTRACT_FILLED, existingUserId: 'user-1' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Finalizează' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Acest cont este arhivat',
+      )
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Reactivează contul' }),
+    ).toBeNull()
   })
 })

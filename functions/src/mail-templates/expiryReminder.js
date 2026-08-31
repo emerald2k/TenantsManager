@@ -40,8 +40,13 @@ function formatEndDate(isoDate) {
  * shape). Always Romanian — no `language` parameter, unlike every
  * tenant-facing template in this directory.
  *
- * @param fields  { name, email, property, endDate, url } — RAW, unformatted;
- *                `email` is ADMIN_EMAIL, `name` is the tenant's name.
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, one place per template.
+ * `relatedId`/`ownerId` come from the caller: `dailyScheduler` knows the
+ * tenancy's ID and its `ownerId` (the single admin's uid).
+ *
+ * @param fields  { name, email, property, endDate, url, relatedId, ownerId }
+ *                — RAW, unformatted; `email` is ADMIN_EMAIL, `name` is the
+ *                tenant's name.
  */
 function buildExpiryReminderEmail(fields) {
   const values = {
@@ -56,6 +61,10 @@ function buildExpiryReminderEmail(fields) {
       subject: SUBJECT(values),
       text: BODY(values),
     },
+    type: 'contract-expiry',
+    audience: 'admin',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { RetryButton } from '@/components/shared/RetryButton'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Table } from '@/components/shared/Table'
+import { MoneyAmount } from '@/components/shared/MoneyAmount'
 import { filterByText } from '@/lib/filterByText'
 import { useActiveTenancies, useUsers } from '@/features/tenants/hooks'
 import {
@@ -161,44 +164,50 @@ export function TenantsListPage() {
   }
 
   async function confirmDelete() {
-    await deleteDraft.mutateAsync(deleteTarget)
-    setDeleteTarget(null)
+    try {
+      await deleteDraft.mutateAsync(deleteTarget)
+      setDeleteTarget(null)
+    } catch {
+      // FR-TEN-25: `deleteOnboardingDraft` now surfaces a Storage failure
+      // instead of swallowing it. Keep the dialog open and let
+      // `deleteDraft.isError` show the message below — the admin can retry.
+    }
   }
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-foreground">
-          {t('tenants.list.title')}
-        </h1>
-        <div className="flex flex-wrap items-center gap-4">
-          <Input
-            type="search"
-            aria-label={t('tenants.list.search')}
-            placeholder={t('tenants.list.search')}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-56"
-          />
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(event) => setShowArchived(event.target.checked)}
+      <PageHeader
+        title={t('tenants.list.title')}
+        actions={
+          <>
+            <Input
+              type="search"
+              aria-label={t('tenants.list.search')}
+              placeholder={t('tenants.list.search')}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-56"
             />
-            {t('tenants.list.showArchived')}
-          </label>
-          <Button
-            type="button"
-            onClick={startOnboarding}
-            disabled={createDraft.isPending}
-          >
-            {createDraft.isPending
-              ? t('common.loading')
-              : t('tenants.list.add')}
-          </Button>
-        </div>
-      </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => setShowArchived(event.target.checked)}
+              />
+              {t('tenants.list.showArchived')}
+            </label>
+            <Button
+              type="button"
+              onClick={startOnboarding}
+              disabled={createDraft.isPending}
+            >
+              {createDraft.isPending
+                ? t('common.loading')
+                : t('tenants.list.add')}
+            </Button>
+          </>
+        }
+      />
 
       {createFailed && (
         <div className="flex items-center gap-2">
@@ -248,124 +257,93 @@ export function TenantsListPage() {
           {t('tenants.list.noMatches')}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border bg-muted/50">
-              <tr className="text-xs text-muted-foreground">
-                <th className="px-4 py-2 font-medium">
-                  {t('tenants.fields.name')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('tenants.fields.phone')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('tenants.fields.email')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('tenants.fields.property')}
-                </th>
-                <th className="px-4 py-2 text-right font-medium">
-                  {t('tenants.fields.balance')}
-                </th>
-                <th className="px-4 py-2 font-medium">
-                  {t('tenants.fields.status')}
-                </th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => {
-                const isUser = row.kind === 'user'
-                return (
-                  <tr
-                    key={`${row.kind}-${row.id}`}
-                    onClick={
-                      isUser
-                        ? () => navigate(`/admin/tenants/${row.id}`)
-                        : undefined
-                    }
-                    onKeyDown={
-                      isUser
-                        ? (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              navigate(`/admin/tenants/${row.id}`)
-                            }
-                          }
-                        : undefined
-                    }
-                    tabIndex={isUser ? 0 : undefined}
-                    className={`border-b border-border last:border-0 ${
-                      isUser
-                        ? 'cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none'
-                        : ''
-                    } ${row.isArchived ? 'opacity-60' : ''}`}
-                  >
-                    <td className="px-4 py-3 font-medium text-foreground">
-                      {cellOrDash(row.name)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {cellOrDash(row.phone)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {cellOrDash(row.email)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {cellOrDash(row.property)}
-                    </td>
-                    <td
-                      className={`px-4 py-3 text-right tabular-nums ${
-                        row.balance > 0
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
-                      }`}
+        <Table
+          columns={[
+            {
+              key: 'name',
+              header: t('tenants.fields.name'),
+              primary: true,
+              render: (row) => cellOrDash(row.name),
+            },
+            {
+              key: 'phone',
+              header: t('tenants.fields.phone'),
+              render: (row) => cellOrDash(row.phone),
+            },
+            {
+              key: 'email',
+              header: t('tenants.fields.email'),
+              render: (row) => cellOrDash(row.email),
+            },
+            {
+              key: 'property',
+              header: t('tenants.fields.property'),
+              render: (row) => cellOrDash(row.property),
+            },
+            {
+              key: 'balance',
+              header: t('tenants.fields.balance'),
+              align: 'right',
+              render: (row) => <MoneyAmount value={row.balance} />,
+            },
+            {
+              key: 'status',
+              header: t('tenants.fields.status'),
+              render: (row) => <StatusBadge statusKey={row.statusKey} />,
+            },
+            {
+              key: 'actions',
+              header: '',
+              align: 'right',
+              render: (row) =>
+                row.kind === 'draft' ? (
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/admin/onboarding/${row.id}`)}
                     >
-                      {row.balance === null ? '—' : row.balance}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge statusKey={row.statusKey} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {row.kind === 'draft' && (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() =>
-                              navigate(`/admin/onboarding/${row.id}`)
-                            }
-                          >
-                            {t('tenants.list.continue')}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            onClick={() => setDeleteTarget(row.id)}
-                          >
-                            {t('tenants.list.deleteDraft')}
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {t('tenants.list.continue')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setDeleteTarget(row.id)}
+                    >
+                      {t('tenants.list.deleteDraft')}
+                    </Button>
+                  </div>
+                ) : null,
+            },
+          ]}
+          rows={filteredRows}
+          getRowKey={(row) => `${row.kind}-${row.id}`}
+          onRowClick={(row) => navigate(`/admin/tenants/${row.id}`)}
+          isRowClickable={(row) => row.kind === 'user'}
+          rowClassName={(row) => (row.isArchived ? 'opacity-60' : undefined)}
+        />
       )}
 
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
+          if (!open) {
+            setDeleteTarget(null)
+            deleteDraft.reset()
+          }
         }}
         titleKey="tenants.list.deleteDraftTitle"
         descriptionKey="tenants.list.deleteDraftDescription"
         confirmKey="tenants.list.deleteDraftConfirm"
         onConfirm={confirmDelete}
         isPending={deleteDraft.isPending}
-      />
+      >
+        {deleteDraft.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {t('tenants.list.deleteDraftError')}
+          </p>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

@@ -5,6 +5,9 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore')
 const {
   buildReportNotificationEmail,
 } = require('./mail-templates/reportNotification')
+const {
+  buildPaymentRecordedEmail,
+} = require('./mail-templates/paymentRecorded')
 
 /**
  * signReport / unlockReport (SRS §7.2, FR-REP-07/07a).
@@ -30,7 +33,30 @@ if (!getApps().length) {
 // the same generic portal URL A1/A7 already use.
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 
-async function signReportCore(reportId) {
+/**
+ * signReportCore (FR-REP-07, FR-REP-11/11a, FR-REP-04e).
+ *
+ * CHRONOLOGICAL GUARD (FR-REP-11): rejects signing a report whose (year,
+ * month) is earlier than that of any ALREADY-signed report on the same
+ * tenancy. `currentBalance` is derived from the single most recent signed
+ * report (`recomputeCurrentBalance`, above) — signing an earlier month after
+ * a later one has no effect on any balance whatsoever (FR-REP-11a). The
+ * report being signed here is still `status: 'draft'` at read time, so it
+ * never appears in its own sibling query — no `<=` needed, `<` alone is
+ * correct and a same-month re-sign after unlock is never blocked by itself.
+ * Query, not a fetch-all: same two-equality-filter, sort-in-memory shape as
+ * `recomputeCurrentBalance` (no composite index, SRS §6). Read BEFORE any
+ * write — the Admin SDK forbids a read after a write in a transaction.
+ *
+ * `overrideReason` (FR-REP-04e, optional): when the admin's confirmation
+ * dialog collected a reason for a finalTotal that materially diverges from
+ * calculatedTotal, it is stored verbatim with a timestamp. Not enforced
+ * here — the divergence check and the second-confirmation gate are UI
+ * (MonthlyReportPage/SignReportControl), consistent with this codebase's
+ * single-trusted-admin model (SRS §7.3): the field is an audit trail, not an
+ * access boundary a Cloud Function needs to police.
+ */
+async function signReportCore(reportId, overrideReason) {
   const db = getFirestore()
   const reportRef = db.collection('monthlyReports').doc(reportId)
 
@@ -39,16 +65,55 @@ async function signReportCore(reportId) {
     if (!reportSnap.exists) {
       throw new HttpsError('not-found', `Report ${reportId} does not exist.`)
     }
-    if (reportSnap.data().status !== 'draft') {
+    const report = reportSnap.data()
+    if (report.status !== 'draft') {
       throw new HttpsError(
         'failed-precondition',
         'Only a draft report can be signed.',
         { reason: 'not-draft' },
       )
     }
+
+    const priorSignedSnap = await tx.get(
+      db
+        .collection('monthlyReports')
+        .where('tenancyId', '==', report.tenancyId)
+        .where('status', '==', 'signed'),
+    )
+    const blocking = priorSignedSnap.docs
+      .map((doc) => doc.data())
+      // A LATER already-signed month blocks this one — the earliest such
+      // later month is the one the unlock procedure (FR-REP-11a) names.
+      .filter(
+        (signed) =>
+          signed.year > report.year ||
+          (signed.year === report.year && signed.month > report.month),
+      )
+      .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+    if (blocking) {
+      throw new HttpsError(
+        'failed-precondition',
+        `A later month (${blocking.month}/${blocking.year}) is already signed on this tenancy. ` +
+          'Signing an earlier month now would never be reflected in any balance (FR-REP-11a): ' +
+          'unlock every signed report later than this one, sign this month, then re-sign the ' +
+          'unlocked months in ascending order.',
+        {
+          reason: 'chronological-order',
+          blockingMonth: blocking.month,
+          blockingYear: blocking.year,
+        },
+      )
+    }
+
     tx.update(reportRef, {
       status: 'signed',
       signedAt: FieldValue.serverTimestamp(),
+      ...(overrideReason
+        ? {
+            finalTotalOverrideReason: overrideReason,
+            finalTotalOverrideReasonAt: FieldValue.serverTimestamp(),
+          }
+        : {}),
     })
   })
 
@@ -88,7 +153,7 @@ async function signReportHandler(request) {
   if (!reportId) {
     throw new HttpsError('invalid-argument', 'reportId is required.')
   }
-  return signReportCore(reportId)
+  return signReportCore(reportId, request.data?.overrideReason)
 }
 
 async function unlockReportHandler(request) {
@@ -124,10 +189,36 @@ const unlockReport = onCall(unlockReportHandler)
  * `finalTotal - undefined` is `NaN`, which would silently corrupt
  * `currentBalance` the moment a report is signed, before any payment exists.
  *
+ * `roundingSurplus ?? 0` (SRS §6, FR-REP-04a/04c, M8): a report produced by
+ * the rounding action asked the tenant for a round `finalTotal` but only
+ * `finalTotal - roundingSurplus` was actually owed — the surplus is the
+ * tenant's credit, already destined to reduce `previousMonthArrears` (or
+ * grow `previousMonthCredit`) on the NEXT report via `buildInitialValues`.
+ * Omitting this subtraction here would silently pocket that credit instead
+ * of carrying it forward.
+ *
  * Always a full re-derivation, never an increment/decrement — naturally
  * idempotent under onDocumentWritten's at-least-once delivery.
  */
 async function recomputeCurrentBalance(tenancyId) {
+  const db = getFirestore()
+  const currentBalance = await computeBalanceFromSignedReports(tenancyId)
+  await db.collection('tenancies').doc(tenancyId).update({ currentBalance })
+}
+
+/**
+ * The READ-ONLY half of the identity above — everything `recomputeCurrentBalance`
+ * does except the `tenancies` write. Extracted at M8 stage 7 (FR-SYS-05):
+ * `reconcileBalances` needs the SAME formula to compare against the stored
+ * value, but must never write — the whole point of reconciliation is that it
+ * reports a divergence instead of silently overwriting a real balance on the
+ * strength of a calculation nobody has reviewed. Sharing this function (both
+ * callers live in `functions/`, so there is no cross-package deploy boundary
+ * forcing a duplicate, unlike the KYC schema or the DST arithmetic) is what
+ * keeps the two from drifting apart the way two independently-typed copies
+ * eventually would.
+ */
+async function computeBalanceFromSignedReports(tenancyId) {
   const db = getFirestore()
   const snap = await db
     .collection('monthlyReports')
@@ -135,21 +226,17 @@ async function recomputeCurrentBalance(tenancyId) {
     .where('status', '==', 'signed')
     .get()
 
-  if (snap.empty) {
-    await db
-      .collection('tenancies')
-      .doc(tenancyId)
-      .update({ currentBalance: 0 })
-    return
-  }
+  if (snap.empty) return 0
 
   const mostRecent = snap.docs
     .map((doc) => doc.data())
     .sort((a, b) => b.year - a.year || b.month - a.month)[0]
 
-  const currentBalance =
-    (mostRecent.finalTotal ?? 0) - (mostRecent.amountPaid ?? 0)
-  await db.collection('tenancies').doc(tenancyId).update({ currentBalance })
+  return (
+    (mostRecent.finalTotal ?? 0) -
+    (mostRecent.amountPaid ?? 0) -
+    (mostRecent.roundingSurplus ?? 0)
+  )
 }
 
 /**
@@ -215,7 +302,7 @@ const onReportWrite = onDocumentWritten(
  * harmless and the admin just re-sends, the same tolerance the "no
  * tracking, manual every time" pin already assumes.
  */
-async function sendReportNotificationCore(reportId, template) {
+async function sendReportNotificationCore(reportId, template, adminUid) {
   const db = getFirestore()
   const reportSnap = await db.collection('monthlyReports').doc(reportId).get()
   if (!reportSnap.exists) {
@@ -246,6 +333,8 @@ async function sendReportNotificationCore(reportId, template) {
       finalTotal: report.finalTotal,
       dueDate: report.dueDate,
       url: APP_URL,
+      relatedId: reportId,
+      ownerId: adminUid,
     }),
   )
 
@@ -267,10 +356,93 @@ async function sendReportNotificationHandler(request) {
       "template must be 'new' or 'updated'.",
     )
   }
-  return sendReportNotificationCore(reportId, template)
+  return sendReportNotificationCore(reportId, template, request.auth.uid)
 }
 
 const sendReportNotification = onCall(sendReportNotificationHandler)
+
+/**
+ * sendPaymentConfirmation (SRS §7.2, FR-PAY-01, Appendix A10) — "the payment
+ * action" in the twelve-write-sites table. On the administrator's explicit
+ * request ONLY, from the payment section — the same discipline as A2/A3
+ * (FR-REP-06): the product never emails the tenant behind the
+ * administrator's back. NOT wired into `useMarkPayment` (a plain client
+ * `updateDoc`, per M4 sub-stage 5 Decision 1) because `mail` is closed to
+ * every client, admin included (SRS §7.3) — a client write can never reach
+ * it, so this has to be its own callable, mirroring
+ * `sendReportNotification`'s exact "separate, on-demand action, not
+ * automatic" shape.
+ *
+ * REJECTS a report with no payment recorded yet (failed-precondition,
+ * reason 'no-payment') — `paymentStatus` is written for the first time by
+ * `useMarkPayment`, so its absence (or `'unpaid'`, never actually written
+ * by that hook but checked defensively) means there is nothing to confirm.
+ *
+ * `{total}`/`{dueDate}` in the A10 template are the amount actually PAID
+ * and the payment DATE — never `finalTotal`/the report's own `dueDate`,
+ * which A2/A3/A4/A8 give those same placeholder names.
+ */
+async function sendPaymentConfirmationCore(reportId, adminUid) {
+  const db = getFirestore()
+  const reportSnap = await db.collection('monthlyReports').doc(reportId).get()
+  if (!reportSnap.exists) {
+    throw new HttpsError('not-found', `Report ${reportId} does not exist.`)
+  }
+  const report = reportSnap.data()
+  if (report.paymentStatus !== 'partial' && report.paymentStatus !== 'paid') {
+    throw new HttpsError(
+      'failed-precondition',
+      'This report has no payment recorded yet.',
+      { reason: 'no-payment' },
+    )
+  }
+
+  const userSnap = await db.collection('users').doc(report.userId).get()
+  if (!userSnap.exists) {
+    throw new HttpsError('not-found', 'The tenant account does not exist.')
+  }
+  const user = userSnap.data()
+
+  const tenancySnap = await db
+    .collection('tenancies')
+    .doc(report.tenancyId)
+    .get()
+  if (!tenancySnap.exists) {
+    throw new HttpsError('not-found', 'The tenancy does not exist.')
+  }
+  const tenancy = tenancySnap.data()
+
+  const mailRef = db.collection('mail').doc()
+  await mailRef.set(
+    buildPaymentRecordedEmail(user.preferredLanguage, {
+      name: user.name,
+      email: user.email,
+      property: tenancy.property.name,
+      month: report.month,
+      year: report.year,
+      amountPaid: report.amountPaid,
+      paymentDate: report.paymentDate,
+      url: APP_URL,
+      relatedId: reportId,
+      ownerId: adminUid,
+    }),
+  )
+
+  return { reportId }
+}
+
+async function sendPaymentConfirmationHandler(request) {
+  if (request.auth?.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Admin access required.')
+  }
+  const reportId = request.data?.reportId
+  if (!reportId) {
+    throw new HttpsError('invalid-argument', 'reportId is required.')
+  }
+  return sendPaymentConfirmationCore(reportId, request.auth.uid)
+}
+
+const sendPaymentConfirmation = onCall(sendPaymentConfirmationHandler)
 
 module.exports = {
   signReport,
@@ -282,7 +454,11 @@ module.exports = {
   onReportWrite,
   onReportWriteHandler,
   recomputeCurrentBalance,
+  computeBalanceFromSignedReports,
   sendReportNotification,
   sendReportNotificationHandler,
   sendReportNotificationCore,
+  sendPaymentConfirmation,
+  sendPaymentConfirmationHandler,
+  sendPaymentConfirmationCore,
 }

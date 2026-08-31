@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '@/lib/formatCurrency'
 import { formatFullDate } from '@/lib/formatDate'
+import { FINAL_TOTAL_EPSILON } from '@/features/reports/schema'
 
 /**
  * Purely presentational, read-only summary of a signed report (M4 sub-stage
@@ -21,6 +22,33 @@ import { formatFullDate } from '@/lib/formatDate'
  * where it's actually needed, is a separate concern the caller owns (see
  * SharedReportPage's own Attachments section, proxied through
  * getSharedReportAttachment).
+ *
+ * Pinned light (NFR-UX-05, M8 stage 9) via the `force-light` class on the
+ * root element below — index.css's `.force-light` re-declares the light
+ * color tokens directly on this subtree, overriding whatever an ancestor
+ * `.dark` (admin/tenant chrome, OS preference) would otherwise inherit down.
+ * This is why the component itself, and everything it imports, must never
+ * use a `dark:` Tailwind variant: a `dark:` utility switches on the `.dark`
+ * ancestor's presence in the DOM, which `.force-light`'s custom-property
+ * override cannot suppress — only token-driven classes (bg-background,
+ * text-foreground, …) are affected by it. web/tests/reportSummaryView.
+ * forceLight.test.js guards both halves: the class is present, and no
+ * `dark:` token exists anywhere in this file or its local imports.
+ *
+ * The root element ALSO needs `text-foreground` explicitly, not just
+ * `force-light` — `color` is an inherited property whose value is resolved
+ * ONCE, at the nearest ancestor that actually declares it, then handed down
+ * as-is. That ancestor is `<body>` (`@layer base` applies `text-foreground`
+ * there), which sits OUTSIDE `.force-light`'s subtree — so without a fresh
+ * `color` declaration inside this subtree, every element here that doesn't
+ * set its own text-color utility (the amount cells, the arrears/credit/
+ * due-date/payment-status rows) would inherit body's already-dark-mode-
+ * resolved color, near-invisible against this component's forced-white
+ * background. Caught by actually opening a dark-mode PDF/PNG export (M8
+ * stage 9's G2) — every row with its own explicit color utility (labels,
+ * the Total final row) rendered fine, which is what made the pattern
+ * legible: the bug was never "the mechanism doesn't work", it was "the
+ * mechanism only reaches elements that ask it to".
  */
 
 function AttachmentBadge({ name, type }) {
@@ -96,7 +124,7 @@ export function ReportSummaryView({
   const paymentStatusKey = PAYMENT_STATUS_KEY[data.paymentStatus ?? 'unpaid']
 
   return (
-    <div className="flex flex-col gap-4 bg-background p-6 text-sm">
+    <div className="force-light flex flex-col gap-4 bg-background p-6 text-sm text-foreground">
       {showHeader && (
         <div>
           <h2 className="text-lg font-semibold text-foreground">
@@ -108,40 +136,47 @@ export function ReportSummaryView({
         </div>
       )}
 
-      <table className="w-full text-left">
-        <tbody>
-          <SummaryLineRow
-            label={t('reports.sections.rent')}
-            amount={data.rent.amount}
-            notes={data.rent.notes}
-            attachments={data.rent.attachments}
-          />
-          <SummaryLineRow
-            label={t('reports.sections.maintenance')}
-            amount={data.maintenance.amount}
-            notes={data.maintenance.notes}
-            attachments={data.maintenance.attachments}
-          />
-          {data.serviceCosts.map((line, index) => (
+      {/* Scrolls the cost-line table within its own box on a narrow phone
+          instead of widening the page (320 px — NFR-UX-03). In the
+          off-screen export capture the parent has no fixed width, so the
+          table takes its natural width and nothing is clipped — the PDF/PNG
+          are unchanged (G2). No `dark:` here: the NFR-UX-05 pin is intact. */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <tbody>
             <SummaryLineRow
-              key={index}
-              label={line.name}
-              amount={line.amount}
-              notes={line.notes}
-              attachments={line.attachments}
+              label={t('reports.sections.rent')}
+              amount={data.rent.amount}
+              notes={data.rent.notes}
+              attachments={data.rent.attachments}
             />
-          ))}
-          {data.otherExpenses.map((line, index) => (
             <SummaryLineRow
-              key={index}
-              label={line.description}
-              amount={line.amount}
-              notes={line.notes}
-              attachments={line.attachments}
+              label={t('reports.sections.maintenance')}
+              amount={data.maintenance.amount}
+              notes={data.maintenance.notes}
+              attachments={data.maintenance.attachments}
             />
-          ))}
-        </tbody>
-      </table>
+            {data.serviceCosts.map((line, index) => (
+              <SummaryLineRow
+                key={index}
+                label={line.name}
+                amount={line.amount}
+                notes={line.notes}
+                attachments={line.attachments}
+              />
+            ))}
+            {data.otherExpenses.map((line, index) => (
+              <SummaryLineRow
+                key={index}
+                label={line.description}
+                amount={line.amount}
+                notes={line.notes}
+                attachments={line.attachments}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="flex flex-col gap-1 border-t border-border pt-3">
         {showCalculatedTotal && (
@@ -164,10 +199,41 @@ export function ReportSummaryView({
             {formatCurrency(data.previousMonthCredit)}
           </span>
         </div>
+        {/* FR-REP-04d: the difference line — never both at once. A stored
+            rounding surplus (rounding action) takes priority; otherwise a
+            manual edit's diff is derived at render, never stored. */}
+        {data.roundingSurplus > 0 ? (
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>
+              {t('reports.fields.roundingLine', {
+                value: formatCurrency(data.roundingSurplus),
+              })}
+            </span>
+          </div>
+        ) : (
+          Math.abs(data.finalTotal - data.calculatedTotal) >=
+            FINAL_TOTAL_EPSILON && (
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>
+                {t('reports.fields.adjustmentLine', {
+                  value: formatCurrency(data.finalTotal - data.calculatedTotal),
+                })}
+              </span>
+            </div>
+          )
+        )}
+        {/* FR-PAY-11: a zero-or-negative finalTotal is a real, reachable
+            state (a light month against a large credit) — the owner owes
+            the tenant, not the other way round. Rendered legibly as a
+            positive "Credit" figure, never a negative debt-shaped number. */}
         <div className="flex items-center justify-between text-base font-semibold text-foreground">
-          <span>{t('reports.fields.finalTotal')}</span>
+          <span>
+            {data.finalTotal < 0
+              ? t('reports.fields.creditLabel')
+              : t('reports.fields.finalTotal')}
+          </span>
           <span className="tabular-nums">
-            {formatCurrency(data.finalTotal)}
+            {formatCurrency(Math.abs(data.finalTotal))}
           </span>
         </div>
         <div className="flex items-center justify-between">

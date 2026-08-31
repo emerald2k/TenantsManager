@@ -308,6 +308,112 @@ reset from the Firebase Console.
 
 ---
 
+## Operating in production — the FR-REP-14 report re-keying
+
+M8 changes the `monthlyReports` document id from `propertyId_YYYY-MM` to
+`tenancyId_YYYY-MM` (SRS FR-REP-14) so that a mid-month change of tenant can bill
+both tenancies. Firestore cannot rename a document, so this is
+**create-new-then-delete-old** — a real migration of live data, governed by
+`CLAUDE.md` §10. And it **drags Storage with it**: invoice attachments live at
+`reports/{reportId}/invoices/*`, and `storage.rules` resolves access by looking
+the id up in Firestore. Re-key the documents without moving the objects and every
+historical invoice becomes unreadable — silently, as a permission denial.
+
+Two scripts do it, in `functions/scripts/`. Run them **from the `functions/`
+folder**. Both **default to a dry run**; nothing is written until you pass
+`--apply`.
+
+### Order — Storage first, then Firestore
+
+**1. `migrateReportStorage.js` — the copy.**
+
+```bash
+node scripts/migrateReportStorage.js            # dry run — lists what it would copy
+node scripts/migrateReportStorage.js --apply    # actually copies
+```
+
+It copies every `reports/{oldId}/invoices/*` object to `reports/{newId}/invoices/*`.
+**Copy only** — it never deletes anything and never writes to Firestore. A report
+with no `tenancyId` is **reported, never guessed at** from its `propertyId`; it is
+skipped and listed at the end.
+
+**2. `migrateReportKeys.js` — the re-key, and the only delete.**
+
+```bash
+node scripts/migrateReportKeys.js --apply                 # create the new docs + verify
+node scripts/migrateReportKeys.js --apply --delete-old    # + delete the old docs and Storage prefixes
+```
+
+- **Create:** for each report, a new document at `tenancyId_YYYY-MM` with every
+  `attachments[].path` (in `rent`, `maintenance`, each `serviceCosts[]`, each
+  `otherExpenses[]`) rewritten to the new prefix. The old document is left in
+  place — both exist after this step.
+- **Verify:** it re-reads every new document and confirms it exists, that its
+  identifying fields match the source, that **no trace of the old id survives
+  anywhere in it**, and that **every attachment path resolves to a real Storage
+  object** (which is why the Storage copy must run first — without it, this step
+  fails, loudly, every time, and tells you to run `migrateReportStorage.js --apply`).
+- **Delete** happens **only with `--delete-old`**, and **only for reports whose
+  own verification passed in that same run**. A verification failure on **any**
+  report **cancels the delete for every report in the run** (`CLAUDE.md` §10.2) —
+  nothing is destroyed while anything is in doubt.
+
+**Both scripts are idempotent.** `migrateReportStorage.js` skips a destination
+object that already exists (re-running copies only what is still missing);
+`migrateReportKeys.js` skips a report whose new id already exists. Running either
+one twice is safe and the second run is a no-op.
+
+Which project they hit is whatever `initializeApp` resolves to from the shell —
+the emulator when the emulator env vars are set (the rehearsal, done locally in
+M8 stage 4), production otherwise (M8 stage 20). They do not set or refuse those
+vars themselves.
+
+---
+
+## Taking a manual backup before a migration
+
+There is **no automated backup** (SRS §2.8, re-affirmed 2026-08-25). Before the
+re-keying above runs against production, a verified, restorable export is taken
+by hand — its own gate, its own approval (`CLAUDE.md` §10). The full deploy-day
+order (SRS §9):
+
+1. **Announce a maintenance window.** The app is live; the migration runs with it
+   closed.
+2. **Take the export — Firestore _and_ a copy of the Storage invoice prefix.** A
+   Firestore export contains no Storage bytes (`CLAUDE.md` §10.2), so both are
+   taken, and both are **verified** — inspected or test-restored, not merely
+   exited zero.
+3. **Close the app.**
+4. **Run the re-keying**, both halves, verifying between them (the section above).
+5. **`firebase deploy`** — rules, functions and web together.
+6. **Run the `paymentReminderDaysBefore` backfill**
+   (`node scripts/backfillPaymentReminderDaysBefore.js --apply`, idempotent).
+7. **Reopen and validate in a browser:** open a **pre-migration** invoice as the
+   tenant, sign a report, export a PDF from dark mode. Then confirm the first
+   heartbeat email arrives (SRS FR-SYS-06) and the notification log fills
+   (FR-NLOG-05).
+
+### The `gcloud` export — three facts the 2026-08-31 rehearsal produced
+
+No document had these before the procedure was run once end to end:
+
+- **Run `gcloud` from PowerShell, not Git Bash.** In Git Bash it resolves to the
+  Unix wrapper script, which calls a `python` that is not installed, and Windows
+  answers with a Microsoft Store advertisement.
+- **The Firestore database is `nam5`; the backup bucket must be created
+  `--location=US`.** They are the same place in two vocabularies — Cloud Storage
+  does not recognise the name `nam5`. A bucket in the wrong location makes the
+  export refuse without saying clearly why.
+- **Any command containing `(default)` needs single quotes in PowerShell**
+  (`'(default)'`), because parentheses are an operator there and the shell
+  evaluates them instead of passing them through.
+
+The backup bucket **`gs://tenants-manager-2026-firestore-backups`** already exists
+(US, uniform access) — it is infrastructure. Deploy day writes into it; it is not
+created again.
+
+---
+
 ## Project structure
 
 ```
@@ -366,24 +472,36 @@ npm run format:check  # checks the formatting without modifying
 
 ## Tests
 
-The test suite runs in **two separate bands**, because they need different things:
+The suite runs in **four bands**, because they need different things. All four are
+gates (`CLAUDE.md` §5); plus `npm run lint` and `npm run build --prefix web`,
+which no band covers.
 
 ```bash
-npm run test:run --prefix web    # fast band — jsdom, no emulator
-npm run test:rules --prefix web  # rules band — against the Firestore emulator
+npm run test:run --prefix web         # fast band     — jsdom, backend mocked, no emulator
+npm run test:rules --prefix web       # rules band     — firestore.rules + storage.rules
+npm run test:emulator --prefix functions  # functions band — Cloud Functions on emulators
+npm run test:e2e                      # E2E band       — Playwright, six critical flows (from M7)
 ```
 
 - **Fast band** (`vitest.config.js`): components and hooks in jsdom, with the
-  boundary to the backend mocked. It touches no emulator, so it is quick and runs
-  anywhere. This is where the bulk of the tests live.
-- **Rules band** (`vitest.rules.config.js`): checks `firestore.rules` for real,
-  against the Firestore emulator, through `@firebase/rules-unit-testing`. It runs
-  in Node, not jsdom.
+  boundary to the backend mocked. Quick, runs anywhere, holds the bulk of the
+  tests.
+- **Rules band** (`vitest.rules.config.js`): checks `firestore.rules` **and**
+  `storage.rules` for real against the Firestore + Storage emulators, through
+  `@firebase/rules-unit-testing`. Node, not jsdom.
+- **Functions band** (from M6): Cloud Functions against the Auth + Firestore
+  emulators, no mocks of the data layer.
+- **E2E band** (from M7, run from the repo root): Playwright drives a real browser
+  through the app. Self-contained — it starts the full emulator suite, seeds it,
+  boots the web app and tears everything down. M8 closes it at four tests
+  covering one of SRS §9's six named critical flows; the other five are deferred
+  (SRS §9).
 
-`test:rules` starts **its own** Firestore emulator (`firebase emulators:exec`) and
-shuts it down at the end — so **port 8080 must be free**. If you already have
-`firebase emulators:start` running in another terminal, stop it first or the
-command fails on a port conflict.
+The rules, functions and E2E bands each start **their own** emulator via
+`firebase emulators:exec` and all bind **port 8080**, so they run **one after
+another, never in parallel**, and never while `npm run dev:all` holds the
+persistent emulator. E2E additionally needs **port 5173** free. Free a held port
+before running.
 
 The testing foundation lands at M1 and from there on every feature comes with its
 own tests (see SRS §9).

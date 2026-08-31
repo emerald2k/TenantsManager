@@ -38,6 +38,7 @@ const COMPLETE = {
   securityDeposit: 2000,
   dueDay: 5,
   reportReminderDaysBefore: 3,
+  paymentReminderDaysBefore: 3,
 }
 
 describe('onboarding schema — full validation (completion)', () => {
@@ -191,6 +192,7 @@ describe('onboarding schema — existingUserId branches full validation (Sub-sta
     monthlyRent: 2000,
     dueDay: 5,
     reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
   }
 
   it('passes full validation with existingUserId set and only Step 4 filled', () => {
@@ -237,11 +239,80 @@ describe('onboarding schema — reportReminderDaysBefore (FR-CON-01)', () => {
     ).toBe(false)
   })
 
+  it('is NOT bounded to 1-10 — 11 is valid (only its tenant-facing twin has that bound, NFR-VAL-02)', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        reportReminderDaysBefore: 11,
+      }).success,
+    ).toBe(true)
+  })
+
   it('partial validation accepts it absent or as a number', () => {
     expect(partialDraftSchema.safeParse({}).success).toBe(true)
     expect(
       partialDraftSchema.safeParse({ reportReminderDaysBefore: 5 }).success,
     ).toBe(true)
+  })
+})
+
+describe('onboarding schema — paymentReminderDaysBefore (FR-PAY-10, NFR-VAL-02, M8 stage 13b)', () => {
+  it('accepts a complete draft (paymentReminderDaysBefore present, like its twin)', () => {
+    expect(fullDraftSchema.safeParse(COMPLETE).success).toBe(true)
+  })
+
+  it('rejects a complete draft missing paymentReminderDaysBefore — required, same strictness as reportReminderDaysBefore', () => {
+    const { paymentReminderDaysBefore, ...withoutIt } = COMPLETE
+    void paymentReminderDaysBefore
+    expect(fullDraftSchema.safeParse(withoutIt).success).toBe(false)
+  })
+
+  it('rejects a non-number value — a real numeric field, not presence-only text', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        paymentReminderDaysBefore: '3',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('partial validation accepts it absent or as a number', () => {
+    expect(partialDraftSchema.safeParse({}).success).toBe(true)
+    expect(
+      partialDraftSchema.safeParse({ paymentReminderDaysBefore: 5 }).success,
+    ).toBe(true)
+  })
+
+  // NFR-VAL-02: the ONE range-bounded field in this whole schema — everything
+  // else is presence-only (NFR-VAL-01). reportReminderDaysBefore, its twin,
+  // has NO such bound — this range exists because THIS field drives
+  // automated outbound email volume to the tenant, not because it is
+  // "more numeric" than the other one.
+  it.each([
+    [0, false],
+    [1, true],
+    [5, true],
+    [10, true],
+    [11, false],
+  ])(
+    'paymentReminderDaysBefore=%i -> valid=%s (range 1-10)',
+    (value, expected) => {
+      expect(
+        fullDraftSchema.safeParse({
+          ...COMPLETE,
+          paymentReminderDaysBefore: value,
+        }).success,
+      ).toBe(expected)
+    },
+  )
+
+  it('rejects a negative value', () => {
+    expect(
+      fullDraftSchema.safeParse({
+        ...COMPLETE,
+        paymentReminderDaysBefore: -3,
+      }).success,
+    ).toBe(false)
   })
 })
 

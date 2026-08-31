@@ -10,7 +10,7 @@
  * which have landed yet, alongside the dashboard states sub-stage 3 already
  * ships).
  *
- * Four tenant scenarios, one Firestore write graph each:
+ * Five tenant scenarios, one Firestore write graph each:
  *  - `seed-tenant` (active tenancy, `seed-prop-occupied`): a 2-year, 7-report
  *    history (6 signed + 1 draft) hitting all four payment-badge states.
  *  - `seed-tenant-empty` (active tenancy, `seed-prop-empty`): zero reports —
@@ -19,6 +19,18 @@
  *    signed reports — FR-TAPP-06's ended-label/banner.
  *  - `seed-tenant-free`: unchanged from before this rewrite — a KYC-complete
  *    tenant with NO tenancy at all (the no-tenancy dashboard state).
+ *  - `seed-tenant-handover-out` / `seed-tenant-handover-in`
+ *    (`seed-prop-handover`, M8): a property that changed hands mid-July
+ *    2026 — the outgoing tenancy ends 2026-07-14, the incoming one starts
+ *    2026-07-15, each with its own SIGNED July report keyed under its own
+ *    `tenancyId` (FR-REP-14). Added at M8 stage 4 because the production
+ *    probe (`probeProdShape.js`) found ZERO properties that have ever held
+ *    more than one tenancy — this fixture is the ONLY place anywhere that
+ *    `useTenanciesCoveringPropertyMonth` ever resolves to two rows,
+ *    `PropertyReportRedirectPage`'s tenancy-picker branch ever renders, two
+ *    reports ever share a property+month under different `tenancyId`s, and
+ *    FR-PROP-09's cost history ever sums sibling reports — code that exists
+ *    for a case the real data has never once contained.
  *
  * Idempotent: every run DELETES the demo data and rewrites it identically, so the
  * emulator lands in the same state no matter how many times it runs — no
@@ -122,6 +134,41 @@ const SEED_TENANT_NO_TENANCY = {
   email: 'cristina@test.ro',
   password: 'chirias123',
 }
+
+// ─────────────────────────── Scenario 5: mid-month hand-over (M8, FR-REP-14) ───
+//
+// `seed-prop-handover` changes hands on 2026-07-15: `seed-tenancy-handover-out`
+// ends 2026-07-14, `seed-tenancy-handover-in` starts 2026-07-15. Both cover
+// July 2026, so both need a July report, keyed by their own tenancyId — the
+// exact case FR-REP-14's re-keying exists for, and (per the production probe)
+// the only place it is ever exercised outside a unit test's mocked data.
+const SEED_TENANT_HANDOVER_OUT = {
+  uid: 'seed-tenant-handover-out',
+  email: 'mihai.iesit@test.ro',
+  password: 'chirias123',
+}
+const SEED_TENANT_HANDOVER_IN = {
+  uid: 'seed-tenant-handover-in',
+  email: 'diana.intrat@test.ro',
+  password: 'chirias123',
+}
+const SEED_HANDOVER_PROPERTY_ID = 'seed-prop-handover'
+const SEED_TENANCY_HANDOVER_OUT_ID = 'seed-tenancy-handover-out'
+const SEED_TENANCY_HANDOVER_IN_ID = 'seed-tenancy-handover-in'
+const SEED_HANDOVER_DATE = '2026-07-15'
+
+// ─────────────────────────── Scenario 6: an in-progress onboarding draft ───────
+//
+// FR-TEN-17/19: an unfinished onboarding, saved as a draft, resumable — it
+// appears in the renter list with "Continue" / "Delete draft". Until M8 the
+// seed wrote NO draft at all, so both that list row and FR-TEN-25 (deleting a
+// draft deletes its photographs) had never been exercised against local data.
+//
+// The draft carries photographs for BOTH the tenant and the guarantor, flat
+// under `drafts/{draftId}/` (the prefix `PhotoCapture.jsx` writes to and
+// `deleteOnboardingDraft` clears). The multi-file case is deliberate: it is
+// what a cleanup that only removes the first match would fail.
+const SEED_DRAFT_ID = 'seed-draft-in-progress'
 
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
@@ -274,6 +321,31 @@ function endedProperty(ownerId) {
   }
 }
 
+/** `seed-prop-handover`'s property — occupied (by the INCOMING tenancy, as of
+ * the hand-over date). Status computed the same "written by hand" way as
+ * every other seeded property (see `occupiedProperty`'s comment). */
+function handoverProperty(ownerId) {
+  return {
+    name: 'Apartament Buna Ziua',
+    address: {
+      street: 'Str. Petre Ispirescu',
+      number: '21',
+      city: 'Cluj-Napoca',
+      county: 'Cluj',
+      postalCode: '400487',
+    },
+    area: '52',
+    roomCount: '2',
+    ownerId,
+    services: [
+      { serviceId: 'electricity', name: 'Electricitate', source: 'catalog' },
+      { serviceId: 'water', name: 'Apă', source: 'catalog' },
+    ],
+    status: 'occupied',
+    archived: false,
+  }
+}
+
 /** The KYC-complete tenant (SRS §6 users shape). Realistic profile with a well-formed
  * CNP, useful for exercising the duplicate-CNP path in later sub-stages. `status:
  * 'active'` — the account is active immediately (FR-TEN-24).
@@ -376,6 +448,65 @@ function tenantEndedUser() {
   }
 }
 
+/** The OUTGOING half of the hand-over (M8) — moved out 2026-07-14. */
+function tenantHandoverOutUser() {
+  return {
+    name: 'Mihai Popescu',
+    dateOfBirth: '1990-11-02',
+    email: SEED_TENANT_HANDOVER_OUT.email,
+    phone: '0745456789',
+    preferredLanguage: 'ro',
+    cnp: '1901102234567',
+    previousAddress: 'Str. Bucegi 3, Cluj-Napoca',
+    emergencyContact: { name: 'Alina Popescu', phone: '0745111000' },
+    occupantCount: 1,
+    smoker: false,
+    pets: { has: false, type: '' },
+    vehicle: { has: false, make: '', plateNumber: '' },
+    employer: 'Betfair Romania',
+    occupation: 'Backend Developer',
+    employmentDuration: 4,
+    monthlyIncome: { source: 'salariu', amount: 8200 },
+    guarantor: {
+      name: 'Ion Popescu',
+      cnp: '1600512234567',
+      phone: '0740222111',
+    },
+    previousReference: { name: 'Cristian Rus', phone: '0730333222' },
+    status: 'active',
+  }
+}
+
+/** The INCOMING half of the hand-over (M8) — moved in 2026-07-15, the day
+ * `tenantHandoverOutUser()`'s tenancy ended. */
+function tenantHandoverInUser() {
+  return {
+    name: 'Diana Georgescu',
+    dateOfBirth: '1993-04-18',
+    email: SEED_TENANT_HANDOVER_IN.email,
+    phone: '0745567890',
+    preferredLanguage: 'en',
+    cnp: '2930418234567',
+    previousAddress: 'Str. Fantanele 9, Cluj-Napoca',
+    emergencyContact: { name: 'Paul Georgescu', phone: '0745222111' },
+    occupantCount: 1,
+    smoker: false,
+    pets: { has: true, type: 'câine' },
+    vehicle: { has: false, make: '', plateNumber: '' },
+    employer: 'Endava',
+    occupation: 'Product Manager',
+    employmentDuration: 6,
+    monthlyIncome: { source: 'salariu', amount: 9500 },
+    guarantor: {
+      name: 'Elena Georgescu',
+      cnp: '1650812234567',
+      phone: '0740444333',
+    },
+    previousReference: { name: 'Ana Munteanu', phone: '0730555444' },
+    status: 'active',
+  }
+}
+
 /** The second KYC-complete tenant (Sub-stage F, SRS §6 users shape) — same shape as
  * `tenantUser()`, different identity (name/email/cnp), no pets/vehicle, and
  * deliberately NO tenancy written for them anywhere in this file. UNCHANGED
@@ -419,6 +550,17 @@ function tenantNoTenancyUser() {
  * one change needed to make room for the 2025 history months below.
  * `currentBalance` starts at `0`; the real value is hand-set AFTER all of this
  * tenancy's reports are written (`reseedOccupiedScenario`), not here.
+ *
+ * `reportReminderDaysBefore`/`paymentReminderDaysBefore` (M8, FR-CON-01/
+ * NFR-VAL-02): both fields were never seeded before the stage-15 rewrite, so
+ * neither M6's report-preparation reminder nor M8's pre-due reminder was ever
+ * exercisable against local data. Both are deliberately NOT the default (3)
+ * on THIS one tenancy — `reportReminderDaysBefore: 4`,
+ * `paymentReminderDaysBefore: 5` — and they are different from each other, so
+ * a fixture cannot tell "the field is read" from "the field is absent and the
+ * app fell back", and a label swapped between the two editable fields (M8
+ * stage 16b) shows up in seeded data rather than passing silently. Every
+ * other seeded tenancy keeps both at 3.
  */
 function activeTenancy(ownerId, property) {
   return {
@@ -432,6 +574,8 @@ function activeTenancy(ownerId, property) {
     monthlyRent: 2500,
     securityDeposit: 2500,
     dueDay: 10,
+    reportReminderDaysBefore: 4,
+    paymentReminderDaysBefore: 5,
     currentBalance: 0,
     status: 'active',
     attachedDocuments: [],
@@ -439,7 +583,9 @@ function activeTenancy(ownerId, property) {
 }
 
 /** `seed-tenant-empty`'s tenancy — active, started recently, ZERO reports
- * (the whole point of this fixture — FR-TAPP-01's empty state). */
+ * (the whole point of this fixture — FR-TAPP-01's empty state). Both
+ * reminder lead times at their spec default (3) — `activeTenancy` above
+ * already covers the non-default case. */
 function emptyTenancy(ownerId, property) {
   return {
     userId: SEED_TENANT_EMPTY.uid,
@@ -452,6 +598,8 @@ function emptyTenancy(ownerId, property) {
     monthlyRent: 2200,
     securityDeposit: 2200,
     dueDay: 20,
+    reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
     currentBalance: 0,
     status: 'active',
     attachedDocuments: [],
@@ -469,6 +617,27 @@ function emptyTenancy(ownerId, property) {
  * (still `0`) after this tenancy's two reports are written, for symmetry
  * with the occupied scenario and to make the "always settled" invariant
  * explicit at the write site, not just implied by never touching it.
+ *
+ * `closingBalance`/`depositSettlement` (M8, FR-CON-10/11/12, FR-DASH-13/14):
+ * `closingBalance` freezes `currentBalance` at termination — `0` here,
+ * matching the invariant above. `depositSettlement` is a real restoration
+ * line against the `securityDeposit`, deducted, with the remainder
+ * `toReturn`. **`ownerBears` is `0` here, never a debt on the tenant
+ * (FR-CON-10) — a deposit settlement is deliberately never a source of
+ * arrears.** The `ownerBears > 0` case (deductions exceeding the deposit)
+ * is seeded separately, on `handoverOutTenancy()` below — deliberately a
+ * DIFFERENT fixture, so both shapes of the same requirement are reachable
+ * rather than one silently standing in for the other.
+ *
+
+ * The comment this replaces said termination is IMPOSSIBLE with an unpaid
+ * balance — true before M8, reversed at M8: `FR-CON-04` no longer blocks
+ * `endTenancy` on arrears, specifically so a departed non-payer does not
+ * freeze the property. This fixture stays fully settled anyway (a deposit
+ * settlement is about restoration, never arrears — FR-CON-11 — so the two
+ * are independent choices), but the invariant this comment used to assert
+ * ("an ended tenancy with debt cannot exist") is no longer true of the
+ * product and must not be re-asserted elsewhere.
  */
 function endedTenancy(ownerId, property) {
   return {
@@ -482,19 +651,116 @@ function endedTenancy(ownerId, property) {
     monthlyRent: 1800,
     securityDeposit: 1800,
     dueDay: 5,
+    reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
     currentBalance: 0,
     status: 'ended',
     endedAt: Timestamp.fromDate(new Date(SEED_TENANCY_ENDED_DATE)),
+    closingBalance: 0,
+    depositSettlement: {
+      items: [
+        {
+          description: 'Curățenie generală la predare',
+          amount: 200,
+          attachments: [],
+        },
+      ],
+      deducted: 200,
+      toReturn: 1600,
+      ownerBears: 0,
+      settledAt: Timestamp.fromDate(new Date(SEED_TENANCY_ENDED_DATE)),
+    },
+    attachedDocuments: [],
+  }
+}
+
+/**
+ * The OUTGOING half of the hand-over (M8, FR-REP-14) — ends the day before
+ * the incoming tenancy starts, never the same day: FR-CON-02 allows at most
+ * one ACTIVE tenancy per account, not per property on a single date, but a
+ * shared boundary day would make "which tenancy does 2026-07-15 belong to"
+ * ambiguous in exactly the fixture meant to prove the resolver disambiguates
+ * correctly.
+ */
+function handoverOutTenancy(ownerId, property) {
+  return {
+    userId: SEED_TENANT_HANDOVER_OUT.uid,
+    ownerId,
+    propertyId: SEED_HANDOVER_PROPERTY_ID,
+    tenantName: tenantHandoverOutUser().name,
+    property: { name: property.name, address: property.address },
+    startDate: '2025-11-01',
+    endDate: '2026-07-14',
+    monthlyRent: 2100,
+    securityDeposit: 2100,
+    dueDay: 1,
+    reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
+    status: 'ended',
+    endedAt: Timestamp.fromDate(new Date('2026-07-14')),
+    // Placeholder — both fields are overwritten by `reseedHandoverScenario`
+    // right after the report write, once the real balance (which depends on
+    // HANDOVER_OUT_REPORT's roundingSurplus) is known.
+    currentBalance: 0,
+    closingBalance: 0,
+    // `depositSettlement` (M8 stage 6, FR-CON-10/11/12): the seed's ONE
+    // `ownerBears > 0` case — Bogdan's own call, folded into this existing
+    // fixture rather than a sixth seed graph. Restoration work (2800 lei)
+    // exceeds the 2100-lei deposit: `toReturn` is 0, `ownerBears` is 700 —
+    // a cost the owner bears, never a debt written back onto this tenant
+    // (FR-CON-10). `settledAt` postdates `endedAt` by six days, matching
+    // the "separate action, filled in after inspection" flow decided for
+    // stage 6 — never the same moment as termination.
+    depositSettlement: {
+      items: [
+        {
+          description: 'Refacere pardoseală și zugrăveli după degradări',
+          amount: 2800,
+          attachments: [],
+        },
+      ],
+      deducted: 2800,
+      toReturn: 0,
+      ownerBears: 700,
+      settledAt: Timestamp.fromDate(new Date('2026-07-20')),
+    },
+    attachedDocuments: [],
+  }
+}
+
+/** The INCOMING half of the hand-over (M8, FR-REP-14) — starts the day the
+ * outgoing tenancy ended. `currentBalance` matches this tenancy's own single
+ * July report (see `reseedHandoverScenario`), never the outgoing tenancy's —
+ * the two balance chains are completely independent, which is the point. */
+function handoverInTenancy(ownerId, property) {
+  return {
+    userId: SEED_TENANT_HANDOVER_IN.uid,
+    ownerId,
+    propertyId: SEED_HANDOVER_PROPERTY_ID,
+    tenantName: tenantHandoverInUser().name,
+    property: { name: property.name, address: property.address },
+    startDate: SEED_HANDOVER_DATE,
+    endDate: '2027-07-14',
+    monthlyRent: 2100,
+    securityDeposit: 2100,
+    dueDay: 15,
+    reportReminderDaysBefore: 3,
+    paymentReminderDaysBefore: 3,
+    currentBalance: 0,
+    status: 'active',
     attachedDocuments: [],
   }
 }
 
 /** Same format `web/src/features/reports/hooks.js`'s `buildReportId` uses
- * (`${propertyId}_${year}-${paddedMonth}`) — replicated locally rather than
+ * (`${tenancyId}_${year}-${paddedMonth}`) — replicated locally rather than
  * imported cross-package (`functions/` deploys without `web/`), same
- * duplication discipline CLAUDE.md §7 already documents for the KYC schema. */
-function buildReportId(propertyId, year, month) {
-  return `${propertyId}_${year}-${String(month).padStart(2, '0')}`
+ * duplication discipline CLAUDE.md §7 already documents for the KYC schema.
+ * Re-keyed at M8 (FR-REP-14) from `propertyId` to `tenancyId` — argument
+ * order (`id, year, month`) is unchanged, so every call site below only
+ * needed its FIRST argument changed from a property id to a tenancy id. */
+function buildReportId(tenancyId, year, month) {
+  return `${tenancyId}_${year}-${String(month).padStart(2, '0')}`
 }
 
 /** Same format `web/src/features/reports/schema.js`'s `buildDueDate` uses —
@@ -516,7 +782,7 @@ function buildDueDate(year, month, dueDay) {
  *      previousMonthArrears = Math.max(balance, 0)
  *      previousMonthCredit  = Math.max(-balance, 0)
  *  - `recomputeCurrentBalance` (functions/src/reports.js):
- *      balance after a report = finalTotal - (amountPaid ?? 0)
+ *      balance after a report = finalTotal - (amountPaid ?? 0) - (roundingSurplus ?? 0)
  *
  * Each month's payment `intent` uses the EXACT field-set the real mutations
  * write for that state — not an invented shape (plan §5 risk #2):
@@ -550,61 +816,92 @@ function foldReportChain(costLines, months) {
     costLines.serviceCosts.reduce((sum, line) => sum + line.amount, 0)
 
   let balance = 0
-  const reports = months.map(({ year, month, payment }) => {
-    const previousMonthArrears = Math.max(balance, 0)
-    const previousMonthCredit = Math.max(-balance, 0)
-    const finalTotal = base + previousMonthArrears - previousMonthCredit
+  const reports = months.map(
+    ({ year, month, payment, otherExpenses = [], roundingSurplus = 0 }) => {
+      const previousMonthArrears = Math.max(balance, 0)
+      const previousMonthCredit = Math.max(-balance, 0)
+      const otherExpensesTotal = otherExpenses.reduce(
+        (sum, line) => sum + line.amount,
+        0,
+      )
+      // `calculatedTotal` is what the cost lines + carry-forward actually
+      // add up to; `finalTotal` is that value FROZEN one rounding step
+      // higher on a month that applied FR-REP-04a's Round action
+      // (`roundingSurplus` > 0). With no rounding — every month except the
+      // one on ENDED_MONTHS — the two are equal, exactly as before.
+      const calculatedTotal =
+        base + otherExpensesTotal + previousMonthArrears - previousMonthCredit
+      const finalTotal = calculatedTotal + roundingSurplus
 
-    let paymentFields = {}
-    let amountPaidForBalance = 0
+      let paymentFields = {}
+      let amountPaidForBalance = 0
 
-    if (payment?.kind === 'paidInFull') {
-      paymentFields = {
-        amountPaid: finalTotal,
-        paymentMethod: payment.method,
-        paymentDate: payment.date,
-        paymentStatus: 'paid',
+      if (payment?.kind === 'paidInFull') {
+        paymentFields = {
+          amountPaid: finalTotal,
+          paymentMethod: payment.method,
+          paymentDate: payment.date,
+          paymentStatus: 'paid',
+        }
+        amountPaidForBalance = finalTotal
+      } else if (payment?.kind === 'partial') {
+        paymentFields = {
+          amountPaid: payment.amountPaid,
+          paymentMethod: payment.method,
+          paymentDate: payment.date,
+          paymentStatus: 'partial',
+        }
+        amountPaidForBalance = payment.amountPaid
+      } else if (payment?.kind === 'unpaid') {
+        paymentFields = {
+          amountPaid: null,
+          paymentMethod: null,
+          paymentDate: null,
+          paymentStatus: 'unpaid',
+        }
+        amountPaidForBalance = 0
       }
-      amountPaidForBalance = finalTotal
-    } else if (payment?.kind === 'partial') {
-      paymentFields = {
-        amountPaid: payment.amountPaid,
-        paymentMethod: payment.method,
-        paymentDate: payment.date,
-        paymentStatus: 'partial',
-      }
-      amountPaidForBalance = payment.amountPaid
-    } else if (payment?.kind === 'unpaid') {
-      paymentFields = {
-        amountPaid: null,
-        paymentMethod: null,
-        paymentDate: null,
-        paymentStatus: 'unpaid',
-      }
-      amountPaidForBalance = 0
-    }
-    // else: payment omitted -> "absent" state, paymentFields stays {},
-    // amountPaidForBalance stays 0 (never touched, just signed).
+      // else: payment omitted -> "absent" state, paymentFields stays {},
+      // amountPaidForBalance stays 0 (never touched, just signed).
 
-    balance = finalTotal - amountPaidForBalance
+      // Mirrors `recomputeCurrentBalance`'s corrected M8 formula exactly:
+      // balance after a report = finalTotal - amountPaid - roundingSurplus.
+      // On a paid-in-full month with a surplus this leaves -roundingSurplus
+      // (a credit) that the NEXT month picks up as previousMonthCredit —
+      // the "cancels across two consecutive months" chain FR-REP-04a/04f
+      // describes, exercised on ENDED_MONTHS (Dec 2025 -> Jan 2026).
+      balance = finalTotal - amountPaidForBalance - roundingSurplus
 
-    return {
-      year,
-      month,
-      rent: { ...costLines.rent, attachments: [] },
-      maintenance: { ...costLines.maintenance, attachments: [] },
-      serviceCosts: costLines.serviceCosts.map((line) => ({
-        ...line,
-        attachments: [],
-      })),
-      otherExpenses: [],
-      previousMonthArrears,
-      previousMonthCredit,
-      calculatedTotal: finalTotal,
-      finalTotal,
-      ...paymentFields,
-    }
-  })
+      return {
+        year,
+        month,
+        rent: { ...costLines.rent, attachments: [] },
+        maintenance: { ...costLines.maintenance, attachments: [] },
+        serviceCosts: costLines.serviceCosts.map((line) => ({
+          ...line,
+          attachments: [],
+        })),
+        otherExpenses: otherExpenses.map((line) => ({
+          notes: '',
+          ...line,
+          attachments: [],
+        })),
+        previousMonthArrears,
+        previousMonthCredit,
+        calculatedTotal,
+        finalTotal,
+        // M8, FR-REP-04a: the fold's chains use round cost lines, so the
+        // rounding ACTION has nothing to round on all but the ONE month
+        // that passes a non-round `otherExpenses` line plus an explicit
+        // `roundingSurplus` (ENDED_MONTHS' December). Everywhere else this
+        // stays 0, correct rather than a stand-in. The hand-over pair's
+        // HANDOVER_OUT_REPORT carries the other reachable non-zero surplus
+        // (a literal, frozen at termination — it never gets to cancel).
+        roundingSurplus,
+        ...paymentFields,
+      }
+    },
+  )
 
   return { reports, finalBalance: balance }
 }
@@ -663,6 +960,18 @@ const OCCUPIED_DRAFT_MONTH = { year: 2026, month: 8 }
 // chain — BOTH paid in full, deliberately (plan §5 risk #1): FR-CON-04
 // blocks `endTenancy` while arrears are outstanding, so an ended tenancy
 // with a non-zero balance is a state the real app can never produce.
+//
+// M8 stage 15 (debt 1): this chain now also carries the seed's ONLY
+// rounding surplus that CANCELS in a running-balance chain (as opposed to
+// HANDOVER_OUT_REPORT's, frozen at termination). December applies
+// FR-REP-04a's Round action — a -3 lei "final-consumption adjustment" line
+// drops `calculatedTotal` to 1977, the admin rounds `finalTotal` back up to
+// 1980, `roundingSurplus` is 3. December is paid in full (1980), so the
+// balance after it is 1980 - 1980 - 3 = -3, a credit. January picks that up
+// as `previousMonthCredit`, bills `1980 - 3 = 1977`, is paid in full, and
+// the chain closes at exactly 0 — `seed-tenancy-ended.currentBalance` and
+// `closingBalance` are unchanged (still 0). Only January's seeded
+// `finalTotal` moves, 1980 -> 1977.
 const ENDED_COST_LINES = {
   rent: { amount: 1800, notes: '' },
   maintenance: { amount: 0, notes: '' },
@@ -675,6 +984,14 @@ const ENDED_MONTHS = [
   {
     year: 2025,
     month: 12,
+    otherExpenses: [
+      {
+        description: 'Ajustare consum final',
+        amount: -3,
+        notes: '',
+      },
+    ],
+    roundingSurplus: 3, // 1980 (frozen) - 1977 (calculatedTotal), FR-REP-04a
     payment: {
       kind: 'paidInFull',
       method: 'bank_transfer',
@@ -796,6 +1113,91 @@ async function reseedTenantNoTenancy(bucket) {
   )
 }
 
+/** Scenario 6: `seed-draft-in-progress` — an unfinished onboarding (FR-TEN-17/19).
+ * Delete-then-write, same deterministic pattern as the rest of this file, and
+ * the Storage prefix is cleared first so a re-run does not accumulate photos.
+ *
+ * Writes THREE real Storage objects under `drafts/{draftId}/` — two tenant ID
+ * photos and one guarantor ID photo — so FR-TEN-25's multi-file case (a
+ * cleanup that removes only the first match is the bug) is reachable locally.
+ * The draft stops at step 3: steps 1-3 filled, step 4 (contract) untouched,
+ * `currentStep: 3`. */
+async function reseedOnboardingDraft(bucket) {
+  const db = getFirestore()
+  const draftRef = db.collection('onboardingDrafts').doc(SEED_DRAFT_ID)
+  const prefix = `drafts/${SEED_DRAFT_ID}/`
+
+  await draftRef.delete()
+  await clearSeedAttachments(bucket, prefix)
+
+  const tenantFront = await uploadSeedAttachment(
+    bucket,
+    `${prefix}tenant-ci-front.jpg`,
+    'seed draft ID photo (tenant, front) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-tenant-front-token',
+  )
+  const tenantBack = await uploadSeedAttachment(
+    bucket,
+    `${prefix}tenant-ci-back.jpg`,
+    'seed draft ID photo (tenant, back) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-tenant-back-token',
+  )
+  const guarantorPhoto = await uploadSeedAttachment(
+    bucket,
+    `${prefix}guarantor-ci.jpg`,
+    'seed draft ID photo (guarantor) — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    'seed-draft-guarantor-token',
+  )
+
+  const draft = {
+    status: 'in_progress',
+    currentStep: 3,
+    // Step 1
+    name: 'Andrei Draftescu',
+    dateOfBirth: '1992-04-11',
+    cnp: '1920411223344',
+    phone: '0722333444',
+    email: 'andrei.draft@test.ro',
+    preferredLanguage: 'ro',
+    previousAddress: 'Str. Veche 3, Cluj-Napoca',
+    emergencyContact: { name: 'Ioana Draftescu', phone: '0733444555' },
+    occupantCount: 2,
+    smoker: false,
+    pets: { has: false, type: '' },
+    vehicle: { has: true, make: 'Dacia', plateNumber: 'CJ-01-ABC' },
+    // Step 2
+    idDocumentPhotos: [
+      { path: tenantFront, name: 'tenant-ci-front.jpg', type: 'image' },
+      { path: tenantBack, name: 'tenant-ci-back.jpg', type: 'image' },
+    ],
+    // Step 3
+    employer: 'Firma SRL',
+    occupation: 'Analist',
+    employmentDuration: '3 ani',
+    monthlyIncome: { source: 'salariu', amount: 6500 },
+    guarantor: {
+      name: 'Vasile Garant',
+      cnp: '1650102334455',
+      phone: '0744555666',
+      idDocumentPhotos: [
+        { path: guarantorPhoto, name: 'guarantor-ci.jpg', type: 'image' },
+      ],
+    },
+    previousReference: { name: 'Georgeta Fostă', phone: '0755666777' },
+    createdAt: new Date('2026-08-20T09:00:00Z'),
+    updatedAt: new Date('2026-08-22T14:30:00Z'),
+  }
+  await draftRef.set(draft)
+
+  console.log(
+    `  - draft ${SEED_DRAFT_ID}: "${draft.name}" at step ${draft.currentStep}, ` +
+      `3 Storage objects under ${prefix} (2 tenant + 1 guarantor)`,
+  )
+}
+
 /** Deletes every object under `prefix` — idempotent Storage cleanup, same
  * discipline as the Firestore delete-then-write pattern used everywhere
  * else in this file. A missing object is not an error (`.catch(() => {})`),
@@ -889,6 +1291,24 @@ async function uploadSeedIdPhoto(bucket, userId, downloadToken) {
   return [{ path: filePath, name: 'ci-front.jpg', type: 'image' }]
 }
 
+/** As `uploadSeedIdPhoto`, for a GUARANTOR photo — at the real destination
+ * `copyPhotosToUser` uses (`users/{userId}/guarantor/{filename}`). Guarantor
+ * photos are optional (FR-TEN-04/06), but the one rich seed tenant carries one
+ * so FR-TEN-26's export manifest has a `source: 'guarantor-id'` entry
+ * reachable in seeded data, not only in a unit test. */
+async function uploadSeedGuarantorPhoto(bucket, userId, downloadToken) {
+  const prefix = `users/${userId}/guarantor/`
+  await clearSeedAttachments(bucket, prefix)
+  const filePath = await uploadSeedAttachment(
+    bucket,
+    `${prefix}guarantor-ci.jpg`,
+    'seed guarantor ID photo — synthetic bytes, not a real JPEG',
+    'image/jpeg',
+    downloadToken,
+  )
+  return [{ path: filePath, name: 'guarantor-ci.jpg', type: 'image' }]
+}
+
 /**
  * Scenario 1: `seed-tenant`, active tenancy, the 2-year/7-report history.
  *
@@ -922,13 +1342,13 @@ async function reseedOccupiedScenario(ownerId, bucket) {
   const reportRefs = reports.map((report) =>
     db
       .collection('monthlyReports')
-      .doc(buildReportId(SEED_OCCUPIED_PROPERTY_ID, report.year, report.month)),
+      .doc(buildReportId(SEED_TENANCY_ID, report.year, report.month)),
   )
   const draftRef = db
     .collection('monthlyReports')
     .doc(
       buildReportId(
-        SEED_OCCUPIED_PROPERTY_ID,
+        SEED_TENANCY_ID,
         OCCUPIED_DRAFT_MONTH.year,
         OCCUPIED_DRAFT_MONTH.month,
       ),
@@ -942,7 +1362,7 @@ async function reseedOccupiedScenario(ownerId, bucket) {
   delBatch.delete(draftRef)
   await delBatch.commit()
 
-  const invoicesPrefix = `reports/${buildReportId(SEED_OCCUPIED_PROPERTY_ID, 2026, 7)}/invoices/`
+  const invoicesPrefix = `reports/${buildReportId(SEED_TENANCY_ID, 2026, 7)}/invoices/`
   await clearSeedAttachments(bucket, invoicesPrefix)
 
   const property = occupiedProperty(ownerId)
@@ -956,6 +1376,11 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     bucket,
     SEED_TENANT.uid,
     'seed-idphoto-occupied-token',
+  )
+  const guarantorPhotos = await uploadSeedGuarantorPhoto(
+    bucket,
+    SEED_TENANT.uid,
+    'seed-guarantorphoto-occupied-token',
   )
 
   // The July report's 2 real Storage attachments, uploaded BEFORE the
@@ -977,11 +1402,16 @@ async function reseedOccupiedScenario(ownerId, bucket) {
     'image/jpeg',
     'seed-electricity-token',
   )
-  const julyReportId = buildReportId(SEED_OCCUPIED_PROPERTY_ID, 2026, 7)
+  const julyReportId = buildReportId(SEED_TENANCY_ID, 2026, 7)
 
   const writeBatch = db.batch()
   writeBatch.set(propertyRef, property)
-  writeBatch.set(userRef, { ...tenantUser(), idDocumentPhotos })
+  const seededUser = tenantUser()
+  writeBatch.set(userRef, {
+    ...seededUser,
+    idDocumentPhotos,
+    guarantor: { ...seededUser.guarantor, idDocumentPhotos: guarantorPhotos },
+  })
   writeBatch.set(tenancyRef, {
     ...tenancy,
     attachedDocuments: contractDocuments,
@@ -1153,11 +1583,15 @@ async function reseedEmptyScenario(ownerId, bucket) {
 
 /**
  * Scenario 3: `seed-tenant-ended`, ended tenancy, 2 fully-settled signed
- * reports. Both `currentBalance` writes below (the tenancy doc's own
- * `currentBalance: 0` field AND the `.update()` after the reports) encode
- * the SAME real invariant from two angles: FR-CON-04 blocks `endTenancy`
- * while arrears exist, so an ended tenancy the real app produced is
- * ALWAYS settled — this fixture must not claim otherwise (plan §5 risk #1).
+ * reports, PLUS a deposit settlement (M8, FR-CON-10/11/12 — see
+ * `endedTenancy`'s own doc-comment). Both `currentBalance` writes below (the
+ * tenancy doc's own `currentBalance: 0` field AND the `.update()` after the
+ * reports) encode the same choice from two angles: this fixture stays fully
+ * settled. That is no longer because the product REQUIRES it — `FR-CON-04`
+ * was reversed at M8 precisely so an ended tenancy CAN carry debt — it is
+ * because a deposit settlement is about restoration, never arrears
+ * (FR-CON-11), so "settled" and "has a deposit settlement" are independent
+ * facts and this fixture demonstrates both without conflating them.
  */
 async function reseedEndedScenario(ownerId, bucket) {
   const db = getFirestore()
@@ -1172,7 +1606,7 @@ async function reseedEndedScenario(ownerId, bucket) {
   const reportRefs = reports.map((report) =>
     db
       .collection('monthlyReports')
-      .doc(buildReportId(SEED_ENDED_PROPERTY_ID, report.year, report.month)),
+      .doc(buildReportId(SEED_TENANCY_ENDED_ID, report.year, report.month)),
   )
 
   const delBatch = db.batch()
@@ -1227,8 +1661,10 @@ async function reseedEndedScenario(ownerId, bucket) {
 
   // Hand-set AFTER both report writes above — same reasoning as the
   // occupied scenario's own currentBalance set. finalBalance is `0` here
-  // by construction (both months paidInFull), asserted via the console log
-  // below rather than silently trusted.
+  // by construction: both months paid in full, and December's rounding
+  // surplus (3 lei) is cancelled by January consuming it as credit — the
+  // whole point of this chain (M8 stage 15, debt 1). Asserted via the
+  // console log below rather than silently trusted.
   await tenancyRef.update({ currentBalance: finalBalance })
 
   console.log('Wrote the ended scenario (seed-tenant-ended):')
@@ -1242,6 +1678,212 @@ async function reseedEndedScenario(ownerId, bucket) {
     `  - tenancy ${SEED_TENANCY_ENDED_ID}: ended ${SEED_TENANCY_ENDED_DATE}, 2 signed reports, currentBalance -> ${finalBalance} (must be 0)`,
   )
   console.log(`  - 1 contract attachment + 1 ID photo uploaded`)
+}
+
+// The hand-over property's shared costs, split into two partial-month rents
+// (FR-REP-13: pro-rata is entered manually, never computed automatically —
+// these are the admin's own hand-entered numbers, not a formula's output).
+// Both tenants share the same property's electricity/water services, each
+// billed the FULL month on each side deliberately — a real admin would
+// split a utility bill between two occupants of the same month by
+// negotiation, not by a rule this product implements; the fixture is not
+// claiming a policy here, only demonstrating that two reports exist.
+const HANDOVER_OUT_REPORT = {
+  year: 2026,
+  month: 7,
+  rent: {
+    amount: 950,
+    notes: 'Chirie proporțională 1-14 iulie (predare la mijlocul lunii)',
+    attachments: [],
+  },
+  maintenance: { amount: 0, notes: '', attachments: [] },
+  serviceCosts: [
+    {
+      serviceId: 'electricity',
+      name: 'Electricitate',
+      amount: 40,
+      notes: '',
+      attachments: [],
+    },
+    { serviceId: 'water', name: 'Apă', amount: 20, notes: '', attachments: [] },
+  ],
+  // M8, FR-REP-04a: one of the seed's two reachable rounding-action
+  // examples (CLAUDE.md §7's seed-completeness rule — "every state a
+  // requirement describes should be reachable in seeded data"). This one is
+  // frozen at termination and never cancels; ENDED_MONTHS' December carries
+  // the other, which DOES cancel in the chain (debt 1, stage 15). A small
+  // negative adjustment line is what makes calculatedTotal land off a
+  // multiple of 10 in the first place — rent/services alone are already
+  // round numbers throughout this seed.
+  otherExpenses: [
+    {
+      description: 'Ajustare cont final predare',
+      amount: -3,
+      notes: '',
+      attachments: [],
+    },
+  ],
+  previousMonthArrears: 0,
+  previousMonthCredit: 0,
+  calculatedTotal: 1007,
+  finalTotal: 1010, // ceil(1007 / 10) * 10 — the rounding action applied
+  roundingSurplus: 3, // 1010 - 1007, carried nowhere further: this tenancy ended
+  amountPaid: 1010,
+  paymentMethod: 'bank_transfer',
+  paymentDate: '2026-07-14',
+  paymentStatus: 'paid',
+}
+const HANDOVER_IN_REPORT = {
+  year: 2026,
+  month: 7,
+  rent: {
+    amount: 1150,
+    notes: 'Chirie proporțională 15-31 iulie (mutare la mijlocul lunii)',
+    attachments: [],
+  },
+  maintenance: { amount: 0, notes: '', attachments: [] },
+  serviceCosts: [
+    {
+      serviceId: 'electricity',
+      name: 'Electricitate',
+      amount: 40,
+      notes: '',
+      attachments: [],
+    },
+    { serviceId: 'water', name: 'Apă', amount: 20, notes: '', attachments: [] },
+  ],
+  otherExpenses: [],
+  previousMonthArrears: 0,
+  previousMonthCredit: 0,
+  calculatedTotal: 1210,
+  finalTotal: 1210,
+  roundingSurplus: 0,
+  // Explicit "unpaid" (NFR-VAL-04), not omitted: this tenancy is ACTIVE, so
+  // its arrears are meant to show up in FR-DASH-04/06 — an omitted payment
+  // ("just signed, never touched") would read the same in the balance
+  // arithmetic but is a different fact (never marked at all) than "marked
+  // unpaid". `OCCUPIED_MONTHS` already covers the omitted case; this covers
+  // the explicit one.
+  amountPaid: null,
+  paymentMethod: null,
+  paymentDate: null,
+  paymentStatus: 'unpaid',
+}
+
+/**
+ * Scenario 5 (M8, FR-REP-14): `seed-prop-handover` changes hands mid-July
+ * 2026 — two SIGNED reports for the SAME property and month, one per
+ * tenancy, each under its own re-keyed `tenancyId_YYYY-MM` id. This is the
+ * only place (per the production probe — see the file-header comment) any
+ * of the following code ever runs against real-shaped data rather than a
+ * unit test's mocked one: `useTenanciesCoveringPropertyMonth` returning two
+ * rows, `PropertyReportRedirectPage`'s tenancy-picker branch, and
+ * FR-PROP-09's cost-history sibling-summing for this property+month.
+ *
+ * Deliberately lighter than scenarios 1 and 3: no contract or ID-photo
+ * Storage uploads for either tenant. The three richer scenarios already
+ * exercise every Storage path (`uploadSeedContract`/`uploadSeedIdPhoto`);
+ * this one exists to exercise the Firestore/routing hand-over shape, not to
+ * duplicate that coverage a fourth and fifth time.
+ */
+async function reseedHandoverScenario(ownerId) {
+  const db = getFirestore()
+  const propertyRef = db.collection('properties').doc(SEED_HANDOVER_PROPERTY_ID)
+  const userOutRef = db.collection('users').doc(SEED_TENANT_HANDOVER_OUT.uid)
+  const userInRef = db.collection('users').doc(SEED_TENANT_HANDOVER_IN.uid)
+  const tenancyOutRef = db
+    .collection('tenancies')
+    .doc(SEED_TENANCY_HANDOVER_OUT_ID)
+  const tenancyInRef = db
+    .collection('tenancies')
+    .doc(SEED_TENANCY_HANDOVER_IN_ID)
+  const reportOutRef = db
+    .collection('monthlyReports')
+    .doc(buildReportId(SEED_TENANCY_HANDOVER_OUT_ID, 2026, 7))
+  const reportInRef = db
+    .collection('monthlyReports')
+    .doc(buildReportId(SEED_TENANCY_HANDOVER_IN_ID, 2026, 7))
+
+  const delBatch = db.batch()
+  delBatch.delete(propertyRef)
+  delBatch.delete(userOutRef)
+  delBatch.delete(userInRef)
+  delBatch.delete(tenancyOutRef)
+  delBatch.delete(tenancyInRef)
+  delBatch.delete(reportOutRef)
+  delBatch.delete(reportInRef)
+  await delBatch.commit()
+
+  const property = handoverProperty(ownerId)
+  const tenancyOut = handoverOutTenancy(ownerId, property)
+  const tenancyIn = handoverInTenancy(ownerId, property)
+
+  const writeBatch = db.batch()
+  writeBatch.set(propertyRef, property)
+  writeBatch.set(userOutRef, tenantHandoverOutUser())
+  writeBatch.set(userInRef, tenantHandoverInUser())
+  writeBatch.set(tenancyOutRef, tenancyOut)
+  writeBatch.set(tenancyInRef, tenancyIn)
+  writeBatch.set(reportOutRef, {
+    ...HANDOVER_OUT_REPORT,
+    ownerId,
+    propertyId: SEED_HANDOVER_PROPERTY_ID,
+    tenancyId: SEED_TENANCY_HANDOVER_OUT_ID,
+    userId: SEED_TENANT_HANDOVER_OUT.uid,
+    dueDate: buildDueDate(2026, 7, tenancyOut.dueDay),
+    status: 'signed',
+    signedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  writeBatch.set(reportInRef, {
+    ...HANDOVER_IN_REPORT,
+    ownerId,
+    propertyId: SEED_HANDOVER_PROPERTY_ID,
+    tenancyId: SEED_TENANCY_HANDOVER_IN_ID,
+    userId: SEED_TENANT_HANDOVER_IN.uid,
+    dueDate: buildDueDate(2026, 7, tenancyIn.dueDay),
+    status: 'signed',
+    signedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  await writeBatch.commit()
+
+  // Hand-set after both report writes, same reasoning as every other
+  // scenario above — mirroring `recomputeCurrentBalance`'s corrected M8
+  // formula (finalTotal - amountPaid - roundingSurplus), not a literal.
+  // The outgoing tenancy paid its ROUNDED finalTotal (1010) in full, but
+  // roundingSurplus(3) means only 1007 was actually owed — the 3 lei
+  // difference is a credit the tenant never got to consume (FR-REP-04a's
+  // "carried forward as credit" has nowhere to carry to: this tenancy ended
+  // the same month). `closingBalance` freezes it at termination — the same
+  // pair `endTenancyCore` would have written, hand-mirrored here because
+  // this scenario is seeded already-ended, never via the real transaction.
+  // The incoming tenancy is unpaid and has no rounding, so its balance
+  // equals its own report's finalTotal outright — the two chains never
+  // touch each other.
+  const outClosingBalance =
+    HANDOVER_OUT_REPORT.finalTotal -
+    HANDOVER_OUT_REPORT.amountPaid -
+    HANDOVER_OUT_REPORT.roundingSurplus
+  await tenancyOutRef.update({
+    currentBalance: outClosingBalance,
+    closingBalance: outClosingBalance,
+  })
+  await tenancyInRef.update({ currentBalance: HANDOVER_IN_REPORT.finalTotal })
+
+  console.log(
+    'Wrote the hand-over scenario (seed-prop-handover, M8/FR-REP-14):',
+  )
+  console.log(`  - property ${SEED_HANDOVER_PROPERTY_ID}: "${property.name}"`)
+  console.log(
+    `  - outgoing tenancy ${SEED_TENANCY_HANDOVER_OUT_ID}: ended 2026-07-14, 1 signed report, currentBalance -> 0`,
+  )
+  console.log(
+    `  - incoming tenancy ${SEED_TENANCY_HANDOVER_IN_ID}: active from 2026-07-15, 1 signed report, currentBalance -> ${HANDOVER_IN_REPORT.finalTotal}`,
+  )
+  console.log(
+    `  - both reports keyed to July 2026 under DIFFERENT tenancyIds — FR-REP-14's own reason for existing`,
+  )
 }
 
 async function main() {
@@ -1281,8 +1923,20 @@ async function main() {
   await ensureTenantAccount(SEED_TENANT_ENDED, tenantEndedUser().name)
   await reseedEndedScenario(ownerId, bucket)
 
+  await ensureTenantAccount(
+    SEED_TENANT_HANDOVER_OUT,
+    tenantHandoverOutUser().name,
+  )
+  await ensureTenantAccount(
+    SEED_TENANT_HANDOVER_IN,
+    tenantHandoverInUser().name,
+  )
+  await reseedHandoverScenario(ownerId)
+
   await ensureTenantAccount(SEED_TENANT_NO_TENANCY, tenantNoTenancyUser().name)
   await reseedTenantNoTenancy(bucket)
+
+  await reseedOnboardingDraft(bucket)
 
   console.log('\n✅ Seed complete.')
   console.log(`   Admin sign-in: ${ADMIN.email} / ${ADMIN.password}`)
@@ -1297,6 +1951,12 @@ async function main() {
   )
   console.log(
     `   Tenant sign-in (no tenancy at all):                             ${SEED_TENANT_NO_TENANCY.email} / ${SEED_TENANT_NO_TENANCY.password}`,
+  )
+  console.log(
+    `   Tenant sign-in (hand-over, OUTGOING, ended 2026-07-14):         ${SEED_TENANT_HANDOVER_OUT.email} / ${SEED_TENANT_HANDOVER_OUT.password}`,
+  )
+  console.log(
+    `   Tenant sign-in (hand-over, INCOMING, active from 2026-07-15):   ${SEED_TENANT_HANDOVER_IN.email} / ${SEED_TENANT_HANDOVER_IN.password}`,
   )
   console.log(
     `   Shared report link (unauthenticated, M4 sub-stage 8): http://localhost:5173/r/${SIGNED_REPORT_SHARE_TOKEN}`,

@@ -31,8 +31,13 @@ const TEMPLATES = {
  * Email" extension consumes (SRS §5.7). Falls back to English if the language is
  * not one of ro/en.
  *
+ * `type`/`audience` (FR-NLOG-03/04) are fixed here, not at the call site —
+ * one place per template (SRS §7.2). `relatedId`/`ownerId` come from the
+ * caller: `finalizeKyc`'s existing-user branch knows the new tenancy's ID
+ * and the admin's own uid.
+ *
  * @param language  'ro' | 'en' — the EXISTING tenant's preferred language
- * @param fields    { name, email, property, url }
+ * @param fields    { name, email, property, url, relatedId, ownerId }
  */
 function buildAssignmentEmail(language, fields) {
   const template = TEMPLATES[language] ?? TEMPLATES.en
@@ -42,6 +47,10 @@ function buildAssignmentEmail(language, fields) {
       subject: template.subject(fields),
       text: template.body(fields),
     },
+    type: 'tenancy-assigned',
+    audience: 'tenant',
+    relatedId: fields.relatedId ?? null,
+    ownerId: fields.ownerId ?? null,
   }
 }
 

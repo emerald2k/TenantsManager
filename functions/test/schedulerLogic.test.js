@@ -7,6 +7,8 @@ import {
   shouldSendArrearsReminder,
   shouldSendExpiryReminder,
   shouldSendReportReminder,
+  shouldSendPreDueReminder,
+  shouldSendContractExpiredBackstop,
 } from '../src/schedulerLogic.js'
 
 // Pure-function tests — no emulator, no Firestore, no I/O. Sub-stage 2 of M6:
@@ -127,7 +129,12 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
   ])('elapsed=%i days after due date -> %s', (elapsedDays, expected) => {
     const today = addDays(dueDate, elapsedDays)
     expect(
-      shouldSendArrearsReminder({ today, dueDate, currentBalance: 100 }),
+      shouldSendArrearsReminder({
+        today,
+        dueDate,
+        currentBalance: 100,
+        hasSignedReport: true,
+      }),
     ).toBe(expected)
   })
 
@@ -137,6 +144,7 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, 3),
         dueDate,
         currentBalance: -50,
+        hasSignedReport: true,
       }),
     ).toBe(false)
   })
@@ -147,6 +155,18 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, 3),
         dueDate,
         currentBalance: 0,
+        hasSignedReport: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false for a sub-epsilon currentBalance (NFR-VAL-03: money never compared exactly)', () => {
+    expect(
+      shouldSendArrearsReminder({
+        today: addDays(dueDate, 3),
+        dueDate,
+        currentBalance: 0.001,
+        hasSignedReport: true,
       }),
     ).toBe(false)
   })
@@ -157,6 +177,22 @@ describe('shouldSendArrearsReminder (FR-PAY-04, A4, to the tenant)', () => {
         today: addDays(dueDate, -5),
         dueDate,
         currentBalance: 100,
+        hasSignedReport: true,
+      }),
+    ).toBe(false)
+  })
+
+  // Anti-vacuity for the M8 precondition (CLAUDE.md §7): a positive
+  // currentBalance and a fire-eligible elapsed day, but NO signed report —
+  // this exercises exactly the input the OLD (pre-M8) implementation would
+  // have fired a reminder for.
+  it('is false when NO signed report exists yet, even with a fire-eligible balance and day (FR-PAY-04, M8 precondition)', () => {
+    expect(
+      shouldSendArrearsReminder({
+        today: addDays(dueDate, 3),
+        dueDate,
+        currentBalance: 100,
+        hasSignedReport: false,
       }),
     ).toBe(false)
   })
@@ -301,6 +337,166 @@ describe('shouldSendReportReminder (FR-REP-15, A6, to the admin)', () => {
         hasSignedReportThisMonth: false,
       }),
     ).toBe(false)
+  })
+})
+
+describe('shouldSendPreDueReminder (FR-PAY-10, A8, to the tenant)', () => {
+  const dueDate = '2026-08-15'
+
+  it.each([
+    [-4, 3, false], // 4 days before due, window is 3 -> too early
+    [-3, 3, true], // exactly paymentReminderDaysBefore days before -> fires
+    [-2, 3, true],
+    [-1, 3, true],
+    [0, 3, true], // ON the due date -> fires (inclusive, FR-PAY-10b)
+    [1, 3, false], // the day AFTER due -> silent (FR-PAY-04 takes over at +3)
+    [2, 3, false],
+    [3, 3, false], // FR-PAY-04's own territory now, not this family's
+  ])(
+    'elapsed=%i days relative to due date, paymentReminderDaysBefore=%i -> %s',
+    (elapsedDays, paymentReminderDaysBefore, expected) => {
+      const today = addDays(dueDate, elapsedDays)
+      expect(
+        shouldSendPreDueReminder({
+          today,
+          dueDate,
+          finalTotal: 1000,
+          amountPaid: 0,
+          paymentReminderDaysBefore,
+        }),
+      ).toBe(expected)
+    },
+  )
+
+  it('a wider window (paymentReminderDaysBefore=7) fires 7 days out, not just 3', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: addDays(dueDate, -7),
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 7,
+      }),
+    ).toBe(true)
+    // One day further out than the window -> silent.
+    expect(
+      shouldSendPreDueReminder({
+        today: addDays(dueDate, -8),
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 7,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false once the bill is fully paid (finalTotal - amountPaid <= epsilon)', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 1000,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('is false for a sub-epsilon remainder (NFR-VAL-03: money never compared exactly)', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 999.999,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('treats a missing amountPaid as 0 — the full finalTotal is still owed', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: undefined,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(true)
+  })
+
+  it('is false for a credit report (finalTotal - amountPaid negative, FR-PAY-11) — nothing is owed to remind about', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: -200,
+        amountPaid: 0,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(false)
+  })
+
+  it('a partial payment that still leaves a real remainder still fires within the window', () => {
+    expect(
+      shouldSendPreDueReminder({
+        today: dueDate,
+        dueDate,
+        finalTotal: 1000,
+        amountPaid: 400,
+        paymentReminderDaysBefore: 3,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('shouldSendContractExpiredBackstop (FR-CON-08, A11, to the admin)', () => {
+  it('does NOT fire before endDate', () => {
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: '2026-06-25',
+        endDate: '2026-07-01',
+      }),
+    ).toBe(false)
+  })
+
+  it('fires on the day endDate passes (elapsed 0) — the backstop for three missed A5 warnings', () => {
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: '2026-07-01',
+        endDate: '2026-07-01',
+      }),
+    ).toBe(true)
+  })
+
+  it('does NOT fire again until a full week later (elapsed 1..6)', () => {
+    for (let elapsed = 1; elapsed <= 6; elapsed += 1) {
+      const today = addDays('2026-07-01', elapsed)
+      expect(
+        shouldSendContractExpiredBackstop({ today, endDate: '2026-07-01' }),
+      ).toBe(false)
+    }
+  })
+
+  it('fires again every 7 days after (elapsed 7, 14, 21)', () => {
+    for (const elapsed of [7, 14, 21]) {
+      const today = addDays('2026-07-01', elapsed)
+      expect(
+        shouldSendContractExpiredBackstop({ today, endDate: '2026-07-01' }),
+      ).toBe(true)
+    }
+  })
+
+  it('never stops on its own — FR-CON-08 keeps firing until manual termination (checked far out)', () => {
+    // 700 = 100 whole weeks past endDate — a far-out point that still lands
+    // on the weekly cadence (365 does NOT: 365 % 7 === 1).
+    expect(
+      shouldSendContractExpiredBackstop({
+        today: addDays('2026-07-01', 700),
+        endDate: '2026-07-01',
+      }),
+    ).toBe(true)
   })
 })
 

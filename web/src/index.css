@@ -25,6 +25,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -64,23 +65,42 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Amber "attention, not alarm" — the mockup's `--am` role (M8 stage 15a):
+     a report that is a draft or not yet made needs attention but is not a
+     money problem, so it must read distinct from both `primary` (done) and
+     `destructive` (late). Badge tint only so far (`bg-warning/10 text-warning`). */
+  --warning: oklch(0.58 0.13 65);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* NFR-UX-04 (M8 stage 8): five DISTINCT hues, not five shades of the same
+     gray — the pre-M8 values here were byte-identical to .dark's, which
+     defeats a categorical chart's whole purpose (FR-DASH-09, stage 15).
+     Blue/green/amber/magenta/teal, spread around the wheel for
+     discriminability against a light background. */
+  --chart-1: oklch(0.62 0.19 260);
+  --chart-2: oklch(0.6 0.15 150);
+  --chart-3: oklch(0.7 0.18 70);
+  --chart-4: oklch(0.58 0.2 320);
+  --chart-5: oklch(0.65 0.14 195);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* NFR-UX-01/M8 stage 10: the admin rail is a CONSTANT dark-navy surface,
+     the same value in :root and .dark below — not derived from the
+     light/dark app theme at all. The approved mockup's rail is dark in
+     both themes; giving it one fixed value rather than two close ones
+     guarantees "visually distinct from the content area" by construction,
+     in both themes, forever — the M4 shell's dark-theme sidebar used the
+     same near-black tone as the page background and nearly disappeared
+     into it (the defect stage 10 exists to fix), which two independently
+     "close enough" values could reproduce just as easily as one bad one. */
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.869 0.022 252.894);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.279 0.041 260.031);
+  --sidebar-ring: oklch(0.869 0.022 252.894);
 }
 
 .dark {
@@ -99,22 +119,60 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* Same amber role as :root, lifted for the near-black background. */
+  --warning: oklch(0.78 0.13 70);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Same five hues as :root, lifted in lightness and slightly desaturated —
+     the standard dark-UI adjustment so they read clearly against the
+     near-black background (oklch(0.145 0 0)) without vibrating. */
+  --chart-1: oklch(0.7 0.16 260);
+  --chart-2: oklch(0.72 0.14 150);
+  --chart-3: oklch(0.78 0.15 70);
+  --chart-4: oklch(0.68 0.17 320);
+  --chart-5: oklch(0.74 0.12 195);
+  /* Same constant rail as :root above — see the comment there. */
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.869 0.022 252.894);
+  --sidebar-primary: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.279 0.041 260.031);
+  --sidebar-ring: oklch(0.869 0.022 252.894);
+}
+
+/* NFR-UX-05 (M8 stage 9) — pins `ReportSummaryView` to the light palette
+   regardless of an ancestor `.dark` (admin/tenant chrome, OS preference).
+   Custom properties inherit down the tree; a `.dark` ancestor's values reach
+   this subtree by inheritance only, so re-declaring them directly on the
+   element carrying this class overrides that inheritance without needing to
+   out-specificity `.dark` itself — the same "@theme inline over custom
+   properties" mechanism, applied one level deeper. Mirrors :root's full
+   color block, not just the tokens the component happens to use today, so a
+   future style addition inside ReportSummaryView can't silently regress
+   this by reaching for a token this rule never pinned. */
+.force-light {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --warning: oklch(0.58 0.13 65);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 }
 
 @layer base {

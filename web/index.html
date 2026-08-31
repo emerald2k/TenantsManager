@@ -2,6 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      NFR-UX-04: applies the theme class to <html> BEFORE first paint.
+      Deliberately a plain, non-module, non-deferred, blocking script — the
+      earliest possible thing in <head> — because a `type="module"` script is
+      always deferred, which would let the browser paint the light theme once
+      before this ever ran. Without this, every load flashes light before
+      switching, which no automated test in the fast band can detect (it
+      requires a real paint, SRS §5.5's own note on this stage).
+
+      Duplicates the storage key and the fallback logic from
+      `web/src/features/theme/themeStorage.js` (`resolveInitialTheme`) rather
+      than importing it — the same cross-boundary-duplication call as
+      `FINAL_TOTAL_EPSILON` (CLAUDE.md §7): a module import here would be
+      async/deferred, defeating the entire point. Keep both in sync by hand.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('theme')
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (e) {
+          // localStorage blocked (private mode) or matchMedia unavailable —
+          // fall through to the light default rather than throwing here,
+          // which would break the page before React ever mounts.
+        }
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TenantsManager</title>

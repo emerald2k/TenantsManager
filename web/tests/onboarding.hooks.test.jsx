@@ -2,13 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { waitFor } from '@testing-library/react'
 import {
   addDoc,
-  deleteDoc,
   getDoc,
   getDocs,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
-import { deleteObject, listAll } from 'firebase/storage'
+import { httpsCallable } from 'firebase/functions'
 import { renderHookWithProviders } from './renderWithProviders'
 import {
   useCreateDraft,
@@ -27,7 +26,7 @@ import {
 // at import time without the VITE_FIREBASE_* variables (gitignored `.env`).
 vi.mock('@/lib/firebase', () => ({
   db: { __fake: 'db' },
-  storage: { __fake: 'storage' },
+  functions: { __fake: 'functions' },
 }))
 
 vi.mock('firebase/firestore', () => ({
@@ -37,14 +36,11 @@ vi.mock('firebase/firestore', () => ({
   getDoc: vi.fn(),
   addDoc: vi.fn(),
   updateDoc: vi.fn(),
-  deleteDoc: vi.fn(),
   serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
 }))
 
-vi.mock('firebase/storage', () => ({
-  ref: vi.fn((_storage, path) => ({ __ref: path })),
-  listAll: vi.fn(),
-  deleteObject: vi.fn(),
+vi.mock('firebase/functions', () => ({
+  httpsCallable: vi.fn(),
 }))
 
 function listSnapshot(drafts) {
@@ -60,9 +56,6 @@ beforeEach(() => {
   getDocs.mockResolvedValue(listSnapshot([DRAFT]))
   addDoc.mockResolvedValue({ id: 'd-new' })
   updateDoc.mockResolvedValue(undefined)
-  deleteDoc.mockResolvedValue(undefined)
-  listAll.mockResolvedValue({ items: [] })
-  deleteObject.mockResolvedValue(undefined)
 })
 
 describe('useDraftsList (FR-TEN-19)', () => {
@@ -259,33 +252,37 @@ describe('useUpdateDraft — autosave (FR-TEN-17)', () => {
   })
 })
 
-describe('useDeleteDraft (FR-TEN-20)', () => {
-  it('cleans up the Storage folder, then deletes the document', async () => {
-    listAll.mockResolvedValue({
-      items: [{ __item: 'a' }, { __item: 'b' }],
-    })
+describe('useDeleteDraft (FR-TEN-20 / FR-TEN-25)', () => {
+  it('delegates to the deleteOnboardingDraft callable with the draft id', async () => {
+    const callable = vi.fn().mockResolvedValue({ data: { deleted: true } })
+    httpsCallable.mockReturnValue(callable)
     const { result } = await renderHookWithProviders(() => useDeleteDraft())
 
     await result.current.mutateAsync('d1')
 
-    // The Storage folder for this draft was listed and each item removed.
-    expect(listAll).toHaveBeenCalledWith({ __ref: 'drafts/d1' })
-    expect(deleteObject).toHaveBeenCalledTimes(2)
-    // The document was deleted.
-    expect(deleteDoc).toHaveBeenCalledWith({ __doc: 'onboardingDrafts/d1' })
+    // The Firestore document and the Storage prefix are removed server-side,
+    // in one operation — no client-side listAll/deleteObject anymore.
+    expect(httpsCallable).toHaveBeenCalledWith(
+      { __fake: 'functions' },
+      'deleteOnboardingDraft',
+    )
+    expect(callable).toHaveBeenCalledWith({ draftId: 'd1' })
   })
 
-  it('still deletes the document when the Storage cleanup fails (best-effort)', async () => {
-    listAll.mockRejectedValue(new Error('storage/unauthorized'))
+  it('surfaces a callable failure instead of swallowing it', async () => {
+    const callable = vi.fn().mockRejectedValue(new Error('functions/internal'))
+    httpsCallable.mockReturnValue(callable)
     const { result } = await renderHookWithProviders(() => useDeleteDraft())
 
-    await result.current.mutateAsync('d1')
-
-    // The Storage failure was swallowed — the document deletion still happened.
-    expect(deleteDoc).toHaveBeenCalledWith({ __doc: 'onboardingDrafts/d1' })
+    await expect(result.current.mutateAsync('d1')).rejects.toThrow(
+      'functions/internal',
+    )
   })
 
   it('invalidates the list on success', async () => {
+    httpsCallable.mockReturnValue(
+      vi.fn().mockResolvedValue({ data: { deleted: true } }),
+    )
     const { result, queryClient } = await renderHookWithProviders(() =>
       useDeleteDraft(),
     )

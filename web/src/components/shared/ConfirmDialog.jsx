@@ -27,6 +27,12 @@ import {
  * @param onConfirm       fired on confirm; the caller closes the dialog
  * @param destructive     styles confirm as destructive (default: true — both of D's
  *                        uses are destructive)
+ * @param confirmDisabled disables the confirm button beyond `isPending` (e.g.
+ *                        FR-REP-04e's second confirmation, which requires a
+ *                        written reason before the button becomes usable)
+ * @param children        extra content rendered between the description and
+ *                        the footer — e.g. FR-REP-04e's divergence message
+ *                        plus its reason textarea
  */
 export function ConfirmDialog({
   open,
@@ -38,6 +44,8 @@ export function ConfirmDialog({
   onConfirm,
   destructive = true,
   isPending = false,
+  confirmDisabled = false,
+  children,
 }) {
   const { t } = useTranslation()
 
@@ -52,6 +60,7 @@ export function ConfirmDialog({
             </DialogDescription>
           )}
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button
             type="button"
@@ -64,7 +73,7 @@ export function ConfirmDialog({
             type="button"
             variant={destructive ? 'destructive' : 'default'}
             onClick={onConfirm}
-            disabled={isPending}
+            disabled={isPending || confirmDisabled}
           >
             {isPending ? t('common.loading') : t(confirmKey)}
           </Button>

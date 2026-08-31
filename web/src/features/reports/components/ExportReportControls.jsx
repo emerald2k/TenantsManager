@@ -56,6 +56,7 @@ export function toReportSummaryData(report, property) {
     })),
     previousMonthArrears: report.previousMonthArrears ?? 0,
     previousMonthCredit: report.previousMonthCredit ?? 0,
+    roundingSurplus: report.roundingSurplus ?? 0,
     calculatedTotal: report.calculatedTotal,
     finalTotal: report.finalTotal,
     dueDate: report.dueDate,

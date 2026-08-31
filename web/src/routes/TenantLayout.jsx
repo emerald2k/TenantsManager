@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { useAuth } from '@/features/auth/useAuth'
 import { useMyTenancy } from '@/features/tenantApp/hooks'
 import { formatFullDate } from '@/lib/formatDate'
@@ -20,6 +21,14 @@ const NAV_ITEMS = [
  * network fetch — it reads the same cached result. Deliberately not an
  * `Outlet` context/prop-drilling refactor: that would touch all four
  * tenant pages for zero functional gain over the cache hit already free.
+ *
+ * M8 stage 16: brought onto the shell's tokens and made mobile-first
+ * (NFR-UX-03 — the tenant interface is mobile-first). The nav wraps under
+ * the controls below ~480 px instead of overflowing; every surface is a
+ * design token, nothing hardcoded. It stays a light themed navbar, NOT the
+ * admin's dark rail — that rail is the backoffice's identity (NFR-UX-01).
+ * Hover rules are Tailwind `hover:` utilities, auto-scoped by Tailwind v4
+ * to `@media (hover:hover)` so they never latch on touch (NFR-UX-06).
  */
 export function TenantLayout() {
   const { t, i18n } = useTranslation()
@@ -31,8 +40,8 @@ export function TenantLayout() {
   )
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="flex items-center justify-between border-b border-border p-4">
+    <div className="flex min-h-svh flex-col bg-background">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
         <nav className="flex gap-1">
           {NAV_ITEMS.map((item) => (
             <NavLink
@@ -41,8 +50,10 @@ export function TenantLayout() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'rounded-md px-3 py-2 text-sm font-medium hover:bg-muted',
-                  isActive && 'bg-muted text-foreground',
+                  'rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors',
+                  'hover:bg-muted hover:text-foreground',
+                  'focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none',
+                  isActive && 'bg-muted font-semibold text-foreground',
                 )
               }
             >
@@ -51,8 +62,9 @@ export function TenantLayout() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <LanguageSwitcher />
+          <ThemeToggle />
           <Button type="button" variant="outline" size="sm" onClick={logout}>
             {t('common.logout')}
           </Button>
