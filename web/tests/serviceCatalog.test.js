@@ -42,6 +42,21 @@ describe('serviceLabel', () => {
     )
   })
 
+  it('uses serviceLabelKey directly when present (the /r/:shareToken anonymous shape)', () => {
+    expect(
+      serviceLabel(
+        { serviceLabelKey: 'properties.services.water', name: 'Apă' },
+        t,
+      ),
+    ).toBe('properties.services.water')
+  })
+
+  it('falls back to the stored name when the anonymous payload carries no key (a custom service on /r/)', () => {
+    expect(
+      serviceLabel({ serviceLabelKey: null, name: 'Salubritate' }, t),
+    ).toBe('Salubritate')
+  })
+
   it('never translates a catalog id that is explicitly marked source: custom', () => {
     expect(
       serviceLabel(

@@ -52,6 +52,11 @@ const CATALOG_BY_ID = new Map(
  * `'custom'` source — falls through to the stored `name`.
  */
 export function serviceLabel(service, t) {
+  // The anonymous `/r/:shareToken` payload carries a translation key instead
+  // of `serviceId` for a catalog service (functions/src/sharedReport.js's
+  // `catalogLabelKey`, SRS §7.3); a custom service sends none and keeps its
+  // stored `name`.
+  if (service.serviceLabelKey) return t(service.serviceLabelKey)
   const entry = CATALOG_BY_ID.get(service.serviceId)
   return entry && service.source !== SERVICE_SOURCE.CUSTOM
     ? t(entry.labelKey)

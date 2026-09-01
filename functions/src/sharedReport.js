@@ -34,6 +34,31 @@ const STORAGE_BUCKET =
 // yet". Deliberate: do not add a more specific message per branch.
 const LINK_UNAVAILABLE = 'Link unavailable.'
 
+// The five catalog service ids — hand-identical to web's SERVICE_CATALOG
+// (serviceCatalog.js), the same cross-package duplication as STORAGE_BUCKET
+// above (CLAUDE.md §7): functions/ deploys without web/.
+//
+// For a CATALOG service the anonymous payload carries a translation KEY, so
+// the shared report names the line in the reader's own language (SRS §7.3).
+// The key adds nothing over the `name` already shown, and the catalog id set
+// is fixed and public — it leaks nothing. A CUSTOM service's `serviceId` is a
+// stable internal UUID and a shared link is unrevocably public once issued
+// (what comes out once cannot be pulled back), so it is NEVER sent — the
+// stored `name` stands, exactly as before.
+const CATALOG_SERVICE_IDS = new Set([
+  'electricity',
+  'gas',
+  'internet',
+  'tv',
+  'water',
+])
+
+function catalogLabelKey(serviceId) {
+  return CATALOG_SERVICE_IDS.has(serviceId)
+    ? `properties.services.${serviceId}`
+    : null
+}
+
 /**
  * Attaches an opaque, structural `reference` to each attachment instead of
  * its real Storage path/URL — "rent.0" / "maintenance.0" /
@@ -55,10 +80,14 @@ function attachmentsMeta(attachments, prefix) {
  * ALLOWLIST (not a blocklist) — the exact, complete shape returned to an
  * anonymous visitor. Deliberately excludes: ownerId, propertyId, tenancyId,
  * userId, status, signedAt, updatedAt, shareToken, shareTokenRevoked,
- * paymentMethod, paymentDate, serviceId (internal catalog key — only the
- * snapshotted `name` is ever displayed). `report.rent`/`report.maintenance`
- * are always-present cost lines (SRS §6); serviceCosts/otherExpenses default
- * to `[]` for a report saved before either existed.
+ * paymentMethod, paymentDate, and the raw `serviceId` (a custom service's is
+ * a stable internal UUID; a shared link is unrevocably public — SRS §7.3).
+ * A CATALOG service's line instead carries `serviceLabelKey`, a translation
+ * key (`catalogLabelKey`), so the reader's own language names it; a custom
+ * service's `serviceLabelKey` is `null` and its stored `name` stands.
+ * `report.rent`/`report.maintenance` are always-present cost lines (SRS §6);
+ * serviceCosts/otherExpenses default to `[]` for a report saved before
+ * either existed.
  *
  * This function never reads the `users` collection — the strongest property
  * here: personal data (name, cnp, email, preferredLanguage) cannot leak
@@ -85,6 +114,7 @@ function toPublicReport(report, propertyName) {
     },
     serviceCosts: (report.serviceCosts ?? []).map((line, i) => ({
       name: line.name,
+      serviceLabelKey: catalogLabelKey(line.serviceId),
       amount: line.amount,
       notes: line.notes ?? null,
       attachments: attachmentsMeta(line.attachments, `serviceCosts.${i}`),

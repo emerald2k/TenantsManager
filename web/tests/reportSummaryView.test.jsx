@@ -89,6 +89,29 @@ describe('ReportSummaryView', () => {
     expect(screen.queryByText('Electricitate')).toBeNull()
   })
 
+  it('translates a shared-report line by its serviceLabelKey — the /r/:shareToken shape, English shows "Water"', async () => {
+    await renderWithProviders(
+      <ReportSummaryView
+        data={summaryData({
+          serviceCosts: [
+            {
+              // toPublicReport sends a key, never the raw serviceId
+              serviceLabelKey: 'properties.services.water',
+              name: 'Apă',
+              amount: 60,
+              notes: '',
+              attachments: [],
+            },
+          ],
+        })}
+      />,
+      { language: 'en' },
+    )
+
+    expect(screen.getByText('Water')).toBeVisible()
+    expect(screen.queryByText('Apă')).toBeNull()
+  })
+
   it('keeps a CUSTOM service name as stored — nothing to translate', async () => {
     await renderWithProviders(
       <ReportSummaryView
