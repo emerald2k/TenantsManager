@@ -102,6 +102,20 @@ export function OnboardingWizardPage() {
   }
 
   /**
+   * Jump straight back to an ALREADY-COMPLETED step for a quick correction
+   * (2026-08-31 UI/UX audit, finding #7 — useful most of all when filling
+   * the wizard in front of the tenant on a tablet). Only ever BACKWARD:
+   * `step < currentStep`. A step not yet reached stays inert, so this never
+   * becomes a way past `validateStep` and the forward-only flow FR-TEN's
+   * wizard defines. Autosaves the current step first, exactly like `handleBack`.
+   */
+  function handleStepJump(step) {
+    if (step >= currentStep) return
+    autosave(step)
+    setCurrentStep(step)
+  }
+
+  /**
    * Step 4's own autosave (FR-TEN-17) — unlike Steps 1-3, arriving at Step 4 has
    * no Continue click to autosave on, so its fields would otherwise stay
    * unsaved until Finalizează. AWAITED (unlike `autosave()`'s fire-and-forget
@@ -141,17 +155,30 @@ export function OnboardingWizardPage() {
         <ol className="flex flex-wrap items-center gap-2 text-sm">
           {STEP_KEYS.map((key, index) => {
             const step = index + 1
+            const isCurrent = step === currentStep
+            const isDone = step < currentStep
+            const label = `${step}. ${t(`onboarding.steps.${key}`)}`
             return (
-              <li
-                key={key}
-                aria-current={step === currentStep ? 'step' : undefined}
-                className={`rounded-full px-3 py-1 ${
-                  step === currentStep
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {step}. {t(`onboarding.steps.${key}`)}
+              <li key={key} aria-current={isCurrent ? 'step' : undefined}>
+                {isDone ? (
+                  <button
+                    type="button"
+                    onClick={() => handleStepJump(step)}
+                    className="rounded-full px-3 py-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  <span
+                    className={`rounded-full px-3 py-1 ${
+                      isCurrent
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'text-muted-foreground'
+                    }`}
+                  >
+                    {label}
+                  </span>
+                )}
               </li>
             )
           })}

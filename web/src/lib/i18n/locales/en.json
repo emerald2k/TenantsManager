@@ -254,6 +254,8 @@
       "empty": "No renters yet.",
       "noMatches": "No renters match your search.",
       "continue": "Continue",
+      "draftNew": "New draft",
+      "draftStartedOn": "started {{date}}",
       "deleteDraft": "Delete draft",
       "deleteDraftTitle": "Delete draft",
       "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",

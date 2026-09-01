@@ -169,6 +169,7 @@ const SEED_HANDOVER_DATE = '2026-07-15'
 // `deleteOnboardingDraft` clears). The multi-file case is deliberate: it is
 // what a cleanup that only removes the first match would fail.
 const SEED_DRAFT_ID = 'seed-draft-in-progress'
+const SEED_DRAFT_EMPTY_ID = 'seed-draft-empty'
 
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
@@ -1192,9 +1193,28 @@ async function reseedOnboardingDraft(bucket) {
   }
   await draftRef.set(draft)
 
+  // A SECOND draft, brand new and unnamed — the exact "+ New renter" state
+  // (`useCreateDraft` writes only status/currentStep/timestamps). With this
+  // one and the named draft above both in the list, the "Draft nou · început
+  // la {date}" label (2026-08-31 UI/UX audit, finding #5) has something to
+  // disambiguate; a stale-shaped seed would never exercise it.
+  const emptyDraftRef = db
+    .collection('onboardingDrafts')
+    .doc(SEED_DRAFT_EMPTY_ID)
+  await emptyDraftRef.delete()
+  await emptyDraftRef.set({
+    status: 'in_progress',
+    currentStep: 1,
+    createdAt: new Date('2026-08-29T15:20:00Z'),
+    updatedAt: new Date('2026-08-29T15:20:00Z'),
+  })
+
   console.log(
     `  - draft ${SEED_DRAFT_ID}: "${draft.name}" at step ${draft.currentStep}, ` +
       `3 Storage objects under ${prefix} (2 tenant + 1 guarantor)`,
+  )
+  console.log(
+    `  - draft ${SEED_DRAFT_EMPTY_ID}: unnamed, step 1 — the "+ New renter" state`,
   )
 }
 

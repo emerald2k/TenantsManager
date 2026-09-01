@@ -50,4 +50,21 @@ describe('AdminLayout — configuration banner (FR-SYS-07)', () => {
 
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeVisible()
   })
+
+  // audit #6 — the rail is viewport-height + sticky + its OWN scroll area, so
+  // its footer (sign-out / language / theme) stays put on a long page. jsdom
+  // has no layout, so this only guards the class contract against a
+  // regression to `min-h-svh` (which let the rail stretch to page height and
+  // dropped the footer below the fold); the visual check is a browser step.
+  it('the side rail is h-svh + sticky + overflow-y-auto, never min-h-svh', async () => {
+    useAdminEmailConfigured.mockReturnValue({ data: true })
+
+    await renderWithProviders(<AdminLayout />)
+
+    const aside = screen.getByRole('complementary')
+    expect(aside.className).toContain('h-svh')
+    expect(aside.className).toContain('sticky')
+    expect(aside.className).toContain('overflow-y-auto')
+    expect(aside.className).not.toContain('min-h-svh')
+  })
 })

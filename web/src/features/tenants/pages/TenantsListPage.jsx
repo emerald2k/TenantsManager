@@ -9,7 +9,9 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Table } from '@/components/shared/Table'
 import { MoneyAmount } from '@/components/shared/MoneyAmount'
 import { filterByText } from '@/lib/filterByText'
+import { formatFullDate } from '@/lib/formatDate'
 import { useActiveTenancies, useUsers } from '@/features/tenants/hooks'
+import { useProperties } from '@/features/properties/hooks'
 import {
   useCreateDraft,
   useDeleteDraft,
@@ -77,8 +79,26 @@ function cellOrDash(value) {
   return value === null || value === undefined || value === '' ? '—' : value
 }
 
+/** The name cell for a draft that has no name yet (audit #5): "Draft nou",
+ * plus "· început la {date}" once `createdAt` is a real Firestore Timestamp,
+ * plus "· {property}" once step 4 has pointed the draft at one. With several
+ * unnamed drafts in the list (FR-TEN-21 allows any number), the date is what
+ * tells them apart. */
+function draftNameCell(row, t, language) {
+  const parts = [t('tenants.list.draftNew')]
+  if (row.createdAt && typeof row.createdAt.toDate === 'function') {
+    parts.push(
+      t('tenants.list.draftStartedOn', {
+        date: formatFullDate(row.createdAt, language),
+      }),
+    )
+  }
+  if (row.draftProperty) parts.push(row.draftProperty)
+  return <span className="text-muted-foreground">{parts.join(' · ')}</span>
+}
+
 export function TenantsListPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
 
   const [search, setSearch] = useState('')
@@ -89,13 +109,20 @@ export function TenantsListPage() {
   const users = useUsers()
   const tenancies = useActiveTenancies()
   const drafts = useDraftsList()
+  // For the draft-row label (audit #5): the name of a property a draft has
+  // already been pointed at. Archived included — a draft can name one.
+  const properties = useProperties({ includeArchived: true })
   const createDraft = useCreateDraft()
   const deleteDraft = useDeleteDraft()
 
-  // The three reads load in parallel; the table waits for all of them so it
+  // The reads load in parallel; the table waits for all of them so it
   // never renders half-populated (a user row with a missing property because
   // the tenancies query has not resolved yet).
-  const isPending = users.isPending || tenancies.isPending || drafts.isPending
+  const isPending =
+    users.isPending ||
+    tenancies.isPending ||
+    drafts.isPending ||
+    properties.isPending
   const isError = users.isError || tenancies.isError || drafts.isError
 
   // One row model for both sources, so sort/search/render treat them uniformly.
@@ -103,12 +130,21 @@ export function TenantsListPage() {
     const tenancyByUser = new Map(
       (tenancies.data ?? []).map((tenancy) => [tenancy.userId, tenancy]),
     )
+    const propertyById = new Map(
+      (properties.data ?? []).map((property) => [property.id, property]),
+    )
     const draftRows = (drafts.data ?? []).map((draft) => ({
       kind: 'draft',
       id: draft.id,
       name: draft.name ?? '',
       phone: draft.phone ?? null,
       email: draft.email ?? null,
+      // A draft only gains a propertyId at step 4; before that it is null and
+      // the row shows just "Draft nou · început la {date}" (audit #5).
+      createdAt: draft.createdAt ?? null,
+      draftProperty: draft.propertyId
+        ? (propertyById.get(draft.propertyId)?.name ?? null)
+        : null,
       property: null,
       balance: null,
       statusKey: 'inProgress',
@@ -133,7 +169,7 @@ export function TenantsListPage() {
       }
     })
     return [...draftRows, ...userRows]
-  }, [users.data, tenancies.data, drafts.data])
+  }, [users.data, tenancies.data, drafts.data, properties.data])
 
   // Archived hidden by default (mirrors the Properties "Show archived" UX); the
   // sort is alphabetical by name. An unnamed draft (name '') sorts first and
@@ -263,7 +299,10 @@ export function TenantsListPage() {
               key: 'name',
               header: t('tenants.fields.name'),
               primary: true,
-              render: (row) => cellOrDash(row.name),
+              render: (row) =>
+                row.kind === 'draft' && !row.name
+                  ? draftNameCell(row, t, i18n.language)
+                  : cellOrDash(row.name),
             },
             {
               key: 'phone',

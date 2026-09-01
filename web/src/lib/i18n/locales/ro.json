@@ -254,6 +254,8 @@
       "empty": "Niciun chiriaș deocamdată.",
       "noMatches": "Niciun chiriaș nu corespunde căutării.",
       "continue": "Continuă",
+      "draftNew": "Draft nou",
+      "draftStartedOn": "început la {{date}}",
       "deleteDraft": "Șterge draftul",
       "deleteDraftTitle": "Șterge draftul",
       "deleteDraftDescription": "Acest draft de onboarding va fi șters. Acțiunea nu poate fi anulată.",

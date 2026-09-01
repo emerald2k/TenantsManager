@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from './renderWithProviders'
 import { TenantsListPage } from '@/features/tenants/pages/TenantsListPage'
 import { useActiveTenancies, useUsers } from '@/features/tenants/hooks'
+import { useProperties } from '@/features/properties/hooks'
 import {
   useCreateDraft,
   useDeleteDraft,
@@ -23,6 +24,7 @@ vi.mock('@/features/onboarding/hooks', () => ({
   useDeleteDraft: vi.fn(),
   useCreateDraft: vi.fn(),
 }))
+vi.mock('@/features/properties/hooks', () => ({ useProperties: vi.fn() }))
 
 const navigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -33,7 +35,12 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 const createMutateAsync = vi.fn()
 const deleteMutateAsync = vi.fn()
 
-function mockData({ users = [], tenancies = [], drafts = [] } = {}) {
+function mockData({
+  users = [],
+  tenancies = [],
+  drafts = [],
+  properties = [],
+} = {}) {
   useUsers.mockReturnValue({
     data: users,
     isPending: false,
@@ -50,6 +57,13 @@ function mockData({ users = [], tenancies = [], drafts = [] } = {}) {
   })
   useDraftsList.mockReturnValue({
     data: drafts,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  })
+  useProperties.mockReturnValue({
+    data: properties,
     isPending: false,
     isError: false,
     isFetching: false,
@@ -258,6 +272,53 @@ describe('TenantsListPage (FR-TEN-13)', () => {
     await renderWithProviders(<TenantsListPage />)
 
     expect(renderedNames()).toEqual(['Alin', 'Maria', 'Paul', 'Zoltan'])
+  })
+
+  it('labels an UNNAMED draft by its start date so two of them are told apart (audit #5)', async () => {
+    const ts = (iso) => ({ toDate: () => new Date(iso) })
+    mockData({
+      drafts: [
+        {
+          id: 'da',
+          name: '',
+          status: 'in_progress',
+          createdAt: ts('2026-08-20'),
+        },
+        {
+          id: 'db',
+          name: '',
+          status: 'in_progress',
+          createdAt: ts('2026-08-29'),
+        },
+        {
+          id: 'dc',
+          name: '',
+          status: 'in_progress',
+          createdAt: ts('2026-09-01'),
+          propertyId: 'p1',
+        },
+      ],
+      properties: [{ id: 'p1', name: 'Apartament Zorilor', archived: false }],
+    })
+    await renderWithProviders(<TenantsListPage />)
+
+    expect(
+      screen.getByText('Draft nou · început la 20 august 2026'),
+    ).toBeVisible()
+    expect(
+      screen.getByText('Draft nou · început la 29 august 2026'),
+    ).toBeVisible()
+    // step-4 draft: the chosen property is appended
+    expect(
+      screen.getByText(
+        'Draft nou · început la 1 septembrie 2026 · Apartament Zorilor',
+      ),
+    ).toBeVisible()
+    // the name cell is never a bare "—" for a draft
+    const firstNameCell = screen
+      .getByText('Draft nou · început la 20 august 2026')
+      .closest('td')
+    expect(firstNameCell).not.toHaveTextContent(/^—$/)
   })
 
   it('renders a draft with the "in progress" badge and Continue/Delete actions', async () => {
