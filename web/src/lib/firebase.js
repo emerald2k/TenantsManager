@@ -51,12 +51,23 @@ export const functions = getFunctions(app)
 export const usingEmulators =
   import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
 
-if (usingEmulators) {
-  const host = '127.0.0.1'
+/** The host the four emulators are reached on. Defaults to `127.0.0.1` — the
+ * value hardcoded before 2026-08-31 — but a tool serving the app through a
+ * different hostname (a containerised browser, a preview panel, an SSH
+ * tunnel) reaches Vite on 5173 while `127.0.0.1:9099/8080/9199/5001` stays
+ * unreachable, so the app loads and then fails only at sign-in with what
+ * looks like a network problem (2026-08-31 UI/UX audit, finding #9). Such a
+ * setup sets `VITE_EMULATOR_HOST` to the hostname that DOES resolve
+ * (`localhost`, a container name, …). It is optional and NOT in
+ * `REQUIRED_ENV_VARS`: absent, the default keeps every existing setup working. */
+export const emulatorHost = import.meta.env.VITE_EMULATOR_HOST || '127.0.0.1'
 
+if (usingEmulators) {
   // The ports must match firebase.json.
-  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
-  connectFirestoreEmulator(db, host, 8080)
-  connectStorageEmulator(storage, host, 9199)
-  connectFunctionsEmulator(functions, host, 5001)
+  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, {
+    disableWarnings: true,
+  })
+  connectFirestoreEmulator(db, emulatorHost, 8080)
+  connectStorageEmulator(storage, emulatorHost, 9199)
+  connectFunctionsEmulator(functions, emulatorHost, 5001)
 }

@@ -80,6 +80,12 @@ The project is built on **milestones** (section 9 of the SRS: M0–M8).
 - Local development runs on the **Firebase Emulator Suite** (Auth, Firestore, Storage, Functions).
 - Blaze is active and the application has been in production since the alpha stage (deploy after M5, ahead of M6 — SRS §7.5). Local development stays on the emulators regardless.
 - Firebase project: `tenants-manager-2026`.
+- **First-run setup, none of which was written down until the 2026-08-31 audit (finding #9):**
+  - **Node 22** (matches `functions`' `nodejs22` runtime). **Java must be on `PATH`** — the Firestore and Storage emulators are Java processes and fail to start without it.
+  - **Three separate installs** — this is not a workspace: `npm install` at the repo root, `npm install` in `web/`, `npm install` in `functions/`.
+  - **`.env` files are not committed.** `cp web/.env.example web/.env` and `cp functions/.env.example functions/.env`; the templates' emulator defaults work as-is. A clone with **no `web/.env` throws at `firebase.js` load** ("Incomplete Firebase configuration"); a clone with a `functions/.env` missing is fine locally (every var has a code fallback) and only matters for a real deploy.
+  - **`VITE_EMULATOR_HOST`** (optional, default `127.0.0.1`): set it to the hostname the emulators actually resolve on when the app is served through a proxy, tunnel or containerised browser — otherwise the app loads and only sign-in fails, with `auth/network-request-failed`. The login page now names the host and the variable in that case.
+  - **`npm run test:e2e -- --headed` does not work** — npm appends `--headed` to the `firebase emulators:exec` invocation, not to `playwright`, and the flag is rejected there. Run headed Playwright by hand inside an already-running emulator session instead.
 
 **Test bands** (foundation installed at M1; the fourth lands at M7):
 - `npm run test:run --prefix web` — the fast band: components/hooks in jsdom, with the backend boundary mocked.

@@ -18,7 +18,8 @@
       "required": "Required field",
       "invalidCredentials": "Incorrect email or password",
       "accountDisabled": "Account disabled. Please contact the owner.",
-      "network": "Connection unavailable. Check your internet and try again."
+      "network": "Connection unavailable. Check your internet and try again.",
+      "emulatorUnreachable": "The Firebase emulator is not responding at {{host}}. Check that it is running, and if the app is served through a different hostname set VITE_EMULATOR_HOST."
     }
   },
   "nav": {

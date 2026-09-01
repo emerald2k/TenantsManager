@@ -18,7 +18,8 @@
       "required": "Câmp obligatoriu",
       "invalidCredentials": "Email sau parolă incorectă",
       "accountDisabled": "Cont dezactivat. Contactați proprietarul.",
-      "network": "Conexiune indisponibilă. Verificați internetul și reîncercați."
+      "network": "Conexiune indisponibilă. Verificați internetul și reîncercați.",
+      "emulatorUnreachable": "Emulatorul Firebase nu răspunde la {{host}}. Verifică dacă rulează și, dacă aplicația e servită prin alt nume de gazdă, setează VITE_EMULATOR_HOST."
     }
   },
   "nav": {

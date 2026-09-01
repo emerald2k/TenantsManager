@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { useAuth } from '@/features/auth/useAuth'
+import { emulatorHost, usingEmulators } from '@/lib/firebase'
 
 /** PRESENCE only, without format checking (NFR-VAL-01: "mandatory fields are
  * checked only for presence, without format validation"). That is why we do NOT
@@ -22,13 +23,22 @@ const loginSchema = z.object({
  * The specification asks for exactly two visible states: generic error and
  * disabled account. We do not disclose whether the email exists in the system —
  * that is why "user-not-found", "wrong-password" and "invalid-credential" all
- * lead to the same generic message. */
+ * lead to the same generic message.
+ *
+ * `auth/network-request-failed` is the ONE code whose likely cause flips with
+ * the environment: in production it is the user's connection; against the
+ * emulators it is almost always that `VITE_EMULATOR_HOST` does not resolve
+ * from wherever the app is being served (2026-08-31 UI/UX audit, finding #9).
+ * Pointing that user at their internet wastes their time — so the dev build
+ * says which host it tried and which variable to set. */
 function messageKeyForError(error) {
   switch (error?.code) {
     case 'auth/user-disabled':
       return 'login.errors.accountDisabled'
     case 'auth/network-request-failed':
-      return 'login.errors.network'
+      return usingEmulators
+        ? 'login.errors.emulatorUnreachable'
+        : 'login.errors.network'
     default:
       return 'login.errors.invalidCredentials'
   }
@@ -101,7 +111,7 @@ export function LoginPage() {
               role="alert"
               className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             >
-              {t(formError)}
+              {t(formError, { host: emulatorHost })}
             </p>
           )}
 
