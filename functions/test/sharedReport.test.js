@@ -117,7 +117,7 @@ beforeEach(async () => {
 })
 
 describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsMeta/resolveAttachment staying in sync)', () => {
-  function fullReport() {
+  function fullReport(overrides = {}) {
     return report({
       rent: {
         amount: 1000,
@@ -154,6 +154,7 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
           ],
         },
       ],
+      ...overrides,
     })
   }
 
@@ -182,10 +183,33 @@ describe('toPublicReport / resolveAttachment — round-trip (guards attachmentsM
     expect(JSON.stringify(pub)).not.toMatch(/https:\/\//)
   })
 
-  it('drops serviceId — only the snapshotted name is exposed', () => {
-    const pub = toPublicReport(fullReport(), 'X')
-    expect(JSON.stringify(pub)).not.toContain('electricity')
-    expect(pub.serviceCosts[0].name).toBe('Electricity')
+  it('never carries the raw serviceId field — a catalog line gets a translation key, a custom line gets neither', () => {
+    const pub = toPublicReport(
+      fullReport({
+        serviceCosts: [
+          { serviceId: 'gas', name: 'Gaz', amount: 100, attachments: [] },
+          {
+            // a custom service — its id is a stable internal UUID
+            serviceId: 'a8b85d43-8569-4c0e-9b1e-000000000000',
+            name: 'Salubritate',
+            amount: 40,
+            attachments: [],
+          },
+        ],
+      }),
+      'X',
+    )
+
+    for (const line of pub.serviceCosts) {
+      expect(line).not.toHaveProperty('serviceId')
+    }
+    // catalog → a translation key (and NOT the raw id)
+    expect(pub.serviceCosts[0].serviceLabelKey).toBe('properties.services.gas')
+    expect(pub.serviceCosts[0].name).toBe('Gaz')
+    // custom → no key at all; the UUID never leaves the server
+    expect(pub.serviceCosts[1].serviceLabelKey).toBeNull()
+    expect(pub.serviceCosts[1].name).toBe('Salubritate')
+    expect(JSON.stringify(pub)).not.toContain('a8b85d43')
   })
 
   it('resolveAttachment rejects an out-of-range or wrong-section reference', () => {
@@ -280,7 +304,7 @@ describe('getSharedReportCore — security', () => {
     collectionSpy.mockRestore()
   })
 
-  it('does not return paymentMethod/paymentDate/serviceId — trimmed allowlist', async () => {
+  it('does not return paymentMethod/paymentDate or the raw serviceId — trimmed allowlist', async () => {
     await seedReport('r8', {
       shareToken: 'tok-trim',
       paymentMethod: 'cash',
@@ -292,6 +316,12 @@ describe('getSharedReportCore — security', () => {
           amount: 10,
           attachments: [],
         },
+        {
+          serviceId: 'c0ffee00-0000-4000-8000-000000000000',
+          name: 'Salubritate',
+          amount: 5,
+          attachments: [],
+        },
       ],
     })
 
@@ -299,7 +329,15 @@ describe('getSharedReportCore — security', () => {
 
     expect(result).not.toHaveProperty('paymentMethod')
     expect(result).not.toHaveProperty('paymentDate')
-    expect(JSON.stringify(result)).not.toContain('electricity')
+    for (const line of result.serviceCosts) {
+      expect(line).not.toHaveProperty('serviceId')
+    }
+    // catalog line → translation key; custom line → no key, UUID never sent
+    expect(result.serviceCosts[0].serviceLabelKey).toBe(
+      'properties.services.electricity',
+    )
+    expect(result.serviceCosts[1].serviceLabelKey).toBeNull()
+    expect(JSON.stringify(result)).not.toContain('c0ffee00')
   })
 })
 

@@ -7,6 +7,7 @@ import { functions } from '@/lib/firebase'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { DateInWords } from '@/components/shared/DateInWords'
 import {
   Dialog,
   DialogContent,
@@ -197,12 +198,14 @@ export function StepContract({ draftId, onBeforeFinalize }) {
       <div className="flex flex-col gap-2">
         <Label htmlFor="startDate">{t('onboarding.fields.startDate')}</Label>
         <Input id="startDate" type="date" {...register('startDate')} />
+        <DateInWords value={watch('startDate')} />
         <FieldError error={errors.startDate} t={t} />
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="endDate">{t('onboarding.fields.endDate')}</Label>
         <Input id="endDate" type="date" {...register('endDate')} />
+        <DateInWords value={watch('endDate')} />
         <FieldError error={errors.endDate} t={t} />
       </div>
 

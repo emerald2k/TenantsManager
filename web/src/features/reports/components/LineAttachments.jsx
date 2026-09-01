@@ -3,6 +3,7 @@ import { useFieldArray } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { MAX_UPLOAD_SIZE_BYTES, classifyFileType } from '@/lib/fileUpload'
 import { useAttachmentUrl } from '@/lib/useAttachmentUrl'
+import { ImageWithFallback } from '@/components/shared/ImageWithFallback'
 
 /**
  * The per-cost-line attachments zone (FR-DOC-01…05, M4 sub-stage 3). Shared
@@ -40,7 +41,7 @@ function PersistedAttachment({ field, t }) {
     <>
       {url ? (
         field.type === 'image' ? (
-          <img
+          <ImageWithFallback
             src={url}
             alt={field.name}
             className="h-8 w-8 rounded border border-border object-cover"

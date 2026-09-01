@@ -198,6 +198,49 @@ describe('OnboardingWizardPage — shell', () => {
     await renderWizard({ ...STEP3_DRAFT, currentStep: 4 })
     expect(screen.queryByRole('button', { name: 'Continuă' })).toBeNull()
   })
+
+  // audit #7 — completed steps become clickable shortcuts back; a step not
+  // yet reached stays inert, so this never becomes a forward skip past
+  // validateStep.
+  it('makes each COMPLETED step a button and leaves the current + later steps inert', async () => {
+    await renderWizard({ ...STEP3_DRAFT, currentStep: 3 })
+
+    expect(
+      screen.getByRole('button', { name: '1. Date personale' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: '2. Poze act de identitate' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: '3. Date financiare' }),
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: '4. Contract' })).toBeNull()
+  })
+
+  it('no step is a button on step 1 — nothing is completed yet', async () => {
+    await renderWizard(EMPTY_DRAFT)
+
+    expect(
+      screen.queryByRole('button', { name: '1. Date personale' }),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: '2. Poze act de identitate' }),
+    ).toBeNull()
+  })
+
+  it('clicking a completed step autosaves and jumps straight back to it', async () => {
+    const user = userEvent.setup()
+    await renderWizard({ ...STEP3_DRAFT, currentStep: 3 })
+
+    await user.click(screen.getByRole('button', { name: '1. Date personale' }))
+
+    await waitFor(() =>
+      expect(updateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'draft-1', currentStep: 1 }),
+      ),
+    )
+    expect(screen.getByRole('button', { name: 'Înapoi' })).toBeDisabled()
+  })
 })
 
 describe('OnboardingWizardPage — autosave failure surfaced (Sub-stage E safety net)', () => {

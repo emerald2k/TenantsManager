@@ -25,6 +25,7 @@ import {
   reportFormDefaults,
   reportSchema,
 } from '@/features/reports/schema'
+import { DateInWords } from '@/components/shared/DateInWords'
 import { CostLineRow } from '@/features/reports/components/CostLineRow'
 import { OtherExpensesList } from '@/features/reports/components/OtherExpensesList'
 import { SignReportControl } from '@/features/reports/components/SignReportControl'
@@ -335,13 +336,16 @@ export function MonthlyReportPage() {
           </div>
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="dueDate">{t('reports.fields.dueDate')}</Label>
-            <Input
-              id="dueDate"
-              type="date"
-              className="w-40"
-              disabled={isLocked}
-              {...register('dueDate')}
-            />
+            <div className="flex flex-col items-end gap-1">
+              <Input
+                id="dueDate"
+                type="date"
+                className="w-40"
+                disabled={isLocked}
+                {...register('dueDate')}
+              />
+              <DateInWords value={watchedValues.dueDate} />
+            </div>
             {errors.dueDate && (
               <p className="text-xs text-destructive">
                 {t(errors.dueDate.message)}

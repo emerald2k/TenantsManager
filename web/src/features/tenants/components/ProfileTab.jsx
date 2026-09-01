@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { DateInWords } from '@/components/shared/DateInWords'
 import { PhotoGallery } from '@/features/tenants/components/PhotoGallery'
 import { useUpdateUser } from '@/features/tenants/hooks'
 import {
@@ -287,6 +288,7 @@ function PersonalSection({ user, userId }) {
                 type="date"
                 {...register('dateOfBirth')}
               />
+              <DateInWords value={watch('dateOfBirth')} />
               <FieldError error={errors.dateOfBirth} t={t} />
             </div>
             <div className="flex flex-col gap-2">

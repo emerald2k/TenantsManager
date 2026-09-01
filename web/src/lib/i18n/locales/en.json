@@ -6,6 +6,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "attachmentUnavailable": "Unavailable",
+    "attachmentImageError": "The image could not be loaded",
     "retry": "Retry"
   },
   "login": {
@@ -17,7 +18,8 @@
       "required": "Required field",
       "invalidCredentials": "Incorrect email or password",
       "accountDisabled": "Account disabled. Please contact the owner.",
-      "network": "Connection unavailable. Check your internet and try again."
+      "network": "Connection unavailable. Check your internet and try again.",
+      "emulatorUnreachable": "The Firebase emulator is not responding at {{host}}. Check that it is running, and if the app is served through a different hostname set VITE_EMULATOR_HOST."
     }
   },
   "nav": {
@@ -253,6 +255,8 @@
       "empty": "No renters yet.",
       "noMatches": "No renters match your search.",
       "continue": "Continue",
+      "draftNew": "New draft",
+      "draftStartedOn": "started {{date}}",
       "deleteDraft": "Delete draft",
       "deleteDraftTitle": "Delete draft",
       "deleteDraftDescription": "This onboarding draft will be deleted. This cannot be undone.",
@@ -389,7 +393,10 @@
         "exportDownload": "Download .json"
       },
       "financial": {
-        "empty": "No reports yet."
+        "empty": "No reports yet.",
+        "error": "The reports could not be loaded. Try again.",
+        "statusDraft": "Draft",
+        "statusSigned": "Signed"
       }
     }
   },

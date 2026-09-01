@@ -14,9 +14,14 @@ import { AdminPhoneShell } from '@/routes/AdminPhoneShell'
 /**
  * The admin shell. Two layouts, chosen by viewport width (NFR-UX-03):
  *
- * - **≥ 700 px** — the dark side rail below, unchanged since M8 stage 10.
- *   Below 880 px it collapses into a horizontal scroller (still the desktop
- *   shell, just narrower).
+ * - **≥ 700 px** — the dark side rail below. It is `h-svh` (exactly the
+ *   viewport) + `sticky top-0` + its OWN `overflow-y-auto`, so a long page
+ *   (the KYC wizard, the tenant page, a monthly report) scrolls under a rail
+ *   whose footer — sign-out, language, theme — stays put (2026-08-31 UI/UX
+ *   audit, finding #6). `min-h-svh` was the bug: it let the rail stretch to
+ *   the page's full height, dropping `justify-between`'s footer far below the
+ *   fold. Below 880 px it collapses into a horizontal scroller — `h-auto`,
+ *   no rail scroll — still the desktop shell, just narrower.
  * - **< 700 px** — `AdminPhoneShell`: a bottom tab bar of five, a title-bar
  *   bell + theme icon, and a "More" sheet. Built at M8 stage 15b.
  *
@@ -68,7 +73,7 @@ function AdminDesktopShell() {
       <AdminConfigBanner />
 
       <div className="flex flex-1 max-[880px]:flex-col">
-        <aside className="sticky top-0 flex min-h-svh w-64 shrink-0 flex-col justify-between bg-sidebar text-sidebar-foreground max-[880px]:static max-[880px]:min-h-0 max-[880px]:w-full">
+        <aside className="sticky top-0 flex h-svh w-64 shrink-0 flex-col justify-between overflow-y-auto bg-sidebar text-sidebar-foreground max-[880px]:static max-[880px]:h-auto max-[880px]:w-full max-[880px]:overflow-visible">
           <nav className="flex flex-col gap-1 p-3 max-[880px]:flex-row max-[880px]:gap-2 max-[880px]:overflow-x-auto">
             {NAV_ITEMS.map((item) => (
               <NavItem key={item.to} item={item} />

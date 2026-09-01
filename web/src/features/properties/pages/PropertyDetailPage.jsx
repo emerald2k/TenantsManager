@@ -7,10 +7,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PropertyForm } from '@/features/properties/components/PropertyForm'
 import { AddServiceDialog } from '@/features/properties/components/AddServiceDialog'
 import { CostHistoryTable } from '@/features/properties/components/CostHistoryTable'
-import {
-  SERVICE_CATALOG,
-  SERVICE_SOURCE,
-} from '@/features/properties/serviceCatalog'
+import { serviceLabel } from '@/features/properties/serviceCatalog'
 import {
   useActiveTenancyForProperty,
   useAddService,
@@ -30,23 +27,6 @@ import { computeDaysUntilDueDay } from '@/features/properties/dueDayCountdown'
  * `../components/PropertyForm` (shared with creation). This page only orchestrates:
  * which section is in edit mode, which dialog is open, which service is targeted.
  */
-
-const CATALOG_BY_ID = new Map(
-  SERVICE_CATALOG.map((entry) => [entry.serviceId, entry]),
-)
-
-/**
- * A catalog service is DISPLAYED through its i18n key, not through the stored
- * `name`: the stored name is a snapshot for reports (FR-PROP-08), and showing it
- * would freeze the list in whatever language it was added. A custom service has no
- * key — its name IS the content, so it shows as stored.
- */
-function serviceLabel(service, t) {
-  const entry = CATALOG_BY_ID.get(service.serviceId)
-  return service.source === SERVICE_SOURCE.CATALOG && entry
-    ? t(entry.labelKey)
-    : service.name
-}
 
 /** Firestore omits absent optional fields, and RHF needs every field defined —
  * an undefined value would flip the input from controlled to uncontrolled. */

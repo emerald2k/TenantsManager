@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '@/lib/formatCurrency'
 import { formatFullDate } from '@/lib/formatDate'
 import { FINAL_TOTAL_EPSILON } from '@/features/reports/schema'
+import { serviceLabel } from '@/features/properties/serviceCatalog'
 
 /**
  * Purely presentational, read-only summary of a signed report (M4 sub-stage
@@ -159,7 +160,7 @@ export function ReportSummaryView({
             {data.serviceCosts.map((line, index) => (
               <SummaryLineRow
                 key={index}
-                label={line.name}
+                label={serviceLabel(line, t)}
                 amount={line.amount}
                 notes={line.notes}
                 attachments={line.attachments}

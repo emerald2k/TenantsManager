@@ -15,8 +15,9 @@ import { cn } from '@/lib/utils'
 
 /**
  * The tenant detail page (M3-B/C/D, SRS §5.3, "/admin/tenants/:id"): header +
- * 4 tabs, all built — Profile (M3-B), Tenancy & contract (M3-C), Account +
- * Financial history (M3-D, the latter a pure empty state until M4).
+ * 4 tabs, all built — Profile (M3-B), Tenancy & contract (M3-C), Account
+ * (M3-D), Financial history (M3-D as a stub; wired to real data by the UI/UX
+ * audit fix 2026-08-31, finding #1).
  *
  * Reads `users/{userId}` via `useUserById` (onboarding/hooks.js) — the same
  * hook already used for the existing-tenant onboarding banner; reused here
@@ -89,7 +90,7 @@ export function TenantDetailPage() {
       <div role="tabpanel">
         {activeTab === 'profile' && <ProfileTab user={user} userId={id} />}
         {activeTab === 'tenancy' && <TenancyTab userId={id} />}
-        {activeTab === 'financial' && <FinancialTab />}
+        {activeTab === 'financial' && <FinancialTab userId={id} />}
         {activeTab === 'account' && (
           <AccountTab userId={id} status={user.status} />
         )}

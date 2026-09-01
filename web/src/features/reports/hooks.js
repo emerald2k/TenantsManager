@@ -54,6 +54,7 @@ export const reportKeys = {
   forMonth: (month, year) => [...reportKeys.lists(), 'month', month, year],
   forYear: (year) => [...reportKeys.lists(), 'year', year],
   forTenancy: (tenancyId) => [...reportKeys.lists(), 'tenancy', tenancyId],
+  forUser: (userId) => [...reportKeys.lists(), 'user', userId],
 }
 
 function reportRef(id) {
@@ -152,6 +153,41 @@ export function useSignedReportsForTenancy(tenancyId) {
         ),
       )
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    },
+  })
+}
+
+/**
+ * Every report (ANY status) for one tenant ACCOUNT — the admin-side Financial
+ * history tab (SRS §5.3: "all reports, status + link"; UI/UX audit 2026-08-31
+ * finding #1). The filter is `userId`, the denormalized account id every
+ * report carries (SRS §6, written by `useSaveReportDraft` and the seed), so a
+ * SINGLE equality query spans every tenancy that account has ever held
+ * (FR-TEN-15) — no per-tenancy fan-out, no `useQueries`.
+ *
+ * Deliberately NO `status` filter, unlike the tenant portal's
+ * `useMySignedReports`: the administrator sees drafts too, and the tab's
+ * "status" column is exactly what tells a draft from a signed report.
+ *
+ * One equality filter, no `orderBy` — same no-composite-index convention as
+ * `useReportsForYear` above. Chronological order (newest month/year first) is
+ * a JS sort after the fetch, never Firestore's `orderBy`: an `orderBy` on
+ * `paymentDate` would silently drop every unpaid report (the field is absent
+ * on those), and even `orderBy('year')` drops any pre-migration doc missing
+ * it (CLAUDE.md §7).
+ */
+export function useReportsForUser(userId) {
+  return useQuery({
+    queryKey: reportKeys.forUser(userId),
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const snap = await getDocs(
+        query(collection(db, COLLECTION), where('userId', '==', userId)),
+      )
+      const reports = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      return reports.sort((a, b) =>
+        a.year !== b.year ? b.year - a.year : b.month - a.month,
+      )
     },
   })
 }

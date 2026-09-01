@@ -169,6 +169,7 @@ const SEED_HANDOVER_DATE = '2026-07-15'
 // `deleteOnboardingDraft` clears). The multi-file case is deliberate: it is
 // what a cleanup that only removes the first match would fail.
 const SEED_DRAFT_ID = 'seed-draft-in-progress'
+const SEED_DRAFT_EMPTY_ID = 'seed-draft-empty'
 
 /**
  * The demo properties, in the EXACT shape a real document has — the fields written
@@ -1133,21 +1134,21 @@ async function reseedOnboardingDraft(bucket) {
   const tenantFront = await uploadSeedAttachment(
     bucket,
     `${prefix}tenant-ci-front.jpg`,
-    'seed draft ID photo (tenant, front) — synthetic bytes, not a real JPEG',
+    jpegSwatch('tenantId'),
     'image/jpeg',
     'seed-draft-tenant-front-token',
   )
   const tenantBack = await uploadSeedAttachment(
     bucket,
     `${prefix}tenant-ci-back.jpg`,
-    'seed draft ID photo (tenant, back) — synthetic bytes, not a real JPEG',
+    jpegSwatch('tenantId'),
     'image/jpeg',
     'seed-draft-tenant-back-token',
   )
   const guarantorPhoto = await uploadSeedAttachment(
     bucket,
     `${prefix}guarantor-ci.jpg`,
-    'seed draft ID photo (guarantor) — synthetic bytes, not a real JPEG',
+    jpegSwatch('guarantorId'),
     'image/jpeg',
     'seed-draft-guarantor-token',
   )
@@ -1192,9 +1193,28 @@ async function reseedOnboardingDraft(bucket) {
   }
   await draftRef.set(draft)
 
+  // A SECOND draft, brand new and unnamed — the exact "+ New renter" state
+  // (`useCreateDraft` writes only status/currentStep/timestamps). With this
+  // one and the named draft above both in the list, the "Draft nou · început
+  // la {date}" label (2026-08-31 UI/UX audit, finding #5) has something to
+  // disambiguate; a stale-shaped seed would never exercise it.
+  const emptyDraftRef = db
+    .collection('onboardingDrafts')
+    .doc(SEED_DRAFT_EMPTY_ID)
+  await emptyDraftRef.delete()
+  await emptyDraftRef.set({
+    status: 'in_progress',
+    currentStep: 1,
+    createdAt: new Date('2026-08-29T15:20:00Z'),
+    updatedAt: new Date('2026-08-29T15:20:00Z'),
+  })
+
   console.log(
     `  - draft ${SEED_DRAFT_ID}: "${draft.name}" at step ${draft.currentStep}, ` +
       `3 Storage objects under ${prefix} (2 tenant + 1 guarantor)`,
+  )
+  console.log(
+    `  - draft ${SEED_DRAFT_EMPTY_ID}: unnamed, step 1 — the "+ New renter" state`,
   )
 }
 
@@ -1207,13 +1227,48 @@ async function clearSeedAttachments(bucket, prefix) {
   await Promise.all(files.map((file) => file.delete().catch(() => {})))
 }
 
+/**
+ * Tiny REAL baseline JPEGs — one solid-colour 16×16 swatch per photo kind,
+ * as a constant base64 string (~620 bytes each). This replaces the previous
+ * `Buffer.from('… synthetic bytes, not a real JPEG')`, which uploaded plain
+ * TEXT under `contentType: image/jpeg`: `getDownloadURL` resolved, the
+ * Storage rule allowed the read, the request returned 200 — and every
+ * `<img>` still failed to DECODE, so the demo showed the browser's
+ * broken-image icon everywhere (2026-08-31 UI/UX audit #2; `CLAUDE.md` §7 —
+ * "when the seed produces something a human must see, the check is that it
+ * OPENS, not that the file exists").
+ *
+ * Distinct colours so the three kinds are told apart on screen: tenant ID
+ * blue, guarantor ID green, invoice amber. Generated once by a throwaway
+ * pure-JS baseline encoder (no `sharp`/`jimp` — §8, no new dependency); the
+ * bytes are frozen here. Validity is proven by the browser check in the
+ * commit that introduced them (the ID photos and wizard step 2 render), not
+ * by a unit test — jsdom has no image decoder either.
+ */
+const JPEG_SWATCHES = {
+  tenantId:
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABALKDM8Nx0zChg9Og4WVzcQDBoNEVAjQAwTEA4+GFF5Dhg4Ek1oZ3goRRZncVdlcDklbVxOSGJkOEQxQFxfZ2MBERJjY2NjY2MYY2NjGGNjYy8SYxpCY2NjFUI4L2NjY2MaY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY//AABEIABAAEAMBEQACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/AMqvbPPCgAoAKAP/2Q==',
+  guarantorId:
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABALKDM8Nx0zChg9Og4WVzcQDBoNEVAjQAwTEA4+GFF5Dhg4Ek1oZ3goRRZncVdlcDklbVxOSGJkOEQxQFxfZ2MBERJjY2NjY2MYY2NjGGNjYy8SYxpCY2NjFUI4L2NjY2MaY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY//AABEIABAAEAMBEQACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/AKtcp5AUAFABQB//2Q==',
+  invoice:
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABALKDM8Nx0zChg9Og4WVzcQDBoNEVAjQAwTEA4+GFF5Dhg4Ek1oZ3goRRZncVdlcDklbVxOSGJkOEQxQFxfZ2MBERJjY2NjY2MYY2NjGGNjYy8SYxpCY2NjFUI4L2NjY2MaY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY//AABEIABAAEAMBEQACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/AL1eAekFABQAUAf/2Q==',
+}
+
+/** The decoded bytes for one swatch kind — a `Buffer`, ready to hand to
+ * `uploadSeedAttachment` in place of the old text string. */
+function jpegSwatch(kind) {
+  return Buffer.from(JPEG_SWATCHES[kind], 'base64')
+}
+
 /** Uploads one synthetic attachment and returns the persisted reference
  * shape a real client upload produces (fileUpload.js's `uploadAttachment`:
  * `{ path, name, type }`, debt #5 — a bucket-relative Storage path, NEVER a
  * download URL). `filePath` IS the path — no construction needed, same as
- * `objectRef.fullPath` on a real client-side `ref(storage, path)`. No real
- * file content — a synthetic Buffer with the right `contentType` is enough
- * to exercise the real Storage read path end to end.
+ * `objectRef.fullPath` on a real client-side `ref(storage, path)`. `content`
+ * is whatever the caller passes: a real `jpegSwatch(...)` Buffer for
+ * anything an `<img>` must decode (see `JPEG_SWATCHES`), or a short text
+ * string for a PDF/DOC where "resolves + 200" is all the read path needs to
+ * prove and nothing renders the bytes inline.
  *
  * The download token is still written (`firebaseStorageDownloadTokens`) even
  * though nothing here embeds it into a URL anymore — an authenticated
@@ -1274,17 +1329,18 @@ async function uploadSeedContract(bucket, tenancyId, downloadToken) {
  * finalized tenant's photo lives at (`users/{userId}/documents/{filename}`,
  * `copyPhotosToUser`'s own destination shape), and returns the
  * `idDocumentPhotos[]` entry shape `finalizeKyc` persists (`{path, name,
- * type}`, debt #5). Same synthetic-bytes discipline as `uploadSeedContract`
- * — this is what closes the investigation's finding: these photos used to be
- * hand-written `gs://demo/...` literals, never actually uploaded, rendering
- * as broken images in the Profile tab's lightbox. */
+ * type}`, debt #5). Uploads a REAL JPEG (`jpegSwatch`) — this photo has to
+ * render, not merely resolve: history here is `gs://demo/...` literals that
+ * 404'd, then "synthetic" text bytes that returned 200 but would not decode
+ * (2026-08-31 audit #2). The blue swatch is what a human actually sees in
+ * the Profile-tab lightbox. */
 async function uploadSeedIdPhoto(bucket, userId, downloadToken) {
   const prefix = `users/${userId}/documents/`
   await clearSeedAttachments(bucket, prefix)
   const filePath = await uploadSeedAttachment(
     bucket,
     `${prefix}ci-front.jpg`,
-    'seed ID photo — synthetic bytes, not a real JPEG',
+    jpegSwatch('tenantId'),
     'image/jpeg',
     downloadToken,
   )
@@ -1302,7 +1358,7 @@ async function uploadSeedGuarantorPhoto(bucket, userId, downloadToken) {
   const filePath = await uploadSeedAttachment(
     bucket,
     `${prefix}guarantor-ci.jpg`,
-    'seed guarantor ID photo — synthetic bytes, not a real JPEG',
+    jpegSwatch('guarantorId'),
     'image/jpeg',
     downloadToken,
   )
@@ -1398,7 +1454,7 @@ async function reseedOccupiedScenario(ownerId, bucket) {
   const electricityPath = await uploadSeedAttachment(
     bucket,
     `${invoicesPrefix}electricity-invoice.jpg`,
-    'seed electricity invoice — synthetic bytes, not a real JPEG',
+    jpegSwatch('invoice'),
     'image/jpeg',
     'seed-electricity-token',
   )
